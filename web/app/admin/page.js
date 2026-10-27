@@ -8,12 +8,13 @@ const nextStep = (done) => (STEPS.find(([k]) => !done.includes(k)) || [null, "�
 export default function Admin() {
   const [data, setData] = useState(null);
   const [err, setErr] = useState("");
+  const [openId, setOpenId] = useState(null);
 
   const load = () => fetch("/api/admin").then((r) => r.json()).then((j) => (j.error ? setErr(j.error) : setData(j))).catch(() => setErr("โหลดไม่สำเร็จ"));
   useEffect(() => { load(); }, []);
 
   async function set(id, status, extra) {
-    document.querySelectorAll(".act[open]").forEach((d) => (d.open = false));
+    setOpenId(null);
     const r = await fetch("/api/admin", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(status ? { id, status } : { id, ...extra }) }).then((x) => x.json());
     if (r.error) setErr(r.error); else load();
   }
@@ -56,22 +57,19 @@ export default function Admin() {
                   <small>{m.plan === "pro" ? (m.proUntil ? `ถึง ${short(m.proUntil)}` : "ไม่หมดอายุ") : "–"}{m.earlyAccess && m.plan === "pro" ? " · EA" : ""}</small>
                 </div>
               )}
-              {!m.admin ? (
-                <details className="act">
-                  <summary className="btn">จัดการ</summary>
-                  <div className="act-menu">
-                    {m.status === "active" && <>
-                      <button onClick={() => set(m.id, null, { plan: "pro", days: 30 })}>Pro +30 วัน</button>
-                      <button onClick={() => set(m.id, null, { plan: "pro", days: 365 })}>Pro +1 ปี</button>
-                      {m.plan === "pro" && <button onClick={() => set(m.id, null, { plan: "free" })}>เปลี่ยนเป็น Free</button>}
-                      <hr />
-                      <button onClick={() => set(m.id, "waitlist")}>ย้ายไปคิว</button>
-                    </>}
-                    {m.status !== "active" && <button onClick={() => set(m.id, "active")}>เปิดสิทธิ์ (ได้ Pro 30 วัน)</button>}
-                    {m.status !== "revoked" && <button className="danger" onClick={() => set(m.id, "revoked")}>ระงับ</button>}
-                  </div>
-                </details>
-              ) : <span />}
+              {!m.admin ? <button className={"btn act-btn" + (openId === m.id ? " on" : "")} aria-expanded={openId === m.id} onClick={() => setOpenId(openId === m.id ? null : m.id)}>จัดการ</button> : <span />}
+              {openId === m.id && (
+                <div className="act-row">
+                  {m.status === "active" && <>
+                    <button className="btn primary" onClick={() => set(m.id, null, { plan: "pro", days: 30 })}>Pro +30 วัน</button>
+                    <button className="btn" onClick={() => set(m.id, null, { plan: "pro", days: 365 })}>Pro +1 ปี</button>
+                    {m.plan === "pro" && <button className="btn" onClick={() => set(m.id, null, { plan: "free" })}>เปลี่ยนเป็น Free</button>}
+                    <button className="btn" onClick={() => set(m.id, "waitlist")}>ย้ายไปคิว</button>
+                  </>}
+                  {m.status !== "active" && <button className="btn primary" onClick={() => set(m.id, "active")}>เปิดสิทธิ์ (ได้ Pro 30 วัน)</button>}
+                  {m.status !== "revoked" && <button className="btn danger" onClick={() => set(m.id, "revoked")}>ระงับ</button>}
+                </div>
+              )}
             </div>
           ))}
         </div>
