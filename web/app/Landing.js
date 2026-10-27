@@ -1,7 +1,19 @@
 "use client";
 // Public landing page for people who are not signed in (also previewable at /landing).
+// Demo products are real: the owner's latest ranked Shopee data from /api/showcase.
+import { useEffect, useState } from "react";
 
 const LOGIN = "/api/auth/line";
+const img = (id, size = "") => (id ? `https://down-th.img.susercontent.com/file/${id}${size}` : "");
+const baht = (n) => "฿" + Math.round(+n || 0).toLocaleString("en-US");
+const sold = (n) => (n >= 1000 ? `${Math.floor(n / 1000)}k+` : String(n));
+const ago = (t) => { const h = (Date.now() - t) / 3600e3; return h < 1 ? "ไม่ถึงชั่วโมงก่อน" : h < 24 ? `${Math.floor(h)} ชม.ก่อน` : `${Math.floor(h / 24)} วันก่อน`; };
+
+function useShowcase() {
+  const [d, setD] = useState(null);
+  useEffect(() => { fetch("/api/showcase").then((r) => r.json()).then(setD).catch(() => setD({ categories: [] })); }, []);
+  return d?.categories || null;
+}
 
 function Glyph({ kind }) {
   const p = { fill: "none", stroke: "currentColor", strokeWidth: 3, strokeLinecap: "round", strokeLinejoin: "round" };
@@ -10,10 +22,10 @@ function Glyph({ kind }) {
   return <svg viewBox="0 0 48 48" {...p}><rect x="17" y="18" width="14" height="22" rx="3" /><path d="M20 18v-6l8-4v10" /></svg>;
 }
 
-function Card({ n, score, name, price, glyph, tone }) {
+function Card({ n, score, name, price, glyph, tone, image }) {
   return (
     <div className="lp-card" style={{ "--tone": tone }}>
-      <div className="lp-card-img"><Glyph kind={glyph} /></div>
+      <div className="lp-card-img">{image ? <img src={img(image, "_tn")} alt="" referrerPolicy="no-referrer" /> : <Glyph kind={glyph} />}</div>
       <div className="lp-card-body">
         <div className="lp-card-top"><b>#{n}</b><span>คะแนน {score}/100</span></div>
         <p className="lp-card-name">{name}</p>
@@ -25,21 +37,88 @@ function Card({ n, score, name, price, glyph, tone }) {
   );
 }
 
-function Phone() {
+function Phone({ cats }) {
+  const c = cats?.find((x) => x.category === "ห้องครัว") || cats?.[0];
+  const items = c?.items?.slice(0, 3);
+  const hook = items?.find((p) => p.hook)?.hook;
   return (
     <div className="lp-phone" aria-label="ตัวอย่างการใช้ปั๊กปักในแชท LINE">
       <div className="lp-phone-bar"><img src="/logo.svg" alt="" width="26" height="26" /><b>ปั๊กปัก</b></div>
       <div className="lp-chat">
-        <p className="lp-me">ท็อป ห้องครัว</p>
-        <p className="lp-bot">ท็อป 5 หมวด “ห้องครัว” · ข้อมูลเมื่อ 2 ชม.ก่อน</p>
+        <p className="lp-me">ท็อป {c?.category || "ห้องครัว"}</p>
+        <p className="lp-bot">ท็อป 5 หมวด “{c?.category || "ห้องครัว"}” · ข้อมูล {c ? ago(c.updatedAt) : "2 ชม.ก่อน"}</p>
         <div className="lp-carousel">
+          {items ? items.map((p, i) => <Card key={p.id} n={i + 1} score={p.total} image={p.image} name={p.name} price={`${baht(p.price)} · คอม ${Math.round(p.commission)}% · ได้ ~${baht(p.perOrder)}/ออเดอร์`} />) : <>
           <Card n={1} score={82} glyph="pan" tone="#FFE1CC" name="แผ่นรองหม้อทอดไร้น้ำมัน ซิลิโคน" price="฿99 · คอม 10% · ได้ ~฿10/ออเดอร์" />
           <Card n={2} score={77} glyph="spray" tone="#FFD9E2" name="สเปรย์ขจัดคราบมันเตาแก๊ส" price="฿159 · คอม 9% · ได้ ~฿14/ออเดอร์" />
           <Card n={3} score={71} glyph="cat" tone="#DDEBFF" name="กล่องเก็บอาหารสุญญากาศ" price="฿189 · คอม 12% · ได้ ~฿23/ออเดอร์" />
+          </>}
         </div>
-        <p className="lp-bot lp-hook"><b>Hook 3 วิแรก</b><br />“หม้อทอดเลอะทุกครั้งที่ใช้? แผ่นเดียวจบ ล้างแค่ 5 วิ”</p>
+        <p className="lp-bot lp-hook"><b>Hook 3 วิแรก</b><br />“{hook || "หม้อทอดเลอะทุกครั้งที่ใช้? แผ่นเดียวจบ ล้างแค่ 5 วิ"}”</p>
       </div>
     </div>
+  );
+}
+
+function Marquee({ cats }) {
+  const items = (cats || []).flatMap((c) => c.items.slice(0, 4).map((p) => ({ ...p, category: c.category })));
+  if (items.length < 6) return null;
+  const row = [...items, ...items];
+  return (
+    <div className="lp-marquee" aria-hidden="true">
+      <div className="lp-marquee-track">
+        {row.map((p, i) => (
+          <div key={i} className="lp-chip">
+            <img src={img(p.image, "_tn")} alt="" referrerPolicy="no-referrer" loading="lazy" />
+            <span><b>{p.total}</b> คะแนน</span>
+            <em>{p.category}</em>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Demo({ cats }) {
+  const [cat, setCat] = useState(null);
+  if (!cats?.length) return null;
+  const c = cats.find((x) => x.category === cat) || cats[0];
+  return (
+    <section className="lp-demo">
+      <div className="lp-demo-head">
+        <h2>ของจริงจาก Shopee วันนี้</h2>
+        <p>อันดับด้านล่างมาจากบัญชีของทีมปั๊กปักเอง สแกนผ่าน Connector · หมวด “{c.category}” {c.count} ตัว อัปเดต {ago(c.updatedAt)}</p>
+      </div>
+      <div className="lp-tabs" role="tablist">
+        {cats.map((x) => <button key={x.category} role="tab" aria-selected={x.category === c.category} onClick={() => setCat(x.category)}>{x.category}</button>)}
+      </div>
+      <ol className="lp-rank">
+        {c.items.slice(0, 3).map((p, i) => (
+          <li key={p.id} className="lp-item">
+            <a className="lp-item-img" href={p.link || undefined} target="_blank" rel="noopener sponsored">
+              <img src={img(p.image)} alt={p.name} referrerPolicy="no-referrer" loading="lazy" />
+              <b>{i + 1}</b>
+            </a>
+            <div className="lp-item-body">
+              <p className="lp-item-name">{p.name}</p>
+              <div className="lp-item-facts">
+                <span><b>{baht(p.price)}</b>ราคา</span>
+                <span><b>{Math.round(p.commission)}%</b>ค่าคอม</span>
+                <span><b>{baht(p.perOrder)}</b>ต่อออเดอร์</span>
+                <span><b>{sold(p.sold)}</b>ขายแล้ว</span>
+              </div>
+              <div className="lp-item-score">
+                <div className="lp-split"><i className="d" style={{ width: `${p.data}%` }} />{p.ai !== null && <i className="a" style={{ width: `${p.ai}%` }} />}</div>
+                <span><b>{p.total}</b>/100</span>
+              </div>
+              {p.hook ? (
+                <div className="lp-item-hook"><small>AI แนะนำ hook 3 วิแรก</small><p>“{p.hook}”</p>{p.angles?.length > 0 && <ul>{p.angles.slice(0, 2).map((a) => <li key={a}>{a}</li>)}</ul>}</div>
+              ) : <p className="lp-item-nohook">ยังไม่ได้ให้ AI ดูตัวนี้ สมาชิกกด “ให้ AI ดู” เพื่อรับ hook และมุมเล่าคลิป</p>}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }
 
@@ -61,6 +140,7 @@ function Cta({ me, onLogin, big }) {
 }
 
 export default function Landing({ me, onLogin }) {
+  const cats = useShowcase();
   return (
     <div className="lp">
       <header className="lp-nav">
@@ -74,12 +154,15 @@ export default function Landing({ me, onLogin }) {
           <p className="lp-lead">ปั๊กปักดึงสินค้าจาก Shopee Affiliate ของคุณ จัดอันดับจากยอดขาย ค่าคอม และรีวิว แล้วให้ AI บอกว่าตัวไหนทำคลิปง่าย พร้อม hook 3 วินาทีแรก ใช้ต่อในแชท LINE ได้เลย</p>
           <Cta me={me} onLogin={onLogin} />
         </div>
-        <Phone />
+        <Phone cats={cats} />
       </section>
 
       <section className="lp-pain">
         <p>ถ่ายมา 10 คลิป ขายได้คลิปเดียว<br /><span>ปัญหามักไม่ใช่ฝีมือถ่าย แต่เป็นตะกร้าที่เลือกตั้งแต่แรก</span></p>
       </section>
+      <Marquee cats={cats} />
+
+      <Demo cats={cats} />
 
       <section className="lp-steps">
         <h2>ใช้ยังไง</h2>
