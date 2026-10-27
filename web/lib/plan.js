@@ -12,9 +12,10 @@ export const limits = (m) => PLANS[planOf(m)];
 
 // Give Pro for `days` (stacking on time left), or forever with days = null.
 export function grantPro(m, days, { early = false } = {}) {
+  if (early) m.earlyAccess = true;
+  if (m.plan === "pro" && m.proUntil === null && days != null) return m; // already Pro forever: nothing to extend
   m.plan = "pro";
   m.proUntil = days == null ? null : Math.max(Date.now(), isPro(m) && m.proUntil ? m.proUntil : 0) + days * 864e5;
-  if (early) m.earlyAccess = true;
   return m;
 }
 
