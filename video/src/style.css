@@ -1,0 +1,13 @@
+@import "../../web/app/globals.css";
+@import "@fontsource/anuphan/500.css";
+@import "@fontsource/anuphan/700.css";
+@import "@fontsource/ibm-plex-sans-thai/400.css";
+@import "@fontsource/ibm-plex-sans-thai/500.css";
+@import "@fontsource/ibm-plex-sans-thai/600.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "@fontsource/kanit/600.css";
+@import "@fontsource/kanit/700.css";
+/* video is always shot in light theme */
+:root{--bg:#f5f6f4;--surface:#fff;--ink:#1d2221;--muted:#626b69;--line:#dfe3e1;--accent:#d9480f;--accent-soft:#fdebe3;--good:#2b8a3e;--good-soft:#e3f4e7;--warn:#b7791f;--warn-soft:#fbf1dd;--bad:#c92a2a;--bar:#e9ecea;color-scheme:light}
+.display-anuphan{font-family:Anuphan}
