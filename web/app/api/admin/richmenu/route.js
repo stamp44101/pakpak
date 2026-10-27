@@ -10,7 +10,7 @@ const APP = process.env.APP_URL || "https://pakpak-two.vercel.app";
 const W = 2500, H = 1686, PAD = 36, GAP = 36;
 const cw = (W - 2 * PAD - 2 * GAP) / 3, ch = (H - 2 * PAD - GAP) / 2;
 const msg = (text) => ({ type: "message", label: text.slice(0, 20), text });
-const ACTIONS = [msg("ท็อป"), msg("หมวด"), msg("ลิงก์"), { type: "uri", label: "เปิดปั๊กปัก", uri: LIFF_URL }, msg("วิธีใช้"), msg("ติดต่อแอดมิน")];
+const ACTIONS = [msg("ท็อป"), msg("อัปเกรด Pro"), msg("ลิงก์"), { type: "uri", label: "เปิดปั๊กปัก", uri: LIFF_URL }, msg("วิธีใช้"), msg("ติดต่อแอดมิน")];
 
 export async function POST(req) {
   const { member, error } = await requireMember(req);
@@ -23,7 +23,7 @@ export async function POST(req) {
     const x = Math.round(c * (W / 3)), y = Math.round(r * (H / 2));
     return { bounds: { x, y, width: Math.round(W / 3), height: Math.round(H / 2) }, action };
   });
-  const menu = { size: { width: W, height: H }, selected: true, name: "pakpak-main-v2", chatBarText: "เมนูปั๊กปัก", areas };
+  const menu = { size: { width: W, height: H }, selected: true, name: "pakpak-main-v3", chatBarText: "เมนูปั๊กปัก", areas };
 
   const old = await botFetch("richmenu/list").then((r) => r.json()).catch(() => ({ richmenus: [] }));
   const created = await botFetch("richmenu", { method: "POST", body: JSON.stringify(menu) }).then((r) => r.json());

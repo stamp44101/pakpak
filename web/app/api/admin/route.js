@@ -1,6 +1,7 @@
 // Admin: list members, activate / move to waitlist / revoke.
 import { requireMember, isAdmin, roster, saveRoster, getMember, saveMember, seats } from "../../../lib/auth";
-import { planInfo, grantPro, TRIAL_DAYS } from "../../../lib/plan";
+import { planInfo, grantPro, TRIAL_DAYS, PRICE } from "../../../lib/plan";
+import { push } from "../../../lib/line";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,7 +19,7 @@ export async function GET(req) {
   const r = await roster();
   const ids = [...r.active, ...r.waitlist, ...(r.revoked || [])];
   const members = (await Promise.all(ids.map(getMember))).filter(Boolean).map((m) => ({
-    id: m.id, name: m.name, picture: m.picture, status: m.status, joinedAt: m.joinedAt, admin: r.admins.includes(m.id), aiToday: m.ai?.count || 0, aiDay: m.ai?.day || "", onboarding: m.onboarding?.done || [], ...planInfo(m),
+    id: m.id, name: m.name, picture: m.picture, status: m.status, joinedAt: m.joinedAt, admin: r.admins.includes(m.id), aiToday: m.ai?.count || 0, aiDay: m.ai?.day || "", onboarding: m.onboarding?.done || [], ...planInfo(m), pendingOrder: m.pendingOrder || null,
   }));
   return Response.json({ members, seats: seats(), active: r.active.length });
 }
@@ -26,9 +27,30 @@ export async function GET(req) {
 export async function POST(req) {
   const g = await guard(req);
   if (g.error) return g.error;
-  const { id, status, plan, days } = (await req.json().catch(() => ({}))) || {};
+  const { id, status, plan, days, approve, reject } = (await req.json().catch(() => ({}))) || {};
   const m = await getMember(String(id || ""));
   if (!m) return Response.json({ error: "ไม่พบสมาชิก" }, { status: 404 });
+  const thDate = (t) => new Date(t).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
+  if (approve || reject) {
+    const order = m.pendingOrder;
+    if (!order) return Response.json({ error: "ไม่มีคำสั่งซื้อที่รอตรวจ" }, { status: 400 });
+    m.pendingOrder = null;
+    if (approve) {
+      grantPro(m, order.plan === "year" ? 365 : 30);
+      m.payments = [...(m.payments || []), { plan: order.plan, amount: order.plan === "year" ? PRICE.year : PRICE.month, at: Date.now() }];
+      if (m.status !== "active") {
+        const r = await roster();
+        for (const k of ["active", "waitlist", "revoked"]) r[k] = (r[k] || []).filter((x) => x !== m.id);
+        r.active.push(m.id); m.status = "active";
+        await saveRoster(r);
+      }
+    }
+    await saveMember(m);
+    await push(m.id, { type: "text", text: approve
+      ? `เปิดสิทธิ์ Pro ให้แล้ว 🎉 ใช้ได้ถึง ${thDate(m.proUntil)}\nกด "ท็อป 5 วันนี้" ที่เมนูด้านล่างเพื่อเริ่มได้เลย`
+      : "สลิปยังตรวจสอบไม่ผ่าน รบกวนส่งสลิปใหม่ หรือพิมพ์รายละเอียดในแชทนี้ แอดมินจะช่วยดูให้ครับ" }).catch(() => {});
+    return Response.json({ ok: true });
+  }
   if (plan) {
     if (plan === "pro") grantPro(m, days === null ? null : Number(days) || 30);
     else if (plan === "free") { m.plan = "free"; m.proUntil = null; }

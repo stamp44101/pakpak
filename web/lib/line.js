@@ -44,4 +44,5 @@ export async function botFetch(path, { data, headers, ...opt } = {}) {
 }
 
 export const reply = (replyToken, messages) => call("message/reply", { replyToken, messages: [].concat(messages).slice(0, 5) });
+export const push = (to, messages) => call("message/push", { to, messages: [].concat(messages).slice(0, 5) });
 export const loading = (chatId, seconds = 20) => call("chat/loading/start", { chatId, loadingSeconds: seconds });

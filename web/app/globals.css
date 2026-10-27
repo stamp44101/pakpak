@@ -325,3 +325,6 @@ td input{width:84px;padding:5px 7px}
 .line-sep{width:1px;align-self:stretch;background:rgba(0,0,0,.12);margin:0 2px}
 .lp-plan-btn.pro{display:flex;align-items:center;justify-content:center;gap:10px}
 .lp-nav-login{display:inline-flex;align-items:center;gap:8px}
+.tag.order{background:var(--warn-soft);color:var(--warn)} .tag.order.slip{background:var(--good-soft);color:var(--good)}
+.order-row{align-items:center}
+.stat-alert{color:var(--good)} .stat-alert b{color:var(--good)}

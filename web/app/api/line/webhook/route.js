@@ -1,6 +1,6 @@
 // LINE bot webhook: members use ปั๊กปัก from the chat (top products, links, AI ideas).
 // The LINE userId equals the member id because Login and Messaging API share the ปั๊กปัก provider.
-import { verifySignature, reply, loading, LIFF_URL } from "../../../../lib/line";
+import { verifySignature, reply, push, loading, LIFF_URL } from "../../../../lib/line";
 import { getMember, saveMember, roster, seats, isAdmin } from "../../../../lib/auth";
 import { readJSON, writeJSON } from "../../../../lib/store";
 import { rank, effPrice } from "../../../../lib/score";
@@ -36,6 +36,24 @@ async function handle(e) {
   const uid = e.source.userId;
   const m = await getMember(uid);
 
+  // ---- buying Pro: choose plan → send slip → admin approves in /admin ----
+  if (m && m.status !== "revoked") {
+    if (e.type === "postback" && e.postback.data.startsWith("a=buy")) {
+      const plan = new URLSearchParams(e.postback.data).get("p") === "year" ? "year" : "month";
+      m.pendingOrder = { plan, at: Date.now() };
+      await saveMember(m);
+      return reply(e.replyToken, payInfo(plan));
+    }
+    if (e.type === "message" && e.message.type === "image" && m.pendingOrder && !m.pendingOrder.slipAt) {
+      m.pendingOrder.slipAt = Date.now();
+      await saveMember(m);
+      notifyAdmins(m).catch(() => {});
+      return reply(e.replyToken, text(`ได้รับสลิปแล้ว ขอบคุณครับ 🙏
+แอดมินกำลังตรวจสอบ เปิดสิทธิ์ Pro ${m.pendingOrder.plan === "year" ? "1 ปี" : "1 เดือน"} แล้วจะแจ้งในแชทนี้ทันที`));
+    }
+    if (e.type === "message" && e.message.type === "text" && /^(อัปเกรด|อัพเกรด|ซื้อ|สมัคร pro|ต่ออายุ|pro$|แพ็ก|ราคา)/i.test(e.message.text.trim())) return reply(e.replyToken, buyCard(m));
+  }
+
   if (!m || m.status !== "active") return reply(e.replyToken, await gate(m, e.type === "follow"));
   if (e.type === "follow") return reply(e.replyToken, text(`ยินดีต้อนรับกลับ คุณ${m.name} 🐶\nพิมพ์ "ท็อป" เพื่อดูตะกร้าที่น่าทำคลิปที่สุด หรือกดปุ่มด้านล่าง`, HELP_QR()));
 
@@ -68,8 +86,7 @@ async function handle(e) {
   const t = e.message.text.trim();
 
   if (/^(วิธีใช้|ช่วยเหลือ|help)/i.test(t)) return reply(e.replyToken, howto());
-  if (/^(อัปเกรด|อัพเกรด|pro|แพ็ก|ราคา)/i.test(t)) return reply(e.replyToken, upgrade(m, pro));
-  if (!pro && /^(ลิงก์|ลิ้ง|link)/i.test(t)) return reply(e.replyToken, upgrade(m, pro, "ลิงก์ affiliate อัตโนมัติเป็นฟีเจอร์ Pro"));
+  if (!pro && /^(ลิงก์|ลิ้ง|link)/i.test(t)) return reply(e.replyToken, buyCard(m, "ลิงก์ affiliate อัตโนมัติเป็นฟีเจอร์ Pro"));
   if (/^(ติดต่อแอดมิน|แอดมิน)/.test(t)) return reply(e.replyToken, text("รับเรื่องแล้วครับ พิมพ์รายละเอียดทิ้งไว้ได้เลย แอดมินจะตอบกลับในแชทนี้ 🙏"));
   if (!all.length) return reply(e.replyToken, { type: "flex", altText: "ยังไม่มีข้อมูลตะกร้า", contents: card("ยังไม่มีข้อมูลตะกร้า", "สแกนหมวดแรกบนคอมที่ติดตั้ง Connector ก่อน แล้วกลับมาพิมพ์ \"ท็อป\" ในแชทนี้ได้เลย", [openApp("ไปสแกนหมวดแรก")]) });
 
@@ -101,7 +118,7 @@ async function gate(m, isFollow) {
   if (m?.status === "waitlist") {
     const r = await roster();
     const pos = r.waitlist.indexOf(m.id) + 1;
-    return { type: "flex", altText: "อยู่ในคิว Early Access", contents: card("คุณอยู่ในคิว Early Access", `ลำดับที่ ${pos || "-"} · เมื่อมีที่ว่าง ปั๊กปักจะเปิดสิทธิ์ให้ แล้วใช้งานในแชทนี้ได้ทันที`, [openApp("ดูสถานะ")]) };
+    return { type: "flex", altText: "อยู่ในคิว Early Access", contents: card("คุณอยู่ในคิว Early Access", `ลำดับที่ ${pos || "-"} · เมื่อมีที่ว่าง ปั๊กปักจะเปิดสิทธิ์ให้ หรือสมัคร Pro เพื่อใช้ได้ทันทีไม่ต้องรอคิว`, [{ type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "message", label: "สมัคร Pro ใช้ได้ทันที", text: "อัปเกรด Pro" } }, openApp("ดูสถานะ")]) };
   }
   if (m?.status === "revoked") return text("บัญชีนี้ถูกระงับการใช้งาน หากคิดว่าผิดพลาด พิมพ์ \"ติดต่อแอดมิน\" ได้เลยครับ");
   const r = await roster();
@@ -169,9 +186,45 @@ function bubble(p, n) {
   };
 }
 
-function upgrade(m, pro, why) {
-  if (pro) return text(`คุณใช้แพ็ก Pro อยู่แล้ว${m.proUntil ? ` ถึง ${new Date(m.proUntil).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}` : ""} 🎉\nต่ออายุหรือสอบถาม พิมพ์ "ติดต่อแอดมิน" ได้เลย`, HELP_QR());
-  return { type: "flex", altText: "อัปเกรดเป็น Pro", contents: card(why || "อัปเกรดเป็น Pro", `• สแกนหมวดและคำค้นเองไม่จำกัด\n• ลิงก์ affiliate Top 20 อัตโนมัติ ก๊อปในแชทได้ทันที\n• AI ไอเดียคลิปวันละ 30 ตัว (Free 3)\n\n฿${PRICE.month}/เดือน หรือ ฿${PRICE.year.toLocaleString("en-US")}/ปี\nพิมพ์ "ติดต่อแอดมิน" แล้วแอดมินจะส่งช่องทางชำระเงินให้`, [openApp("ดูในปั๊กปัก")]) };
+const thDate = (t) => new Date(t).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
+
+// Plan picker. Shown from the rich menu ("อัปเกรด Pro"), typed keywords, or Free-only features.
+function buyCard(m, why) {
+  const isProNow = isPro(m);
+  const head = why || (isProNow ? "ต่ออายุ Pro" : "อัปเกรดเป็น Pro");
+  const sub = isProNow
+    ? (m.proUntil ? `Pro ของคุณใช้ได้ถึง ${thDate(m.proUntil)} ต่ออายุแล้ววันจะบวกต่อจากเดิม` : "บัญชีนี้เป็น Pro ไม่หมดอายุ")
+    : "• สแกนหมวดและคำค้นเองไม่จำกัด\n• ลิงก์ affiliate Top 20 อัตโนมัติ ก๊อปในแชทได้ทันที\n• AI ไอเดียคลิปวันละ 30 ตัว (Free 3)";
+  const opt = (label, price, note, p, primary) => ({
+    type: "box", layout: "horizontal", paddingAll: "12px", cornerRadius: "10px", backgroundColor: primary ? "#FFF1E7" : "#F7F7F7",
+    action: { type: "postback", label, data: `a=buy&p=${p}`, displayText: `สมัคร Pro ${label}` },
+    contents: [
+      { type: "box", layout: "vertical", flex: 3, contents: [{ type: "text", text: label, weight: "bold", size: "md" }, { type: "text", text: note, size: "xs", color: "#888888" }] },
+      { type: "text", text: price, weight: "bold", size: "lg", color: "#E5480A", align: "end", gravity: "center", flex: 2 },
+    ],
+  });
+  return { type: "flex", altText: head, contents: {
+    type: "bubble",
+    body: { type: "box", layout: "vertical", spacing: "md", contents: [
+      { type: "text", text: head, weight: "bold", size: "lg", wrap: true },
+      { type: "text", text: sub, size: "sm", color: "#666666", wrap: true },
+      { type: "text", text: "เลือกแพ็ก", size: "xs", color: "#999999", margin: "lg" },
+      opt("รายเดือน", `฿${PRICE.month}`, "ใช้ได้ 30 วัน", "month", false),
+      opt("รายปี", `฿${PRICE.year.toLocaleString("en-US")}`, "ใช้ได้ 1 ปี · ได้ฟรี 2 เดือน", "year", true),
+    ] },
+  } };
+}
+
+function payInfo(plan) {
+  const amount = plan === "year" ? PRICE.year : PRICE.month;
+  const how = process.env.PAYMENT_INFO || "แอดมินจะส่งเลขพร้อมเพย์ให้ในแชทนี้";
+  return text(`แพ็ก Pro ${plan === "year" ? "รายปี" : "รายเดือน"} ยอด ฿${amount.toLocaleString("en-US")}\n\n1) โอนผ่าน${how.startsWith("แอดมิน") ? "พร้อมเพย์" : ""}\n${how}\n2) ส่งรูปสลิปในแชทนี้ได้เลย\n\nแอดมินตรวจแล้วเปิดสิทธิ์ให้ทันที ระบบจะแจ้งในแชทนี้`);
+}
+
+async function notifyAdmins(m) {
+  const r = await roster();
+  const msg = text(`💰 มีสลิปใหม่\n${m.name} · Pro ${m.pendingOrder.plan === "year" ? "รายปี ฿" + PRICE.year.toLocaleString("en-US") : "รายเดือน ฿" + PRICE.month}\nตรวจสลิปในแชท OA แล้วกดอนุมัติที่ ${APP}/admin`);
+  await Promise.all(r.admins.map((id) => push(id, msg)));
 }
 
 function links(all) {
