@@ -26,5 +26,5 @@ export async function GET() {
       })),
     };
   }).sort((a, b) => b.count - a.count);
-  return Response.json({ categories: out }, { headers: { "cache-control": "public, s-maxage=1800, stale-while-revalidate=86400" } });
+  return Response.json({ categories: out }, { headers: { "cache-control": "public, s-maxage=300, stale-while-revalidate=86400" } });
 }
