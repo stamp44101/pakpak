@@ -293,3 +293,17 @@ td input{width:84px;padding:5px 7px}
 .act-menu button:hover{background:var(--bar)} .act-menu .danger{color:var(--bad)}
 .act-menu hr{border:0;border-top:1px solid var(--line);margin:4px 0;width:100%}
 @media (max-width:560px){.mrow{grid-template-columns:36px minmax(0,1fr) auto}.mrow-plan{grid-column:2;grid-row:2;align-items:flex-start;flex-direction:row;gap:6px}.act{grid-column:3;grid-row:1}}
+.lp-price h2{font-size:clamp(30px,4vw,42px);margin-bottom:8px}
+.lp-price-note{color:var(--o2);font-weight:700;margin-bottom:24px!important}
+.lp-plans{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px;max-width:880px}
+.lp-plan{border:2px solid #F3E2D6;border-radius:24px;padding:26px 26px 28px;display:flex;flex-direction:column;gap:10px;background:#fff}
+.lp-plan h3{font-family:"Mitr",var(--display);font-weight:600;font-size:24px;margin:0}
+.lp-plan-price{font-size:17px;color:var(--soft)} .lp-plan-price b{font-family:"Mitr",var(--display);font-size:46px;color:var(--brown);line-height:1}
+.lp-plan-for{color:var(--soft);font-size:15px}
+.lp-plan ul{margin:6px 0 4px;padding:0;list-style:none;display:grid;gap:8px}
+.lp-plan li{padding-left:28px;position:relative}
+.lp-plan li::before{content:"";position:absolute;left:4px;top:.55em;width:12px;height:7px;border-left:3px solid var(--o);border-bottom:3px solid var(--o);transform:rotate(-45deg)}
+.lp-plan.pro{border-color:var(--o);background:linear-gradient(180deg,#FFF4EC,#fff 45%);box-shadow:0 18px 40px rgba(255,106,19,.16)}
+.lp-plan.pro .lp-cta{margin-top:10px}
+.lp-plan.pro .lp-seats{color:var(--soft)}
+@media (max-width:820px){.lp-plans{grid-template-columns:1fr}}

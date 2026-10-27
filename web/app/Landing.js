@@ -199,12 +199,43 @@ export default function Landing({ me, onLogin }) {
         </div>
       </section>
 
+      <section className="lp-price">
+        <h2>ราคา</h2>
+        <p className="lp-price-note">Early Access {me?.seats || 10} คนแรก ได้ใช้ Pro ฟรี 30 วัน ไม่ต้องผูกบัตร</p>
+        <div className="lp-plans">
+          <div className="lp-plan">
+            <h3>Free</h3>
+            <p className="lp-plan-price"><b>฿0</b></p>
+            <p className="lp-plan-for">ใช้บนมือถืออย่างเดียวก็ได้</p>
+            <ul>
+              <li>ท็อป 5 ของทุกหมวด อัปเดตจากทีมปั๊กปัก</li>
+              <li>AI ไอเดียคลิป วันละ 3 ตัว</li>
+              <li>เอาลิงก์ของคุณเองผ่านแอป Shopee (กดแชร์ → คัดลอก)</li>
+              <li>ใช้ในแชท LINE ได้ครบ</li>
+            </ul>
+          </div>
+          <div className="lp-plan pro">
+            <h3>Pro</h3>
+            <p className="lp-plan-price"><b>฿199</b>/เดือน</p>
+            <p className="lp-plan-for">หรือ ฿1,990/ปี (ได้ฟรี 2 เดือน)</p>
+            <ul>
+              <li>สแกนหมวดและคำค้นของคุณเองไม่จำกัด</li>
+              <li>ดูได้ทุกตัว ไม่ใช่แค่ท็อป 5</li>
+              <li>ลิงก์ affiliate Top 20 สร้างให้อัตโนมัติ ก๊อปในแชทได้ทันที</li>
+              <li>AI ไอเดียคลิป วันละ 30 ตัว</li>
+            </ul>
+            <Cta me={me} onLogin={onLogin} />
+          </div>
+        </div>
+      </section>
+
       <section className="lp-faq">
         <h2>คำถามที่เจอบ่อย</h2>
         <details><summary>ปั๊กปักเห็นรหัสผ่าน Shopee ของฉันไหม</summary><p>ไม่เห็น คุณล็อกอิน Shopee Affiliate เองใน Chrome ตามปกติ Connector แค่อ่านรายการสินค้าและสร้างลิงก์จากแท็บนั้น ไม่เก็บรหัสผ่านหรือ cookie</p></details>
         <details><summary>ใช้แต่มือถือได้ไหม</summary><p>ดูอันดับ ก๊อปลิงก์ และขอไอเดียคลิปจากแชท LINE ได้บนมือถือ ส่วนการสแกนหมวดใหม่ต้องทำบนคอมที่มี Chrome</p></details>
         <details><summary>ลิงก์ที่ได้เป็นลิงก์ของใคร</summary><p>เป็นลิงก์ affiliate ของบัญชีคุณเอง ค่าคอมเข้าบัญชีคุณตามปกติ</p></details>
-        <details><summary>Early Access คืออะไร</summary><p>รอบแรกเปิดให้ {me?.seats || 10} คนใช้ก่อน ใครสมัครหลังที่เต็มจะได้คิวไว้ และเปิดสิทธิ์ให้ตามลำดับ</p></details>
+        <details><summary>Early Access คืออะไร</summary><p>รอบแรกเปิดให้ {me?.seats || 10} คนใช้ Pro ฟรี 30 วัน ครบแล้วจะเป็นแพ็ก Free อัตโนมัติ ไม่มีการตัดเงิน ถ้าอยากใช้ Pro ต่อค่อยทักแอดมินใน LINE ใครสมัครหลังที่เต็มจะได้คิวไว้</p></details>
+        <details><summary>จ่ายเงินยังไง</summary><p>ทักแอดมินในแชท LINE ของปั๊กปัก แล้วโอนผ่านพร้อมเพย์ แอดมินเปิดสิทธิ์ Pro ให้ทันที</p></details>
       </section>
 
       <section className="lp-final">
