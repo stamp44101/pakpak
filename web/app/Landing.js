@@ -155,7 +155,7 @@ export default function Landing({ me, onLogin }) {
       <section className="lp-hero">
         <div className="lp-hero-text">
           <h1>รู้ก่อนถ่าย<br />ว่าตะกร้าไหน<br />ขายได้</h1>
-          <p className="lp-lead">ปั๊กปักดึงสินค้าจาก Shopee Affiliate ของคุณ จัดอันดับจากยอดขาย ค่าคอม และรีวิว แล้วให้ AI บอกว่าตัวไหนทำคลิปง่าย พร้อม hook 3 วินาทีแรก ใช้ต่อในแชท LINE ได้เลย</p>
+          <p className="lp-lead">ปั๊กปักจัดอันดับสินค้า Shopee จากยอดขาย ค่าคอม และรีวิว แล้วให้ AI บอกว่าตัวไหนทำคลิปง่าย พร้อม hook 3 วินาทีแรก ใช้บนมือถือในแชท LINE ได้เลย ไม่ต้องเปิดคอม</p>
           <Cta me={me} onLogin={onLogin} />
         </div>
         <Phone cats={cats} />
@@ -171,10 +171,11 @@ export default function Landing({ me, onLogin }) {
       <section className="lp-steps">
         <h2>ใช้ยังไง</h2>
         <ol>
-          <li><b>ติดตั้ง Connector บนคอม</b><span>ส่วนเสริม Chrome อ่านข้อมูลจาก Shopee Affiliate ที่คุณล็อกอินไว้ ไม่เก็บรหัสผ่าน</span></li>
-          <li><b>กดหมวดที่อยากทำ</b><span>ห้องครัว ความงาม สัตว์เลี้ยง หรือพิมพ์คำค้นเอง ระบบจัดอันดับและสร้างลิงก์ Top 20 ให้ทันที</span></li>
-          <li><b>หยิบจากมือถือแล้วไปถ่าย</b><span>พิมพ์ “ท็อป” ในแชท LINE ก๊อปลิงก์ไปปักตะกร้า กด “ให้ AI ดู” เพื่อเอามุมเล่าคลิป</span></li>
+          <li><b>สมัครด้วย LINE</b><span>กดปุ่มเดียว แล้วเพิ่มเพื่อน LINE ปั๊กปัก ใช้บนมือถือได้ทันที</span></li>
+          <li><b>กด “ท็อป 5 วันนี้” ในแชท</b><span>ได้ตะกร้าน่าทำคลิปของแต่ละหมวด กด “ให้ AI ดู” เพื่อเอา hook และมุมเล่าคลิป</span></li>
+          <li><b>เอาลิงก์ของคุณจากแอป Shopee</b><span>กด “เปิดในแอป Shopee” → ปุ่มแชร์ ↗ → คัดลอกลิงก์ แล้วไปปักตะกร้าได้เลย</span></li>
         </ol>
+        <p className="lp-steps-more">อยากได้ลิงก์อัตโนมัติทุกตัว หรือสแกนหมวดที่คุณทำเอง เปิด “ขั้นสูง” บนคอมได้ทีหลัง</p>
       </section>
 
       <section className="lp-score">
@@ -226,10 +227,10 @@ export default function Landing({ me, onLogin }) {
             <p className="lp-plan-price"><b>฿199</b><span>/เดือน</span></p>
             <p className="lp-plan-for">หรือ ฿1,990/ปี ได้ฟรี 2 เดือน</p>
             <ul>
-              <li>สแกนหมวดและคำค้นของคุณเองไม่จำกัด</li>
               <li>ดูได้ทุกตัว ไม่ใช่แค่ท็อป 5</li>
-              <li>ลิงก์ affiliate Top 20 สร้างให้อัตโนมัติ</li>
               <li>AI ไอเดียคลิป วันละ 30 ตัว</li>
+              <li>ขั้นสูง: ลิงก์อัตโนมัติ Top 20 ทุกหมวด</li>
+              <li>ขั้นสูง: สแกนหมวดและคำค้นของคุณเอง</li>
             </ul>
             <a className="lp-plan-btn pro" href={LOGIN} onClick={onLogin}><LineIcon size={22} /><span className="line-sep" />{(me?.left ?? 1) > 0 ? "ลอง Pro ฟรี 30 วัน" : "สมัครด้วย LINE"}</a>
           </div>
@@ -239,8 +240,8 @@ export default function Landing({ me, onLogin }) {
 
       <section className="lp-faq">
         <h2>คำถามที่เจอบ่อย</h2>
-        <details><summary>ปั๊กปักเห็นรหัสผ่าน Shopee ของฉันไหม</summary><p>ไม่เห็น คุณล็อกอิน Shopee Affiliate เองใน Chrome ตามปกติ Connector แค่อ่านรายการสินค้าและสร้างลิงก์จากแท็บนั้น ไม่เก็บรหัสผ่านหรือ cookie</p></details>
-        <details><summary>ใช้แต่มือถือได้ไหม</summary><p>ดูอันดับ ก๊อปลิงก์ และขอไอเดียคลิปจากแชท LINE ได้บนมือถือ ส่วนการสแกนหมวดใหม่ต้องทำบนคอมที่มี Chrome</p></details>
+        <details><summary>ต้องให้รหัส Shopee ไหม</summary><p>ไม่ต้อง ใช้งานปกติไม่ต้องเชื่อม Shopee เลย ถ้าเปิดขั้นสูง คุณล็อกอิน Shopee Affiliate เองใน Chrome ตามปกติ Connector แค่อ่านรายการสินค้าและสร้างลิงก์จากแท็บนั้น ไม่เก็บรหัสผ่านหรือ cookie</p></details>
+        <details><summary>ใช้แต่มือถือได้ไหม</summary><p>ได้ครับ ดูท็อปสินค้า ขอไอเดียคลิปจาก AI และเอาลิงก์ของคุณผ่านแอป Shopee ได้ครบบนมือถือ คอมใช้เฉพาะ “ขั้นสูง” ถ้าอยากได้ลิงก์อัตโนมัติหรือสแกนหมวดเอง</p></details>
         <details><summary>ลิงก์ที่ได้เป็นลิงก์ของใคร</summary><p>เป็นลิงก์ affiliate ของบัญชีคุณเอง ค่าคอมเข้าบัญชีคุณตามปกติ</p></details>
         <details><summary>Early Access คืออะไร</summary><p>รอบแรกเปิดให้ {me?.seats || 10} คนใช้ Pro ฟรี 30 วัน ครบแล้วจะเป็นแพ็ก Free อัตโนมัติ ไม่มีการตัดเงิน ถ้าอยากใช้ Pro ต่อค่อยทักแอดมินใน LINE ใครสมัครหลังที่เต็มจะได้คิวไว้</p></details>
         <details><summary>จ่ายเงินยังไง</summary><p>ทักแอดมินในแชท LINE ของปั๊กปัก แล้วโอนผ่านพร้อมเพย์ แอดมินเปิดสิทธิ์ Pro ให้ทันที</p></details>

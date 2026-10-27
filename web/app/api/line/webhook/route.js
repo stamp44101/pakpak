@@ -56,7 +56,7 @@ async function handle(e) {
   }
 
   if (!m || m.status !== "active") return reply(e.replyToken, await gate(m, e.type === "follow"));
-  if (e.type === "follow") return reply(e.replyToken, text(`ยินดีต้อนรับกลับ คุณ${m.name} 🐶\nพิมพ์ "ท็อป" เพื่อดูตะกร้าที่น่าทำคลิปที่สุด หรือกดปุ่มด้านล่าง`, HELP_QR()));
+  if (e.type === "follow") return reply(e.replyToken, text(`ยินดีต้อนรับ คุณ${m.name} 🐶\nกด "ท็อป 5 วันนี้" ที่เมนูด้านล่าง ได้ตะกร้าน่าทำคลิปทันที ใช้บนมือถือได้เลยไม่ต้องเปิดคอม`, HELP_QR()));
 
   // admin can preview the Free experience: "ดูแบบ free" / "ดูแบบ pro"
   const admin = await isAdmin(uid);
@@ -88,9 +88,9 @@ async function handle(e) {
   const t = e.message.text.trim();
 
   if (/^(วิธีใช้|ช่วยเหลือ|help)/i.test(t)) return reply(e.replyToken, howto());
-  if (!pro && /^(ลิงก์|ลิ้ง|link)/i.test(t)) return reply(e.replyToken, buyCard(m, "ลิงก์ affiliate อัตโนมัติเป็นฟีเจอร์ Pro"));
+  if (state.shared && /^(ลิงก์|ลิ้ง|link)/i.test(t)) return reply(e.replyToken, text(`เอาลิงก์ของคุณเองได้จากมือถือเลย:\n1) กด "ท็อป 5 วันนี้" แล้วเลือกสินค้า\n2) กด "เปิดในแอป Shopee"\n3) กดปุ่มแชร์ ↗ มุมขวาบน → คัดลอกลิงก์ = ลิงก์ affiliate ของคุณ\n\nอยากได้ลิงก์อัตโนมัติทุกตัว ${pro ? "เปิดขั้นสูงบนคอม (กด \"วิธีใช้\")" : "เป็นขั้นสูงของแพ็ก Pro (พิมพ์ \"อัปเกรด\")"}`, HELP_QR()));
   if (/^(ติดต่อแอดมิน|แอดมิน)/.test(t)) return reply(e.replyToken, text("รับเรื่องแล้วครับ พิมพ์รายละเอียดทิ้งไว้ได้เลย แอดมินจะตอบกลับในแชทนี้ 🙏"));
-  if (!all.length) return reply(e.replyToken, { type: "flex", altText: "ยังไม่มีข้อมูลตะกร้า", contents: card("ยังไม่มีข้อมูลตะกร้า", "สแกนหมวดแรกบนคอมที่ติดตั้ง Connector ก่อน แล้วกลับมาพิมพ์ \"ท็อป\" ในแชทนี้ได้เลย", [openApp("ไปสแกนหมวดแรก")]) });
+  if (!all.length) return reply(e.replyToken, { type: "flex", altText: "ยังไม่มีข้อมูลตะกร้า", contents: card("ยังไม่มีข้อมูลตะกร้า", "คลังกลางกำลังอัปเดต ลองใหม่อีกสักครู่ หรือพิมพ์ \"ติดต่อแอดมิน\"", [openApp("เปิดปั๊กปัก")]) });
 
   const cm = t.match(/^(?:ท็อป|top|ท๊อป)\s*\d*\s*(.*)$/i);
   if (cm) return reply(e.replyToken, top(all, cm[1].trim(), cats));
@@ -105,12 +105,15 @@ function howto() {
   return { type: "flex", altText: "วิธีใช้ปั๊กปัก", contents: {
     type: "bubble",
     body: { type: "box", layout: "vertical", spacing: "md", contents: [
-      { type: "text", text: "วิธีใช้ปั๊กปัก 🐶", weight: "bold", size: "lg" },
-      { type: "text", wrap: true, size: "sm", color: "#555555", text: "1) บนคอม: ติดตั้ง Connector แล้วล็อกอิน Shopee Affiliate ใน Chrome\n2) เปิดปั๊กปัก กดหมวดเพื่อสแกน ระบบสร้างลิงก์ Top 20 ให้เอง\n3) บนมือถือ: กด \"ท็อป 5 วันนี้\" ในแชทนี้ ก๊อปลิงก์ไปปักตะกร้าได้เลย\n4) กด \"ให้ AI ดู\" เพื่อเอา hook 3 วิแรก + มุมเล่าคลิป" },
+      { type: "text", text: "เริ่มใช้บนมือถือ 🐶", weight: "bold", size: "lg" },
+      { type: "text", wrap: true, size: "sm", color: "#555555", text: "1) กด \"ท็อป 5 วันนี้\" ที่เมนูด้านล่าง\n2) กด \"ให้ AI ดู\" เพื่อเอา hook 3 วิแรก + มุมเล่าคลิป\n3) กด \"เปิดในแอป Shopee\" → ปุ่มแชร์ ↗ → คัดลอกลิงก์ = ลิงก์ affiliate ของคุณ" },
+      { type: "separator", margin: "md" },
+      { type: "text", text: "ขั้นสูง (ไม่บังคับ)", weight: "bold", size: "sm", margin: "md" },
+      { type: "text", wrap: true, size: "xs", color: "#888888", text: "อยากได้ลิงก์อัตโนมัติทุกตัว หรือสแกนหมวดที่คุณทำเอง ใช้คอม + Chrome + ล็อกอิน Shopee ราว 3 นาที" },
     ] },
     footer: { type: "box", layout: "vertical", spacing: "sm", contents: [
-      { type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "uri", label: "ติดตั้ง Connector (คอม)", uri: `${APP}/connector` } },
-      { type: "button", style: "secondary", height: "sm", action: { type: "uri", label: "เปิดปั๊กปัก", uri: LIFF_URL } },
+      { type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "message", label: "ท็อป 5 วันนี้", text: "ท็อป" } },
+      { type: "button", style: "secondary", height: "sm", action: { type: "uri", label: "ขั้นสูง (คอม)", uri: `${APP}/connector` } },
     ] },
   } };
 }
@@ -196,7 +199,7 @@ function buyCard(m, why) {
   const head = why || (isProNow ? "ต่ออายุ Pro" : "อัปเกรดเป็น Pro");
   const sub = isProNow
     ? (m.proUntil ? `Pro ของคุณใช้ได้ถึง ${thDate(m.proUntil)} ต่ออายุแล้ววันจะบวกต่อจากเดิม` : "บัญชีนี้เป็น Pro ไม่หมดอายุ")
-    : "• สแกนหมวดและคำค้นเองไม่จำกัด\n• ลิงก์ affiliate Top 20 อัตโนมัติ ก๊อปในแชทได้ทันที\n• AI ไอเดียคลิปวันละ 30 ตัว (Free 3)";
+    : "• ดูได้ทุกตัว ไม่ใช่แค่ท็อป 5\n• AI ไอเดียคลิปวันละ 30 ตัว (Free 3)\n• ขั้นสูง: ลิงก์อัตโนมัติ + สแกนหมวดของคุณเอง";
   const opt = (label, price, note, p, primary) => ({
     type: "box", layout: "horizontal", paddingAll: "12px", cornerRadius: "10px", backgroundColor: primary ? "#FFF1E7" : "#F7F7F7",
     action: { type: "postback", label, data: `a=buy&p=${p}`, displayText: `สมัคร Pro ${label}` },
@@ -239,7 +242,7 @@ function links(all) {
 
 function status(all, cats, state, m, pro) {
   const plan = pro ? `แพ็ก Pro${m.earlyAccess ? " (Early Access)" : ""}${m.proUntil ? ` ถึง ${new Date(m.proUntil).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}` : ""}` : "แพ็ก Free · ดูท็อป 5 จากคลังกลาง";
-  if (state.shared) return text(`${plan}\nหมวดในคลังกลาง: ${cats.join(", ")}\n\n${pro ? "ติดตั้ง Connector บนคอม (กด \"วิธีใช้\") เพื่อสแกนหมวดของคุณเองและได้ลิงก์อัตโนมัติ" : "พิมพ์ \"อัปเกรด\" เพื่อดูสิทธิ์ Pro"}`, HELP_QR());
+  if (state.shared) return text(`${plan}\nหมวดในคลังกลาง: ${cats.join(", ")}\n\n${pro ? "อยากได้ลิงก์อัตโนมัติหรือสแกนหมวดเอง กด \"วิธีใช้\" → ขั้นสูง (คอม)" : "พิมพ์ \"อัปเกรด\" เพื่อดูสิทธิ์ Pro"}`, HELP_QR());
   const newest = Math.max(0, ...all.map((p) => p.fetchedAt || 0));
   const lines = cats.map((c) => { const ps = all.filter((p) => p.category === c); return `• ${c}: ${ps.length} ตัว · ลิงก์ ${ps.filter((p) => p.affLink).length} · ${ago(Math.max(...ps.map((p) => p.fetchedAt || 0)))}`; });
   return text(`${plan}\nบัญชี Shopee: ${state.account || "-"}\nอัปเดตล่าสุด ${newest ? ago(newest) : "-"}\n\n${lines.join("\n")}\n\nข้อมูลเกิน 3 วัน แนะนำเปิดคอมที่มี Connector แล้วกด "อัปเดตตอนนี้"`, HELP_QR());

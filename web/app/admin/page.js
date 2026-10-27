@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 
 const STATUS = { active: "ใช้งานได้", waitlist: "รอคิว", revoked: "ระงับ" };
-const STEPS = [["connector", "ติดตั้ง Connector"], ["shopee", "เชื่อม Shopee"], ["scan", "สแกนตะกร้าแรก"], ["ai", "ลอง AI"]];
+const STEPS = [["line", "เข้าสู่ระบบ"], ["bot", "เพิ่มเพื่อนบอท"], ["applink", "เอาลิงก์จากแอป"]];
 const nextStep = (done) => (STEPS.find(([k]) => !done.includes(k)) || [null, "ครบแล้ว"])[1];
 
 export default function Admin() {
@@ -50,7 +50,7 @@ export default function Admin() {
               <div className="mrow-main">
                 <div className="mrow-name">{m.name}{m.pendingOrder && <span className={"tag order" + (m.pendingOrder.slipAt ? " slip" : "")}>{m.pendingOrder.slipAt ? "ส่งสลิปแล้ว" : "เลือกแพ็กแล้ว รอสลิป"} · {m.pendingOrder.plan === "year" ? "รายปี" : "รายเดือน"}</span>}{m.admin && <span className="tag">เจ้าของ</span>}{m.status !== "active" && <span className={"tag" + (m.status === "waitlist" ? " b" : "")}>{STATUS[m.status]}</span>}</div>
                 <div className="mrow-sub">
-                  สมัคร {short(m.joinedAt)} · เริ่มต้น {m.onboarding.length}/4{m.status === "active" && m.onboarding.length < 4 ? ` (ติดที่ ${nextStep(m.onboarding)})` : ""} · AI วันนี้ {m.aiToday}/{m.limits?.aiPerDay}
+                  สมัคร {short(m.joinedAt)} · เริ่มต้น {STEPS.filter(([k]) => k === "line" || m.onboarding.includes(k)).length}/3{m.status === "active" && STEPS.some(([k]) => k !== "line" && !m.onboarding.includes(k)) ? ` (ติดที่ ${nextStep(["line", ...m.onboarding])})` : ""}{m.onboarding.includes("scan") ? " · ขั้นสูง ✓" : m.onboarding.includes("connector") ? " · ขั้นสูง: ติดตั้งแล้ว" : ""} · AI วันนี้ {m.aiToday}/{m.limits?.aiPerDay}
                 </div>
               </div>
               {m.status === "active" && (

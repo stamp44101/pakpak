@@ -31,7 +31,7 @@ export async function POST(req) {
   const m = s ? await getMember(s.sub) : null;
   if (!m) return Response.json({ error: "unauthorized" }, { status: 401 });
   const { done } = (await req.json().catch(() => ({}))) || {};
-  const ok = ["connector", "shopee", "scan", "ai"];
+  const ok = ["line", "bot", "applink", "connector", "shopee", "scan", "ai"];
   const list = Array.isArray(done) ? [...new Set(done.filter((d) => ok.includes(d)))] : [];
   const cur = m.onboarding?.done || [];
   if (list.length !== cur.length || list.some((d) => !cur.includes(d))) {

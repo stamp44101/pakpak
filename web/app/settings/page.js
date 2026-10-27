@@ -60,7 +60,8 @@ export default function Settings() {
   const linkedName = st?.account;
   const lim = m.limits || {};
 
-  const coreDone = 1 + (m.botSeenAt ? 1 : 0); // LINE sign-in + bot
+  const appLinkDone = (m.onboarding?.done || []).includes("applink") || links > 0;
+  const coreDone = 1 + (m.botSeenAt ? 1 : 0) + (appLinkDone ? 1 : 0);
   const extraDone = [extOk || linkedName, linkedName, products.length > 0].filter(Boolean).length;
 
   return (
@@ -88,50 +89,59 @@ export default function Settings() {
           <b className="num">{m.aiToday || 0}/{lim.aiPerDay}</b>
         </div>
         <ul className="feat">
-          <li className={lim.scan ? "y" : "n"}>สแกนหมวดและคำค้นของคุณเอง (Connector)</li>
-          <li className={lim.autoLinks ? "y" : "n"}>ลิงก์ affiliate Top 20 สร้างให้อัตโนมัติ</li>
           <li className="y">{lim.topPerCat ? `ท็อป ${lim.topPerCat} ต่อหมวดจากคลังกลาง` : "ดูได้ทุกตัว ทุกหมวด"}</li>
           <li className="y">AI ไอเดียคลิป วันละ {lim.aiPerDay} ตัว</li>
-          <li className="y">ใช้งานในแชท LINE</li>
+          <li className="y">ใช้งานในแชท LINE + เอาลิงก์ผ่านแอป Shopee</li>
+          <li className={lim.autoLinks ? "y" : "n"}>ขั้นสูง: ลิงก์อัตโนมัติ Top 20</li>
+          <li className={lim.scan ? "y" : "n"}>ขั้นสูง: สแกนหมวดและคำค้นของคุณเอง</li>
         </ul>
       </section>
 
       <section className="panel">
         <div className="bar" style={{ justifyContent: "space-between" }}>
-          <h2>ใช้งานบนมือถือ</h2>
-          <span className="hint">พร้อมแล้ว <b className="num">{coreDone}/2</b></span>
+          <h2>เริ่มใช้บนมือถือ</h2>
+          <span className="hint">พร้อมแล้ว <b className="num">{coreDone}/3</b></span>
         </div>
         <ol className="st-list">
           <Item state="ok" title="เข้าสู่ระบบด้วย LINE" detail={`บัญชี ${m.name}`} />
-          <Item state={m.botSeenAt ? "ok" : "todo"} title="ใช้ปั๊กปักในแชท LINE"
-            detail={m.botSeenAt ? "บอทพร้อมตอบ ลองกด “ท็อป 5 วันนี้” ที่เมนูด้านล่างแชท" : "เพิ่มเพื่อน LINE ปั๊กปัก แล้วกดเมนู “ท็อป 5 วันนี้” ใช้บนมือถือได้โดยไม่ต้องเปิดคอม"}>
+          <Item state={m.botSeenAt ? "ok" : "todo"} title="เพิ่มเพื่อน LINE ปั๊กปัก"
+            detail={m.botSeenAt ? "บอทพร้อมตอบ กด “ท็อป 5 วันนี้” ที่เมนูด้านล่างแชทได้เลย" : "ในแชทกด “ท็อป 5 วันนี้” ที่เมนูด้านล่าง ได้ตะกร้าน่าทำคลิปทันที ไม่ต้องเปิดคอม"}>
             {!m.botSeenAt && <a className="btn primary" href={OA_ADD} target="_blank" rel="noopener">เพิ่มเพื่อน @979soyth</a>}
           </Item>
-          {!pro && <Item state="info" title="เอาลิงก์ของคุณเองผ่านแอป Shopee" detail="เปิดสินค้าในแอป Shopee → กดปุ่มแชร์ ↗ มุมขวาบน → คัดลอกลิงก์ = ลิงก์ affiliate ของคุณ (ล็อกอินแอปด้วยบัญชีที่สมัคร Shopee Affiliate)" />}
+          <Item state={appLinkDone ? "ok" : "todo"} title="เอาลิงก์ของคุณเอง 1 ตัว"
+            detail="เปิดสินค้าในแอป Shopee → กดปุ่มแชร์ ↗ มุมขวาบน → คัดลอกลิงก์ = ลิงก์ affiliate ของคุณ (ล็อกอินแอปด้วยบัญชีที่สมัคร Shopee Affiliate)">
+            {!appLinkDone && <a className="btn" href="/">ไปเลือกสินค้า</a>}
+          </Item>
         </ol>
       </section>
 
-      {pro && (
-        <section className="panel">
-          <div className="bar" style={{ justifyContent: "space-between" }}>
-            <h2>สแกนเองบนคอม <span className="hint">(ไม่บังคับ)</span></h2>
-            <span className="hint">พร้อมแล้ว <b className="num">{extraDone}/3</b></span>
-          </div>
-          <p className="hint" style={{ margin: 0 }}>ถ้ายังไม่ทำส่วนนี้ ก็ใช้ท็อปจากคลังกลาง และเอาลิงก์ผ่านแอป Shopee ได้ตามปกติ</p>
+      <section className="panel" id="advanced">
+        <div className="bar" style={{ justifyContent: "space-between" }}>
+          <h2>ขั้นสูง <span className="hint">(เลือกเปิดเมื่ออยากได้)</span></h2>
+          {pro && <span className="hint">พร้อมแล้ว <b className="num">{extraDone}/3</b></span>}
+        </div>
+        <div className="adv-opts static">
+          <div><b>ลิงก์อัตโนมัติทุกตัว</b><span>ระบบสร้างลิงก์ของคุณให้ Top 20 ทุกหมวด ไม่ต้องกดแชร์ทีละตัว</span></div>
+          <div><b>สแกนหมวดที่คุณทำเอง</b><span>พิมพ์คำค้นอะไรก็ได้ ระบบดึงสินค้าและจัดอันดับให้</span></div>
+        </div>
+        <p className="need"><b>ต้องใช้:</b> คอม + Chrome + ล็อกอิน Shopee Affiliate · ทำครั้งเดียวราว 3 นาที{pro ? "" : " · สำหรับแพ็ก Pro"}</p>
+        {pro ? (
           <ol className="st-list">
-            <Item state={extOk ? "ok" : linkedName ? "info" : "off"} title="ติดตั้ง Connector (Chrome บนคอม)"
-              detail={extOk ? "ติดตั้งในเบราว์เซอร์นี้แล้ว" : mobile() ? "ติดตั้งได้เฉพาะ Chrome บนคอม ไม่จำเป็นถ้าใช้แค่มือถือ" : linkedName ? "เคยใช้จากคอมเครื่องอื่นแล้ว เครื่องนี้ยังไม่ได้ติดตั้ง" : "ใช้สแกนหมวดของคุณเองและสร้างลิงก์อัตโนมัติ ใช้เวลาราว 1 นาที"}>
-              {!extOk && !mobile() && <a className="btn" href="/connector" target="_blank" rel="noopener">วิธีติดตั้ง</a>}
+            <Item state={extOk ? "ok" : linkedName ? "info" : "off"} title="1. ติดตั้ง Connector ใน Chrome"
+              detail={extOk ? "ติดตั้งในเบราว์เซอร์นี้แล้ว" : mobile() ? "เปิดหน้านี้บนคอมเพื่อติดตั้ง" : linkedName ? "เคยใช้จากคอมเครื่องอื่นแล้ว เครื่องนี้ยังไม่ได้ติดตั้ง" : "ส่วนเสริม Chrome ที่อ่านข้อมูลจาก Shopee Affiliate ที่คุณล็อกอินไว้ ไม่เก็บรหัสผ่าน"}>
+              {!extOk && !mobile() && <a className="btn primary" href="/connector" target="_blank" rel="noopener">วิธีติดตั้ง</a>}
             </Item>
-            <Item state={shopee ? "ok" : linkedName ? "info" : "off"} title="เชื่อม Shopee Affiliate"
-              detail={shopee ? `ล็อกอินอยู่: ${shopee}` : linkedName ? `บัญชีที่เคยเชื่อม: ${linkedName} · ตอนนี้ไม่ได้ล็อกอินในเบราว์เซอร์นี้ ลิงก์เดิมยังใช้ได้` : "ล็อกอิน Shopee Affiliate ใน Chrome ที่ติดตั้ง Connector แล้ว ระบบจะรู้เอง"}>
+            <Item state={shopee ? "ok" : linkedName ? "info" : "off"} title="2. ล็อกอิน Shopee Affiliate"
+              detail={shopee ? `ล็อกอินอยู่: ${shopee}` : linkedName ? `บัญชีที่เคยเชื่อม: ${linkedName} · ตอนนี้ไม่ได้ล็อกอินในเบราว์เซอร์นี้ ลิงก์เดิมยังใช้ได้` : "ล็อกอินใน Chrome เครื่องเดียวกับที่ติดตั้ง Connector ระบบจะรู้เอง"}>
               {!shopee && extOk && <a className="btn" href="/">ไปเชื่อม Shopee</a>}
             </Item>
-            <Item state={products.length ? "ok" : "off"} title="ข้อมูลตะกร้าของคุณ"
-              detail={products.length ? `${products.length} สินค้า · ${cats.length} หมวด · ลิงก์ ${links} อัน · อัปเดตล่าสุด ${thDate(newest)}` : "ยังไม่ได้สแกนเอง ตอนนี้ใช้ท็อปจากคลังกลางไปก่อนได้"} />
+            <Item state={products.length ? "ok" : "off"} title="3. สแกนหมวดแรก"
+              detail={products.length ? `${products.length} สินค้า · ${cats.length} หมวด · ลิงก์อัตโนมัติ ${links} อัน · อัปเดตล่าสุด ${thDate(newest)}` : "กดหมวดหรือพิมพ์คำค้นในหน้าแรก ระบบสร้างลิงก์ Top 20 ให้ทันที"} />
           </ol>
-        </section>
-      )}
+        ) : (
+          <div className="bar"><a className="btn primary" href={UPGRADE_URL} target="_blank" rel="noopener">อัปเกรด Pro เพื่อเปิดขั้นสูง</a></div>
+        )}
+      </section>
 
       {m.payments?.length > 0 && (
         <section className="panel">

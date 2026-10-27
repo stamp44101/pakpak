@@ -9,8 +9,10 @@ export default function Connector() {
   return (
     <div className="wrap" style={{ maxWidth: 680 }}>
       <div>
-        <h1>ติดตั้ง ปั๊กปัก Connector</h1>
-        <p className="sub">ส่วนเสริม Chrome ที่ให้ปั๊กปักอ่านสินค้าและสร้างลิงก์จาก Shopee Affiliate ที่คุณล็อกอินไว้ ไม่เก็บรหัสผ่านหรือ cookie · ใช้เวลาราว 1 นาที · ใช้บนคอมกับ Chrome</p>
+        <p className="hint" style={{ margin: "0 0 6px" }}>ขั้นสูง · ไม่บังคับ</p>
+        <h1>ลิงก์อัตโนมัติ + สแกนหมวดของคุณเอง</h1>
+        <p className="sub">ติดตั้งส่วนเสริม Chrome “ปั๊กปัก Connector” บนคอม แล้วระบบจะสร้างลิงก์ affiliate ของคุณให้ Top 20 ทุกหมวด และสแกนคำค้นอะไรก็ได้ ไม่เก็บรหัสผ่านหรือ cookie · ทำครั้งเดียวราว 3 นาที</p>
+        <p className="hint" style={{ marginTop: 8 }}>ไม่ติดตั้งก็ใช้ปั๊กปักได้ปกติ: ดูท็อปจากคลังกลางในแชท LINE และเอาลิงก์ผ่านแอป Shopee (กดแชร์ → คัดลอก)</p>
       </div>
       <ol className="panel install">
         <li>
@@ -32,8 +34,8 @@ export default function Connector() {
           <p className="hint">ปุ่มอยู่มุมซ้ายบน จะเห็นการ์ด “ปั๊กปัก Connector” ขึ้นมา แนะนำให้กดไอคอนจิ๊กซอว์แล้วปักหมุดไว้</p>
         </li>
         <li>
-          <b>กลับไปที่ปั๊กปัก</b>
-          <p className="hint">กด “ติดตั้งแล้ว ตรวจอีกครั้ง” ระบบจะติ๊กขั้นนี้ให้เอง</p>
+          <b>กลับไปที่ปั๊กปัก แล้วล็อกอิน Shopee Affiliate</b>
+          <p className="hint">ระบบจะเห็น Connector เอง กด “เชื่อม Shopee Affiliate” ล็อกอินตามปกติ แล้วกดหมวดแรกเพื่อสแกน</p>
           <a className="btn" href="/">← กลับไปปั๊กปัก</a>
         </li>
       </ol>

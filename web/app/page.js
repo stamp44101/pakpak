@@ -285,35 +285,50 @@ export default function Home() {
     say(`ลบหมวด “${c}” แล้ว`);
   }
 
-  // ---- onboarding: 4 steps, detected from what the member has actually done ----
+  // ---- onboarding: mobile-first. 3 simple steps for everyone; PC scanning is "ขั้นสูง" (opt-in) ----
   const [obHidden, setObHidden] = useState(false);
-  useEffect(() => { setObHidden(ls.get(".obHide") === "1"); }, []);
+  const [nudge, setNudge] = useState(null); // "links" | "cats"
+  useEffect(() => { setObHidden(ls.get(".obHide2") === "1"); }, []);
   const serverDone = (member && member.onboarding && member.onboarding.done) || [];
+  const advanced = !!(extOk || account || !catalogMode && all.length);
   const obDone = [...new Set([
     ...serverDone,
-    ...(extOk || account || linked || serverDone.includes("shopee") ? ["connector"] : []),
+    "line",
+    ...(member?.botSeenAt ? ["bot"] : []),
+    ...(advanced && all.some((p) => p.affLink) ? ["applink"] : []),
+    // advanced progress (shown to the admin)
+    ...(extOk || account || linked ? ["connector"] : []),
     ...(account || linked ? ["shopee"] : []),
     ...(!catalogMode && all.length ? ["scan"] : []),
-    ...(!catalogMode && all.some((p) => p.ai) ? ["ai"] : []),
+    ...(all.some((p) => p.ai) ? ["ai"] : []),
   ])];
+  const CORE = ["line", "bot", "applink"];
+  const coreDone = CORE.filter((k) => obDone.includes(k));
   const obKey = obDone.slice().sort().join(",");
   useEffect(() => {
     if (!active || obKey === serverDone.slice().sort().join(",")) return;
     api("/api/me", "POST", { done: obDone });
   }, [obKey, active]);
-  const showOnboarding = pro && !catalogMode && !obHidden && obDone.length < 4;
-  const obNext = ["connector", "shopee", "scan", "ai"].find((k) => !obDone.includes(k));
+  const showOnboarding = active && !obHidden && coreDone.length < CORE.length;
+  const obNext = CORE.find((k) => !obDone.includes(k));
   function startScan() {
     const el = document.getElementById("scan");
     if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 1600); }
     say("เลือกหมวดที่คุณทำคลิป หรือพิมพ์คำค้นเอง");
   }
-  function tryAI() {
+  function openTop() {
     const top = ranked[0];
-    if (!top) return startScan();
+    if (!top) return;
     setOpen(top.id);
     setTimeout(() => document.getElementById("row-" + top.id)?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
-    say("กด “ให้ AI ให้คะแนนตัวนี้” ที่สินค้าอันดับ 1");
+    say("กด “เปิดในแอป Shopee” แล้วกดปุ่มแชร์ ↗ ในแอป");
+  }
+  // user got a link the simple way (open in Shopee app / copy product link)
+  function usedAppLink() {
+    if (!serverDone.includes("applink")) api("/api/me", "POST", { done: [...obDone, "applink"] }).then(() => setMe((x) => x && x.member ? { ...x, member: { ...x.member, onboarding: { done: [...obDone, "applink"] } } } : x));
+    const n = Number(ls.get(".appOpens") || 0) + 1;
+    ls.set(".appOpens", String(n));
+    if (n >= 5 && !advanced && ls.get(".nudgeLinks") !== "1") { ls.set(".nudgeLinks", "1"); setNudge("links"); }
   }
 
   useEffect(() => { if (me) ls.set(".in", me.member ? "1" : null); }, [me]);
@@ -381,60 +396,59 @@ export default function Home() {
       {showOnboarding && (
         <section className="panel onboard">
           <div className="bar" style={{ justifyContent: "space-between" }}>
-            <h2>เริ่มต้นใช้งาน <span className="num hint">{obDone.length}/4</span></h2>
-            <button className="btn ghost" onClick={() => { ls.set(".obHide", "1"); setObHidden(true); }}>ซ่อน</button>
+            <h2>เริ่มใช้บนมือถือ <span className="num hint">{coreDone.length}/{CORE.length}</span></h2>
+            <button className="btn ghost" onClick={() => { ls.set(".obHide2", "1"); setObHidden(true); }}>ซ่อน</button>
           </div>
-          <div className="progress"><i style={{ width: `${obDone.length * 25}%` }} /></div>
-          {mobileUA() && !obDone.includes("shopee") && <p className="hint" style={{ margin: 0 }}>ขั้น 1–2 ต้องทำบนคอม (Chrome) ครั้งเดียว หลังจากนั้นเปิดดูบนมือถือได้ตลอด</p>}
+          <div className="progress"><i style={{ width: `${(coreDone.length / CORE.length) * 100}%` }} /></div>
           <ol className="steps-list">
-            <Step done={obDone.includes("connector")} current={obNext === "connector"} title="ติดตั้ง ปั๊กปัก Connector" hint="ส่วนเสริม Chrome ที่อ่านข้อมูลจาก Shopee Affiliate ที่คุณล็อกอินไว้ ใช้เวลาราว 1 นาที">
-              <a className="btn primary" href="/connector" target="_blank" rel="noopener">ดูวิธีติดตั้ง ↗</a>
-              <button className="btn" onClick={checkStatus}>ติดตั้งแล้ว ตรวจอีกครั้ง</button>
+            <Step done title="เข้าสู่ระบบด้วย LINE" />
+            <Step done={obDone.includes("bot")} current={obNext === "bot"} title="เพิ่มเพื่อน LINE ปั๊กปัก" hint="ในแชทกด “ท็อป 5 วันนี้” ที่เมนูด้านล่าง ได้ตะกร้าน่าทำคลิปทันที ไม่ต้องเปิดคอม">
+              <a className="btn primary" href={OA_ADD} target="_blank" rel="noopener">เพิ่มเพื่อน @979soyth</a>
             </Step>
-            <Step done={obDone.includes("shopee")} current={obNext === "shopee"} title="เชื่อม Shopee Affiliate" hint="ระบบเปิดแท็บ Shopee Affiliate ให้ ล็อกอินตามปกติ แล้วกลับมาที่นี่ ระบบจะรู้เอง">
-              <button className="btn primary" disabled={!extOk} onClick={connectShopee}>เชื่อม Shopee Affiliate ↗</button>
-            </Step>
-            <Step done={obDone.includes("scan")} current={obNext === "scan"} title="สแกนตะกร้าแรก" hint="เลือกหมวดที่คุณทำคลิป ปั๊กปักจะดึงสินค้า 40 ตัวแล้วจัดอันดับให้">
-              <button className="btn primary" disabled={!account} onClick={startScan}>เลือกหมวด</button>
-            </Step>
-            <Step done={obDone.includes("ai")} current={obNext === "ai"} title="ลองให้ AI ให้คะแนน 1 ตัว" hint="AI บอกว่าสินค้าทำคลิปง่ายแค่ไหน พร้อม hook 3 วินาทีแรก">
-              <button className="btn primary" disabled={!all.length} onClick={tryAI}>เปิดสินค้าอันดับ 1</button>
+            <Step done={obDone.includes("applink")} current={obNext === "applink"} title="เอาลิงก์ของคุณเอง 1 ตัว" hint="เปิดสินค้าในแอป Shopee → กดปุ่มแชร์ ↗ มุมขวาบน → คัดลอกลิงก์ = ลิงก์ affiliate ของคุณ">
+              <button className="btn primary" disabled={!ranked.length} onClick={openTop}>เปิดสินค้าอันดับ 1</button>
             </Step>
           </ol>
         </section>
       )}
 
-      {pro && !showOnboarding && !account && extOk !== false && (
-        <section className="panel">
-          {linked && <p className="hint" style={{ margin: 0 }}>หลุดจาก Shopee Affiliate อยู่ ข้อมูลและลิงก์เดิมยังใช้ได้ครบ ล็อกอินอีกครั้งเพื่อสแกนหรือสร้างลิงก์ใหม่</p>}
-          <h2>เชื่อม Shopee Affiliate ของคุณ</h2>
-          <div className="steps">
-            <div className="step">
-              <span className={"badge" + (extOk ? " done" : "")}>{extOk ? "✓" : "1"}</span>
-              <div><b>ติดตั้ง ปั๊กปัก Connector</b><p className="hint">{extOk === null ? "กำลังตรวจ…" : "ติดตั้งแล้ว"}</p></div>
-            </div>
-            <div className="step">
-              <span className="badge">2</span>
-              <div><b>ล็อกอิน Shopee Affiliate</b>
-                <p className="hint">เปิดแท็บ Shopee Affiliate ให้คุณล็อกอิน ระบบจะรู้เองเมื่อล็อกอินเสร็จ</p>
-                <div className="bar" style={{ marginTop: 6 }}><button className="btn primary" disabled={!extOk} onClick={connectShopee}>เชื่อม Shopee Affiliate ↗</button></div>
-              </div>
-            </div>
+      {nudge && (
+        <section className="panel nudge">
+          <div>
+            <h2>{nudge === "links" ? "เบื่อกดแชร์ทีละตัวไหม?" : "หาหมวดที่ต้องการไม่เจอ?"}</h2>
+            <p className="hint">{nudge === "links" ? "เปิด “ลิงก์อัตโนมัติ” แล้วระบบสร้างลิงก์ของคุณให้ Top 20 ทุกหมวด ก๊อปจากแชท LINE ได้ทันที" : "สแกนหมวดหรือคำค้นที่คุณทำเองได้ในขั้นสูง ระบบจัดอันดับและสร้างลิงก์ให้"}</p>
+          </div>
+          <div className="bar">
+            {pro ? <a className="btn primary" href="/settings#advanced">ดูวิธีเปิดขั้นสูง</a> : <a className="btn primary" href={UPGRADE_URL} target="_blank" rel="noopener">อัปเกรด Pro</a>}
+            <button className="btn ghost" onClick={() => setNudge(null)}>ไว้ทีหลัง</button>
           </div>
         </section>
       )}
-      {active && !pro && <Upgrade price={me.price} />}
-      {pro && catalogMode && (
-        <section className="panel shared-note">
-          <h2>ใช้ได้เลยโดยไม่ต้องเชื่อม Shopee</h2>
-          <p className="hint">ตอนนี้คุณเห็นท็อปของแต่ละหมวดจากคลังกลางของปั๊กปัก ให้ AI ดูไอเดียคลิปได้ และเอาลิงก์ affiliate ของคุณเองผ่านแอป Shopee บนมือถือ (เปิดในแอป → กดแชร์ ↗ → คัดลอกลิงก์)</p>
-          <p className="hint">อยากสแกนหมวดหรือคำค้นของคุณเอง และให้ระบบสร้างลิงก์ Top 20 อัตโนมัติ ค่อยติดตั้ง Connector บนคอมทีหลังได้</p>
-          <div className="bar"><a className="btn" href="/connector" target="_blank" rel="noopener">วิธีติดตั้ง Connector (คอม)</a></div>
+
+      {pro && extOk && !account && (
+        <section className="panel">
+          {linked && <p className="hint" style={{ margin: 0 }}>หลุดจาก Shopee Affiliate อยู่ ข้อมูลและลิงก์เดิมยังใช้ได้ครบ ล็อกอินอีกครั้งเพื่อสแกนหรือสร้างลิงก์ใหม่</p>}
+          <h2>ขั้นสูง: เชื่อม Shopee Affiliate</h2>
+          <p className="hint">ติดตั้ง Connector แล้ว เหลือล็อกอิน Shopee Affiliate ในแท็บที่เปิดให้ ระบบจะรู้เองเมื่อล็อกอินเสร็จ</p>
+          <div className="bar"><button className="btn primary" onClick={connectShopee}>เชื่อม Shopee Affiliate ↗</button></div>
         </section>
       )}
-      {pro && viewOnly && (
+      {active && !pro && <Upgrade price={me.price} />}
+      {pro && catalogMode && !extOk && (
+        <section className="panel adv-card">
+          <div>
+            <h2>อยากได้มากกว่านี้?</h2>
+            <p className="hint">ตอนนี้คุณใช้ท็อปจากคลังกลาง เอาลิงก์ผ่านแอป Shopee ได้ตามปกติ ถ้าอยากได้เพิ่ม เปิดขั้นสูงได้ทุกเมื่อ</p>
+          </div>
+          <div className="adv-opts">
+            <a href="/settings#advanced"><b>ลิงก์อัตโนมัติทุกตัว</b><span>ไม่ต้องกดแชร์ทีละตัว</span></a>
+            <a href="/settings#advanced"><b>สแกนหมวดที่คุณทำเอง</b><span>คำค้นอะไรก็ได้</span></a>
+          </div>
+        </section>
+      )}
+      {pro && viewOnly && !catalogMode && (
         <section className="panel">
-          <p className="hint" style={{ margin: 0 }}>เครื่องนี้ดูคะแนนและก๊อปลิงก์ได้ ส่วนการดึงสินค้าใหม่และสร้างลิงก์ ใช้คอมที่ติดตั้ง <a href="/connector" target="_blank" rel="noopener">ปั๊กปัก Connector</a> (Chrome)</p>
+          <p className="hint" style={{ margin: 0 }}>เครื่องนี้ดูคะแนนและก๊อปลิงก์ได้ ส่วนการสแกนใหม่และสร้างลิงก์ ใช้คอมที่ติดตั้ง <a href="/connector" target="_blank" rel="noopener">ปั๊กปัก Connector</a> (ขั้นสูง)</p>
           <ShopeeOffInfo />
         </section>
       )}
@@ -464,7 +478,8 @@ export default function Home() {
                 <button className={"chip" + (cat === c ? " on" : "")} onClick={() => (editCats ? setDelCat(c) : pickCat(c))}>{c} <span className="num">{countBy[c]}</span>{editCats && <span className="chip-x" aria-label={"ลบหมวด " + c}>×</span>}</button>
               </span>
             ))}
-            {pro && cats.length > 0 && <button className="btn ghost" onClick={() => { setEditCats(!editCats); setDelCat(null); }}>{editCats ? "เสร็จ" : "จัดการหมวด"}</button>}
+            {!advanced && cats.length > 0 && <button className="btn ghost" onClick={() => setNudge("cats")}>หาหมวดไม่เจอ?</button>}
+            {pro && !catalogMode && cats.length > 0 && <button className="btn ghost" onClick={() => { setEditCats(!editCats); setDelCat(null); }}>{editCats ? "เสร็จ" : "จัดการหมวด"}</button>}
           </div>
           {cat && newestBy[cat] > 0 && (
             <p className={"hint fresh" + (Date.now() - newestBy[cat] > STALE_MS ? " stale" : "")} style={{ margin: 0 }}>
@@ -530,8 +545,8 @@ export default function Home() {
                     <div className="bar">
                       {p.affLink && <button className="btn primary" onClick={() => copyLink(p)}>คัดลอกลิงก์</button>}
                       {pro && !catalogMode && account && !p.affLink && <button className="btn primary" onClick={() => makeLink(p)}>สร้างลิงก์ affiliate</button>}
-                      {shared && !p.affLink && p.url && <a className="btn primary" href={p.url} target="_blank" rel="noopener">เปิดในแอป Shopee</a>}
-                      {shared && !p.affLink && p.url && <button className="btn" onClick={async () => { try { await navigator.clipboard.writeText(p.url); say("คัดลอกลิงก์สินค้าแล้ว"); } catch { say(p.url); } }}>คัดลอกลิงก์สินค้า</button>}
+                      {shared && !p.affLink && p.url && <a className="btn primary" href={p.url} target="_blank" rel="noopener" onClick={usedAppLink}>เปิดในแอป Shopee</a>}
+                      {shared && !p.affLink && p.url && <button className="btn" onClick={async () => { try { await navigator.clipboard.writeText(p.url); usedAppLink(); say("คัดลอกลิงก์สินค้าแล้ว"); } catch { say(p.url); } }}>คัดลอกลิงก์สินค้า</button>}
                       {shared && !p.affLink && p.url && <span className="hint">ในแอป Shopee กดปุ่มแชร์ ↗ มุมขวาบน แล้วคัดลอกลิงก์ = ลิงก์ affiliate ของคุณเอง</span>}
                       {p.url && <a className="btn" href={p.url} target="_blank" rel="noopener">หน้าสินค้า ↗</a>}
                     </div>
@@ -551,6 +566,7 @@ export default function Home() {
 }
 
 const UPGRADE_URL = "https://line.me/R/oaMessage/@979soyth/?" + encodeURIComponent("อัปเกรด Pro");
+const OA_ADD = "https://line.me/R/ti/p/@979soyth";
 const thDate = (t) => new Date(t).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
 
 function PlanBadge({ member }) {
@@ -582,9 +598,9 @@ function Upgrade({ price }) {
         <p className="hint">ต้องล็อกอินแอป Shopee ด้วยบัญชีที่สมัคร Shopee Affiliate ไว้</p>
       </div>
       <ul className="upgrade-list">
-        <li>สแกนหมวดและคำค้นของคุณเองไม่จำกัด ด้วย Connector</li>
-        <li>ลิงก์ affiliate Top 20 สร้างให้อัตโนมัติ ก๊อปในแชท LINE ได้ทันที</li>
+        <li>ดูได้ทุกตัว ไม่ใช่แค่ท็อป 5</li>
         <li>AI ไอเดียคลิปวันละ 30 ตัว</li>
+        <li>ขั้นสูง: ลิงก์อัตโนมัติ Top 20 และสแกนหมวดของคุณเอง (ใช้คอม)</li>
       </ul>
       <div className="bar">
         <a className="btn primary" href={UPGRADE_URL} target="_blank" rel="noopener">อัปเกรดเป็น Pro ฿{price?.month || 199}/เดือน</a>
