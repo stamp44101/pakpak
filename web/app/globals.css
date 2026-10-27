@@ -111,7 +111,7 @@ td input{width:84px;padding:5px 7px}
 .explain-body{display:flex;flex-direction:column;gap:6px;margin-top:8px;font-size:13px}
 .explain-body p{margin:0}
 @media (prefers-reduced-motion:reduce){.flash{animation:none}.progress i{transition:none}}
-.install{padding-left:40px;gap:16px}
-.install li{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
-.install li::marker{font-weight:600;color:var(--accent)}
+.install{counter-reset:step;list-style:none;margin:0;gap:18px}
+.install li{counter-increment:step;position:relative;padding-left:38px;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.install li::before{content:counter(step);position:absolute;left:0;top:0;width:26px;height:26px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:600;font-size:13px}
 .install .hint{margin:0}
