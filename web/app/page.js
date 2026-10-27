@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import QRCode from "qrcode";
 import { effPrice, rank } from "../lib/score";
 
 const EXT_ID = process.env.NEXT_PUBLIC_EXT_ID || "oemnhmceapililgkfdfjamhbdpkkjbbm";
@@ -31,32 +30,22 @@ function ext(msg, timeout = 30000) {
   });
 }
 
-// ---- local storage + sync key (the key IS the account; shared to other devices by a 6-digit code) ----
 const ls = {
   get(k) { try { return localStorage.getItem(STORE + k); } catch { return null; } },
   set(k, v) { try { v == null ? localStorage.removeItem(STORE + k) : localStorage.setItem(STORE + k, v); } catch {} },
 };
-function syncKey(create = true) {
-  let t = ls.get(".key");
-  if (!t && create) {
-    const a = new Uint8Array(32); crypto.getRandomValues(a);
-    t = Array.from(a, (b) => b.toString(16).padStart(2, "0")).join("");
-    ls.set(".key", t);
-  }
-  return t;
-}
 async function api(path, method = "GET", body) {
-  const key = syncKey();
-  const r = await fetch(path, { method, headers: { authorization: "Bearer " + key, ...(body ? { "content-type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined }).catch(() => null);
+  const r = await fetch(path, { method, credentials: "same-origin", headers: body ? { "content-type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined }).catch(() => null);
   if (!r) return { error: "เชื่อมต่อ server ไม่ได้" };
   return r.json().catch(() => ({ error: "server error " + r.status }));
 }
 function loadLocal() { try { return JSON.parse(ls.get("") || "{}"); } catch { return {}; } }
 
 export default function Home() {
-  const [extOk, setExtOk] = useState(null); // null=checking
+  const [me, setMe] = useState(null); // {member, seats, left, loginReady}
+  const [extOk, setExtOk] = useState(null);
   const [account, setAccount] = useState(null); // live Shopee Affiliate session via Connector
-  const [linked, setLinked] = useState(null); // account name saved on the server (seen from any device)
+  const [linked, setLinked] = useState(null); // Shopee account name saved on the member
   const [products, setProducts] = useState({});
   const [ready, setReady] = useState(false);
   const [sync, setSync] = useState("");
@@ -67,52 +56,51 @@ export default function Home() {
   const [open, setOpen] = useState(null);
   const [toast, setToast] = useState("");
   const [confirmOut, setConfirmOut] = useState(false);
-  const [pair, setPair] = useState(null); // {code, qr, expires}
-  const [code, setCode] = useState("");
-  const [mobile, setMobile] = useState(false);
   const poll = useRef(null);
   const saveT = useRef(null);
   const skipSave = useRef(true);
 
-  const say = (t) => { setToast(t); clearTimeout(say.t); say.t = setTimeout(() => setToast(""), 2800); };
+  const say = (t) => { setToast(t); clearTimeout(say.t); say.t = setTimeout(() => setToast(""), 3000); };
+  const member = me && me.member;
+  const active = member && member.status === "active";
 
-  // ---- load: local first, then the server copy if it is newer ----
+  // ---- who am I ----
+  useEffect(() => {
+    const q = new URLSearchParams(location.search);
+    if (q.get("login")) { say(q.get("login") === "cancelled" ? "ยกเลิกการเข้าสู่ระบบ" : "เข้าสู่ระบบไม่สำเร็จ ลองอีกครั้ง"); history.replaceState(null, "", "/"); }
+    skipSave.current = true;
+    setProducts(loadLocal().products || {});
+    api("/api/me").then((r) => setMe(r.error ? { member: null, left: 0, seats: 10, loginReady: false } : r));
+  }, []);
+  useEffect(() => { if (active) pullState(); }, [active]);
+
+  // ---- load: server copy if newer, else upload what this device has ----
   async function pullState() {
     const local = loadLocal();
     const hasLocal = local.products && Object.keys(local.products).length > 0;
-    if (!syncKey(false) && !hasLocal) { setReady(true); return; }
     const remote = await api("/api/state");
     if (remote.error) { setSync("ออฟไลน์"); setReady(true); return; }
     if (remote.account) setLinked(remote.account);
-    if ((remote.updatedAt || 0) > (local.savedAt || 0)) {
+    if ((remote.updatedAt || 0) > (local.savedAt || 0) || !hasLocal) {
       skipSave.current = true;
       setProducts(remote.products || {});
-      ls.set("", JSON.stringify({ products: remote.products || {}, savedAt: remote.updatedAt }));
-    } else if (hasLocal) {
-      // this device has newer data (e.g. from before sync existed): upload it
-      const r = await api("/api/state", "PUT", { products: local.products, account: remote.account || null });
+      ls.set("", JSON.stringify({ products: remote.products || {}, savedAt: remote.updatedAt || 0 }));
+    } else {
+      const r = await api("/api/state", "PUT", { products: local.products });
       if (!r.error) ls.set("", JSON.stringify({ products: local.products, savedAt: r.updatedAt }));
     }
     setReady(true);
   }
-  useEffect(() => {
-    setMobile(typeof window !== "undefined" && (window.matchMedia("(pointer: coarse)").matches || /Android|iPhone|iPad/i.test(navigator.userAgent)));
-    skipSave.current = true;
-    setProducts(loadLocal().products || {});
-    const q = new URLSearchParams(location.search).get("pair");
-    if (q) { history.replaceState(null, "", "/"); claim(q); } else pullState();
-  }, []);
 
   // ---- save: local now, server after a short pause ----
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !active) return;
     if (skipSave.current) { skipSave.current = false; return; }
-    const savedAt = Date.now();
-    ls.set("", JSON.stringify({ products, savedAt }));
+    ls.set("", JSON.stringify({ products, savedAt: Date.now() }));
     clearTimeout(saveT.current);
     setSync("กำลังบันทึก…");
     saveT.current = setTimeout(async () => {
-      const r = await api("/api/state", "PUT", { products, account: account ? account.name : linked });
+      const r = await api("/api/state", "PUT", { products });
       if (r.error) return setSync("บันทึกขึ้น server ไม่ได้");
       ls.set("", JSON.stringify({ products, savedAt: r.updatedAt }));
       setSync("บันทึกแล้ว");
@@ -131,10 +119,10 @@ export default function Home() {
     if (s.loggedIn && s.name !== linked) { setLinked(s.name); api("/api/state", "PUT", { account: s.name }); }
     return !!s.loggedIn;
   }
-  useEffect(() => { checkStatus(); }, []);
+  useEffect(() => { if (active) checkStatus(); }, [active]);
   useEffect(() => () => { clearInterval(poll.current); clearTimeout(saveT.current); }, []);
 
-  async function login() {
+  async function connectShopee() {
     ls.set(".out", null);
     await ext({ type: "openLogin" });
     clearInterval(poll.current);
@@ -146,43 +134,22 @@ export default function Home() {
     }, 3000);
   }
 
-  function logout(clearData) {
+  async function logout(clearLocal) {
     clearInterval(poll.current);
-    setConfirmOut(false); setPair(null);
-    if (extOk) ls.set(".out", "1");
-    setAccount(null);
-    if (clearData) {
-      skipSave.current = true;
-      setProducts({}); setCat(""); setOpen(null); setLinked(null);
-      ls.set("", null); ls.set(".key", null); // forget this device's link to the account
-    }
-    say(clearData ? "ออกจากระบบและล้างข้อมูลในเครื่องนี้แล้ว" : "ออกจากระบบแล้ว");
-  }
-
-  // ---- open on phone ----
-  async function makePair() {
-    const r = await api("/api/pair", "POST");
-    if (r.error) return say("สร้างรหัสไม่สำเร็จ: " + r.error);
-    const url = `${location.origin}/?pair=${r.code}`;
-    const qr = await QRCode.toDataURL(url, { margin: 1, width: 220 }).catch(() => "");
-    setPair({ code: r.code, qr, url, expires: r.expires });
-  }
-  async function claim(c) {
-    const clean = String(c || "").replace(/\D/g, "");
-    if (clean.length !== 6) return say("ใส่รหัส 6 หลัก");
-    setBusy("กำลังเชื่อมอุปกรณ์…");
-    const r = await fetch("/api/pair", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ code: clean }) }).then((x) => x.json()).catch(() => ({ error: "เชื่อมต่อ server ไม่ได้" }));
-    setBusy("");
-    if (r.error || !r.token) { say(r.error || "เชื่อมไม่สำเร็จ"); setReady(true); return; }
-    ls.set(".key", r.token); ls.set("", null); setCode("");
-    await pullState();
-    setLinked((v) => v || "ของคุณ");
-    say("เชื่อมอุปกรณ์นี้แล้ว");
+    setConfirmOut(false);
+    await api("/api/auth/logout", "POST");
+    ls.set(".out", "1");
+    if (clearLocal) ls.set("", null);
+    skipSave.current = true;
+    setAccount(null); setLinked(null); setProducts({}); setReady(false); setOpen(null); setCat("");
+    setMe((m) => ({ ...m, member: null }));
+    api("/api/me").then((r) => !r.error && setMe(r));
+    say("ออกจากระบบแล้ว");
   }
 
   // ---- data ----
   async function pull(keywords, category) {
-    if (!account) return say("ล็อกอิน Shopee Affiliate ก่อน");
+    if (!account) return say("เชื่อม Shopee Affiliate ก่อน");
     setBusy("กำลังดึงสินค้า…");
     const next = { ...products };
     let added = 0;
@@ -192,7 +159,7 @@ export default function Home() {
         if (r.error) { setBusy(""); if (r.error === "not_logged_in") setAccount(null); return say("ดึงไม่สำเร็จ: " + r.error); }
         for (const it of r.items) {
           const old = next[it.id];
-          const { longLink, ...rest } = it; // keep the saved copy small
+          const { longLink, ...rest } = it;
           next[it.id] = { ...old, ...rest, category: category || old?.category || k, keyword: k, fetchedAt: Date.now() };
           if (!old) added++;
         }
@@ -207,9 +174,9 @@ export default function Home() {
     setAiBusy(p.id);
     const r = await api("/api/score", "POST", { item: { id: p.id, name: p.name, price: effPrice(p), category: p.category }, refresh });
     setAiBusy(null);
-    if (r.error) return say("AI ให้คะแนนไม่สำเร็จ: " + r.error);
+    if (r.error) return say(r.error);
     patch(p.id, { ai: { ...r.score, cached: r.cached } });
-    say(r.cached ? "ได้คะแนนจากคลัง ไม่เสียค่า AI" : "AI ให้คะแนนแล้ว");
+    say(r.cached ? "ได้คะแนนจากคลัง ไม่เสียโควต้า AI" : "AI ให้คะแนนแล้ว");
   }
 
   async function makeLink(p) {
@@ -226,7 +193,7 @@ export default function Home() {
   const all = Object.values(products);
   const cats = [...new Set(all.map((p) => p.category).filter(Boolean))];
   const ranked = useMemo(() => rank(all.filter((p) => !cat || p.category === cat)), [products, cat]);
-  const viewOnly = !account && !!linked; // phone, or a computer without the Connector
+  const viewOnly = active && !account && extOk === false;
 
   return (
     <div className="wrap">
@@ -235,74 +202,77 @@ export default function Home() {
           <h1>ปั๊กปัก</h1>
           <p className="sub">ปักตะกร้าให้ปัง ต้องเริ่มจากเลือกตะกร้าให้เป็น</p>
         </div>
-        <div className="bar">
-          <span className={"src" + (account || linked ? " ok" : "")}><i />
-            {account ? `Shopee Affiliate: ${account.name}` : linked ? `บัญชี ${linked} · เชื่อมจากคอม` : "ยังไม่เชื่อม Shopee Affiliate"}
-          </span>
-          {sync && <span className="hint">{sync}</span>}
-          {account && !pair && <button className="btn" onClick={makePair}>เปิดบนมือถือ</button>}
-          {(account || linked) && !confirmOut && <button className="btn" onClick={() => setConfirmOut(true)}>ออกจากระบบ</button>}
-        </div>
+        {member && (
+          <div className="bar">
+            {member.picture && <img className="avatar" src={member.picture} alt="" referrerPolicy="no-referrer" />}
+            <span className="who">{member.name}</span>
+            {active && <span className={"src" + (account ? " ok" : "")}><i />{account ? `Shopee: ${account.name}` : linked ? `Shopee: ${linked}` : "ยังไม่เชื่อม Shopee"}</span>}
+            {sync && <span className="hint">{sync}</span>}
+            {member.admin && <a className="btn" href="/admin">จัดการสมาชิก</a>}
+            {!confirmOut && <button className="btn" onClick={() => setConfirmOut(true)}>ออกจากระบบ</button>}
+          </div>
+        )}
       </header>
 
       {confirmOut && (
         <section className="panel">
           <h2>ออกจากระบบปั๊กปัก</h2>
-          <p className="hint">{account ? "ปั๊กปักจะหยุดอ่านข้อมูลจาก Shopee Affiliate จนกว่าจะกดเชื่อมใหม่ ถ้าจะเดโมขั้นล็อกอิน Shopee ด้วย ให้ออกจากระบบในแท็บ Shopee Affiliate อีกที" : "อุปกรณ์นี้จะเลิกเชื่อมกับบัญชี ข้อมูลบนบัญชียังอยู่ครบ เชื่อมใหม่ได้ด้วยรหัสจากคอม"}</p>
+          <p className="hint">ข้อมูลของคุณเก็บไว้ในบัญชี เข้าสู่ระบบด้วย LINE อีกครั้งเมื่อไหร่ก็กลับมาครบ การออกจากระบบนี้ไม่ได้ออกจาก Shopee Affiliate</p>
           <div className="bar">
-            {account && <button className="btn primary" onClick={() => logout(false)}>ออกจากระบบ (เก็บข้อมูลไว้)</button>}
-            <button className={"btn" + (account ? "" : " primary")} onClick={() => logout(true)}>{account ? "ออกและล้างข้อมูลในเครื่องนี้" : "เลิกเชื่อมอุปกรณ์นี้"}</button>
+            <button className="btn primary" onClick={() => logout(true)}>ออกจากระบบ</button>
             <button className="btn" onClick={() => setConfirmOut(false)}>ยกเลิก</button>
           </div>
         </section>
       )}
 
-      {pair && (
-        <section className="panel pair">
-          {pair.qr && <img src={pair.qr} alt="QR สำหรับเปิดปั๊กปักบนมือถือ" width="180" height="180" />}
-          <div style={{ minWidth: 0 }}>
-            <h2>เปิดปั๊กปักบนมือถือ</h2>
-            <p className="hint">สแกน QR ด้วยกล้องมือถือ หรือเปิด pakpak บนมือถือแล้วใส่รหัสนี้ ใช้ได้ 10 นาที ครั้งเดียว</p>
-            <div className="code num">{pair.code}</div>
-            <div className="bar"><button className="btn" onClick={() => setPair(null)}>ปิด</button></div>
+      {me && !member && (
+        <section className="panel hero-panel">
+          <span className="eyebrow">Early Access</span>
+          <h2 className="big">เลือกตะกร้าที่ทำคลิปแล้วขายได้ ก่อนเสียเวลาถ่าย</h2>
+          <p className="hint">ปั๊กปักดึงสินค้าจาก Shopee Affiliate ของคุณ ให้คะแนนจากยอดขาย ค่าคอม รีวิว และให้ AI ประเมินว่าทำคลิปง่ายแค่ไหน พร้อม hook 3 วินาทีแรก</p>
+          <div className="bar">
+            <a className={"btn line" + (me.loginReady ? "" : " disabled")} href={me.loginReady ? "/api/auth/line" : undefined}>เข้าสู่ระบบด้วย LINE</a>
+            <span className="seats">{me.left > 0 ? <>เหลือ <b className="num">{me.left}</b> จาก {me.seats} ที่</> : "Early Access เต็มแล้ว สมัครเพื่อเข้าคิวได้"}</span>
           </div>
+          {!me.loginReady && <p className="hint">ระบบเข้าสู่ระบบยังตั้งค่าไม่เสร็จ</p>}
         </section>
       )}
 
-      {!account && !linked && (
+      {member && member.status === "waitlist" && (
         <section className="panel">
-          <h2>{mobile ? "เชื่อมมือถือกับบัญชีปั๊กปัก" : "เชื่อม Shopee Affiliate ของคุณ"}</h2>
+          <h2>คุณอยู่ในคิว Early Access</h2>
+          <p className="hint">ที่นั่ง {me.seats} ที่แรกเต็มแล้ว ตอนนี้คุณอยู่คิวที่ <b className="num">{member.waitlistPosition}</b> เราจะเปิดสิทธิ์ให้เมื่อมีที่ว่าง</p>
+        </section>
+      )}
+      {member && member.status === "revoked" && (
+        <section className="panel"><h2>บัญชีนี้ถูกระงับการใช้งาน</h2><p className="hint">ติดต่อผู้ดูแลปั๊กปักหากคิดว่าเป็นความผิดพลาด</p></section>
+      )}
+
+      {active && !account && extOk !== false && (
+        <section className="panel">
+          <h2>เชื่อม Shopee Affiliate ของคุณ</h2>
           <div className="steps">
-            {!mobile && <>
-              <div className="step">
-                <span className={"badge" + (extOk ? " done" : "")}>{extOk ? "✓" : "1"}</span>
-                <div><b>ติดตั้ง ปั๊กปัก Connector</b>
-                  <p className="hint">{extOk === null ? "กำลังตรวจ…" : extOk ? "ติดตั้งแล้ว" : "ส่วนเสริม Chrome ที่อ่านข้อมูลจากแท็บที่คุณล็อกอินไว้"}</p>
-                  {extOk === false && <div className="bar" style={{ marginTop: 6 }}><a className="btn" href="/connector" target="_blank" rel="noopener">วิธีติดตั้ง</a><button className="btn" onClick={checkStatus}>ตรวจอีกครั้ง</button></div>}
-                </div>
-              </div>
-              <div className="step">
-                <span className="badge">2</span>
-                <div><b>ล็อกอิน Shopee Affiliate</b>
-                  <p className="hint">เปิดแท็บ Shopee Affiliate ให้คุณล็อกอิน ระบบจะรู้เองเมื่อล็อกอินเสร็จ</p>
-                  <div className="bar" style={{ marginTop: 6 }}><button className="btn primary" disabled={!extOk} onClick={login}>ล็อกอิน Shopee Affiliate ↗</button></div>
-                </div>
-              </div>
-            </>}
             <div className="step">
-              <span className="badge">{mobile ? "1" : "หรือ"}</span>
-              <div style={{ minWidth: 0 }}><b>{mobile ? "ใส่รหัสจากคอม" : "เชื่อมจากคอมเครื่องอื่นแล้ว?"}</b>
-                <p className="hint">{mobile ? "บนคอมที่เชื่อม Shopee Affiliate ไว้ กด “เปิดบนมือถือ” แล้วสแกน QR หรือใส่รหัส 6 หลักที่นี่" : "ใส่รหัส 6 หลักจากปุ่ม “เปิดบนมือถือ” ของเครื่องนั้น"}</p>
-                <form className="bar" style={{ marginTop: 6 }} onSubmit={(e) => { e.preventDefault(); claim(code); }}>
-                  <input id="paircode" className="num" inputMode="numeric" autoComplete="one-time-code" maxLength={7} value={code} onChange={(e) => setCode(e.target.value)} placeholder="123456" style={{ width: 120 }} />
-                  <button className="btn primary" disabled={!!busy}>เชื่อม</button>
-                </form>
+              <span className={"badge" + (extOk ? " done" : "")}>{extOk ? "✓" : "1"}</span>
+              <div><b>ติดตั้ง ปั๊กปัก Connector</b><p className="hint">{extOk === null ? "กำลังตรวจ…" : "ติดตั้งแล้ว"}</p></div>
+            </div>
+            <div className="step">
+              <span className="badge">2</span>
+              <div><b>ล็อกอิน Shopee Affiliate</b>
+                <p className="hint">เปิดแท็บ Shopee Affiliate ให้คุณล็อกอิน ระบบจะรู้เองเมื่อล็อกอินเสร็จ</p>
+                <div className="bar" style={{ marginTop: 6 }}><button className="btn primary" disabled={!extOk} onClick={connectShopee}>เชื่อม Shopee Affiliate ↗</button></div>
               </div>
             </div>
           </div>
         </section>
       )}
+      {viewOnly && (
+        <section className="panel">
+          <p className="hint" style={{ margin: 0 }}>เครื่องนี้ดูคะแนนและก๊อปลิงก์ได้ ส่วนการดึงสินค้าใหม่และสร้างลิงก์ ใช้คอมที่ติดตั้ง <a href="/connector" target="_blank" rel="noopener">ปั๊กปัก Connector</a> (Chrome)</p>
+        </section>
+      )}
 
+      {active && <>
       {account && (
         <section className="panel">
           <h2>ดึงสินค้าจาก Shopee Affiliate</h2>
@@ -315,7 +285,6 @@ export default function Home() {
           </form>
         </section>
       )}
-      {viewOnly && <p className="hint">อุปกรณ์นี้ดูและก๊อปลิงก์ได้ ส่วนการดึงสินค้าใหม่และสร้างลิงก์ทำบนคอมที่ติดตั้ง Connector</p>}
 
       {(
         <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -325,7 +294,7 @@ export default function Home() {
           </div>
           {busy && <p className="hint">{busy}</p>}
           <div className="list">
-            {!ranked.length && <div className="empty"><strong>ยังไม่มีสินค้า</strong><span>{ready ? "เชื่อม Shopee Affiliate แล้วกดเลือกหมวดด้านบนเพื่อดึงสินค้า" : "กำลังโหลด…"}</span></div>}
+            {!ranked.length && <div className="empty"><strong>ยังไม่มีสินค้า</strong><span>{ready ? (account ? "กดเลือกหมวดด้านบนเพื่อดึงสินค้า" : "เชื่อม Shopee Affiliate บนคอมเพื่อดึงสินค้า") : "กำลังโหลด…"}</span></div>}
             {ranked.map((p, i) => (
               <div key={p.id} className={"row" + (i < 10 ? " top10" : "")} onClick={(e) => { if (!e.target.closest(".detail")) setOpen(open === p.id ? null : p.id); }}>
                 <div className="rank">{i + 1}</div>
@@ -370,6 +339,7 @@ export default function Home() {
           </div>
         </section>
       )}
+      </>}
 
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>

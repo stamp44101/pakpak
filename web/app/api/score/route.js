@@ -1,13 +1,16 @@
 // AI clipability score for ONE product. Results are cached per product for every user,
 // so a product that anyone has scored before costs nothing to score again.
-import { readJSON, writeJSON, userKey, unauthorized } from "../../../lib/store";
+import { readJSON, writeJSON } from "../../../lib/store";
+import { requireMember, saveMember } from "../../../lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-haiku-5-5";
+const DAILY = Number(process.env.AI_DAILY_LIMIT || 30); // new (uncached) scores per member per day
 
 export async function POST(req) {
-  if (!userKey(req)) return unauthorized();
+  const { member, error } = await requireMember(req);
+  if (error) return error;
   const { item, refresh } = (await req.json().catch(() => ({}))) || {};
   const id = String(item?.id || "");
   if (!/^\d+_\d+$/.test(id) || !item.name) return Response.json({ error: "ข้อมูลสินค้าไม่ครบ" }, { status: 400 });
@@ -17,6 +20,10 @@ export async function POST(req) {
     const cached = await readJSON(cachePath);
     if (cached) return Response.json({ score: cached, cached: true });
   }
+
+  const day = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10); // Bangkok date
+  const used = member.ai?.day === day ? member.ai.count : 0;
+  if (used >= DAILY) return Response.json({ error: `วันนี้ให้ AI ให้คะแนนครบ ${DAILY} ตัวแล้ว พรุ่งนี้ใช้ต่อได้` }, { status: 429 });
 
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return Response.json({ error: "ยังไม่ได้ตั้ง ANTHROPIC_API_KEY บน server" }, { status: 500 });
@@ -61,5 +68,7 @@ export async function POST(req) {
     model: MODEL, at: Date.now(),
   };
   await writeJSON(cachePath, score);
+  member.ai = { day, count: used + 1 };
+  await saveMember(member);
   return Response.json({ score, cached: false });
 }

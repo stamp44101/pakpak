@@ -14,8 +14,12 @@
 - Vercel: root = `web/`, ตั้ง env `ANTHROPIC_API_KEY`
 - ถ้าใช้โดเมนของตัวเอง ให้เพิ่มโดเมนใน `externally_connectable.matches` ของ `extension/manifest.json`
 
-## Sync ข้ามอุปกรณ์
-- แต่ละบัญชีคือ sync key แบบสุ่มที่สร้างใน browser (เก็บบน server เป็นค่า hash) ข้อมูลอยู่ใน Vercel Blob แบบ private (`users/<hash>.json`)
-- ปุ่ม "เปิดบนมือถือ" สร้างรหัส 6 หลัก/QR อายุ 10 นาที ใช้ได้ครั้งเดียว (`/api/pair`)
-- AI ให้คะแนนทีละสินค้า (`/api/score`) และเก็บผลไว้ที่ `ai/<shopId_itemId>.json` ใช้ร่วมกันทุกบัญชี สินค้าที่เคยมีคนให้คะแนนแล้วไม่เสียค่า AI ซ้ำ
-- ต้องมี env `BLOB_READ_WRITE_TOKEN` (ผูก Blob store กับ project) และ `ANTHROPIC_API_KEY`
+## สมาชิก (Early Access)
+- เข้าสู่ระบบด้วย LINE Login (`/api/auth/line` → `/api/auth/line/callback`) session เป็น cookie ที่เซ็นด้วย HMAC
+- สมาชิกเก็บใน Blob `members/<lineUserId>.json` และรายชื่อใน `meta/roster.json` ได้สิทธิ์ทันทีถ้ายังไม่เต็ม `EARLY_ACCESS_SEATS` (ค่าเริ่ม 10) ถ้าเต็มจะเข้าคิว
+- คนแรกที่เข้าสู่ระบบเป็น admin ใช้หน้า `/admin` เปิดสิทธิ์ ย้ายคิว หรือระงับ
+- ข้อมูลของแต่ละคนอยู่ที่ `users/m_<lineUserId>.json` เปิดจากคอมหรือมือถือก็เห็นเหมือนกัน
+- AI ให้คะแนนทีละสินค้า เก็บผลรวมที่ `ai/<shopId_itemId>.json` ใช้ร่วมกันทุกคน สินค้าที่เคยให้คะแนนแล้วไม่เสียค่า AI และไม่นับโควต้า (`AI_DAILY_LIMIT` ค่าเริ่ม 30 ตัวต่อคนต่อวัน)
+
+## Env
+`LINE_CHANNEL_ID`, `LINE_CHANNEL_SECRET`, `APP_URL`, `EARLY_ACCESS_SEATS`, `ANTHROPIC_API_KEY`, `BLOB_READ_WRITE_TOKEN`
