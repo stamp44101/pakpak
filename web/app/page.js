@@ -11,6 +11,7 @@ const PRESETS = [
   ["สัตว์เลี้ยง", ["ของเล่นแมว", "ทรายแมว"]],
 ];
 const STORE = "pukpak.v1";
+const img = (id, size = "_tn") => (id ? `https://down-th.img.susercontent.com/file/${id}${size}` : "");
 const fmt = (n) => (n == null || isNaN(n) ? "–" : Number(n).toLocaleString("th-TH", { maximumFractionDigits: 1 }));
 
 // ---- talk to the ปั๊กปัก Connector extension ----
@@ -214,6 +215,7 @@ export default function Home() {
             {ranked.map((p, i) => (
               <div key={p.id} className={"row" + (i < 10 ? " top10" : "")} onClick={(e) => { if (!e.target.closest(".detail")) setOpen(open === p.id ? null : p.id); }}>
                 <div className="rank">{i + 1}</div>
+                {p.image ? <img className="thumb" src={img(p.image)} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <div className="thumb" />}
                 <div style={{ minWidth: 0 }}>
                   <div className="name">{p.name}</div>
                   <div className="meta">
@@ -232,6 +234,7 @@ export default function Home() {
                 <div className="total">{Math.round(p._t)}</div>
                 {open === p.id && (
                   <div className="detail">
+                    {p.image && <a href={p.url || img(p.image, "")} target="_blank" rel="noopener"><img className="hero" src={img(p.image, "")} alt={p.name} loading="lazy" referrerPolicy="no-referrer" /></a>}
                     {p.ai ? <>
                       <div className="hook">“{p.ai.hook}”</div>
                       {p.ai.angles?.length > 0 && <ol className="angles">{p.ai.angles.map((a, k) => <li key={k}>{a}</li>)}</ol>}

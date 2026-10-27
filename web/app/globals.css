@@ -40,7 +40,7 @@ nav{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow-x:auto}
 nav button{font:inherit;font-weight:500;background:none;border:0;border-bottom:2px solid transparent;padding:10px 12px;color:var(--muted);cursor:pointer;white-space:nowrap}
 nav button[aria-selected="true"]{color:var(--ink);border-color:var(--accent)}
 .list{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
-.row{display:grid;grid-template-columns:36px minmax(0,1fr) 150px 64px;gap:12px;align-items:center;padding:12px 14px;border-top:1px solid var(--line);cursor:pointer}
+.row{display:grid;grid-template-columns:36px 64px minmax(0,1fr) 150px 64px;gap:12px;align-items:center;padding:12px 14px;border-top:1px solid var(--line);cursor:pointer}
 .row:first-child{border-top:0}
 .row.top10{background:linear-gradient(90deg,var(--accent-soft),transparent 60%)}
 .rank{font-family:var(--mono);color:var(--muted);text-align:right}
@@ -53,7 +53,9 @@ nav button[aria-selected="true"]{color:var(--ink);border-color:var(--accent)}
 .track{height:6px;border-radius:3px;background:var(--bar);overflow:hidden}
 .fill{height:100%;background:var(--muted)} .fill.ai{background:var(--accent)}
 .total{font-family:var(--mono);font-size:22px;text-align:right}
-.detail{grid-column:2 / -1;display:flex;flex-direction:column;gap:8px;cursor:default}
+.thumb{width:64px;height:64px;border-radius:8px;object-fit:cover;background:var(--bar);display:block}
+.hero{width:220px;max-width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;background:var(--bar);display:block}
+.detail{grid-column:3 / -1;display:flex;flex-direction:column;gap:8px;cursor:default}
 .hook{font-family:var(--display);font-size:15px}
 .angles{margin:0;padding-left:18px}
 .why{color:var(--muted);font-size:13px}
@@ -72,7 +74,9 @@ td input{width:84px;padding:5px 7px}
 .pass{color:var(--good)} .fail{color:var(--bad)} .pend{color:var(--muted)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:16px;background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;z-index:20}
 @media (max-width:640px){
-  .row{grid-template-columns:28px minmax(0,1fr) 52px}
-  .scores{grid-column:2 / -1;grid-row:2}
-  .total{grid-column:3;grid-row:1}
+  .row{grid-template-columns:24px 52px minmax(0,1fr) 44px}
+  .thumb{width:52px;height:52px}
+  .scores{grid-column:3 / -1;grid-row:2}
+  .total{grid-column:4;grid-row:1}
+  .detail{grid-column:1 / -1}
 }
