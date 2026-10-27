@@ -1,7 +1,7 @@
 // LINE bot webhook: members use ปั๊กปัก from the chat (top products, links, AI ideas).
 // The LINE userId equals the member id because Login and Messaging API share the ปั๊กปัก provider.
 import { verifySignature, reply, loading, LIFF_URL } from "../../../../lib/line";
-import { getMember, roster, seats } from "../../../../lib/auth";
+import { getMember, saveMember, roster, seats, isAdmin } from "../../../../lib/auth";
 import { readJSON, writeJSON } from "../../../../lib/store";
 import { rank, effPrice } from "../../../../lib/score";
 import { scoreItem } from "../../../../lib/ai";
@@ -39,7 +39,15 @@ async function handle(e) {
   if (!m || m.status !== "active") return reply(e.replyToken, await gate(m, e.type === "follow"));
   if (e.type === "follow") return reply(e.replyToken, text(`ยินดีต้อนรับกลับ คุณ${m.name} 🐶\nพิมพ์ "ท็อป" เพื่อดูตะกร้าที่น่าทำคลิปที่สุด หรือกดปุ่มด้านล่าง`, HELP_QR()));
 
-  const pro = isPro(m);
+  // admin can preview the Free experience: "ดูแบบ free" / "ดูแบบ pro"
+  const admin = await isAdmin(uid);
+  const tt = e.type === "message" && e.message.type === "text" ? e.message.text.trim().toLowerCase() : "";
+  if (admin && /^ดูแบบ\s*(free|pro)$/.test(tt)) {
+    m.viewAsFree = tt.endsWith("free");
+    await saveMember(m);
+    return reply(e.replyToken, text(m.viewAsFree ? "โหมดทดสอบ: ตอนนี้บอทตอบคุณแบบผู้ใช้ Free (พิมพ์ \"ดูแบบ pro\" เพื่อกลับ)" : "กลับเป็น Pro แล้ว", HELP_QR()));
+  }
+  const pro = isPro(m) && !(admin && m.viewAsFree);
   let state = (await readJSON(`users/m_${uid}.json`)) || { products: {} };
   if (!pro) {
     // Free: the shared catalog (top 5 per category), product pages only
