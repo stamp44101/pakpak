@@ -9,6 +9,7 @@ export default function Admin() {
   const [data, setData] = useState(null);
   const [err, setErr] = useState("");
   const [openId, setOpenId] = useState(null);
+  const [menuMsg, setMenuMsg] = useState("");
 
   const load = () => fetch("/api/admin").then((r) => r.json()).then((j) => (j.error ? setErr(j.error) : setData(j))).catch(() => setErr("โหลดไม่สำเร็จ"));
   useEffect(() => { load(); }, []);
@@ -80,6 +81,14 @@ export default function Admin() {
               )}
             </div>
           ))}
+        </div>
+        <div className="bar">
+          <button className="btn" disabled={menuMsg === "กำลังติดตั้ง…"} onClick={async () => {
+            setMenuMsg("กำลังติดตั้ง…");
+            const r = await fetch("/api/admin/richmenu", { method: "POST" }).then((x) => x.json()).catch(() => ({ error: "เชื่อมต่อไม่ได้" }));
+            setMenuMsg(r.ok ? "อัปเดตเมนู LINE แล้ว (ปิดแล้วเปิดแชทใหม่เพื่อดู)" : "ไม่สำเร็จ: " + (r.error || ""));
+          }}>อัปเดต Rich menu ใน LINE</button>
+          {menuMsg && <span className="hint">{menuMsg}</span>}
         </div>
         <p className="hint">จำนวนที่นั่ง Early Access ตั้งใน Vercel env <code>EARLY_ACCESS_SEATS</code> · EA = Early Access</p>
       </>}
