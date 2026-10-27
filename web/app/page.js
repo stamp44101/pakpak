@@ -165,7 +165,10 @@ export default function Home() {
         }
       }
     }
-    setProducts(next); setBusy(""); say(`ได้สินค้าใหม่ ${added} ตัว`);
+    const tag = category || keywords[0];
+    setProducts(next); setBusy(""); setCat(tag); setKw("");
+    say(`ได้สินค้าใหม่ ${added} ตัว ในหมวด “${tag}”`);
+    setTimeout(() => document.getElementById("cats")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
   }
 
   const patch = (id, data) => setProducts((prev) => ({ ...prev, [id]: { ...prev[id], ...data } }));
@@ -194,6 +197,17 @@ export default function Home() {
   const cats = [...new Set(all.map((p) => p.category).filter(Boolean))];
   const ranked = useMemo(() => rank(all.filter((p) => !cat || p.category === cat)), [products, cat]);
   const viewOnly = active && !account && extOk === false;
+  const [editCats, setEditCats] = useState(false);
+  const [delCat, setDelCat] = useState(null);
+  const countBy = useMemo(() => all.reduce((m, p) => ((m[p.category] = (m[p.category] || 0) + 1), m), {}), [products]);
+  const linkCount = (c) => all.filter((p) => p.category === c && p.affLink).length;
+  function removeCat(c) {
+    setProducts((prev) => Object.fromEntries(Object.entries(prev).filter(([, p]) => p.category !== c)));
+    if (cat === c) setCat("");
+    setDelCat(null);
+    if (cats.length <= 1) setEditCats(false);
+    say(`ลบหมวด “${c}” แล้ว`);
+  }
 
   // ---- onboarding: 4 steps, detected from what the member has actually done ----
   const [obHidden, setObHidden] = useState(false);
@@ -201,7 +215,7 @@ export default function Home() {
   const serverDone = (member && member.onboarding && member.onboarding.done) || [];
   const obDone = [...new Set([
     ...serverDone,
-    ...(extOk ? ["connector"] : []),
+    ...(extOk || account || linked || serverDone.includes("shopee") ? ["connector"] : []),
     ...(account || linked ? ["shopee"] : []),
     ...(all.length ? ["scan"] : []),
     ...(all.some((p) => p.ai) ? ["ai"] : []),
@@ -345,10 +359,24 @@ export default function Home() {
 
       {(
         <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <div className="bar">
-            <button className={"chip" + (!cat ? " on" : "")} onClick={() => setCat("")}>ทุกหมวด</button>
-            {cats.map((c) => <button key={c} className={"chip" + (cat === c ? " on" : "")} onClick={() => setCat(c)}>{c}</button>)}
+          <div className="bar" id="cats">
+            <button className={"chip" + (!cat ? " on" : "")} onClick={() => setCat("")}>ทุกหมวด <span className="num">{all.length}</span></button>
+            {cats.map((c) => (
+              <span key={c} className={"chip-wrap" + (editCats ? " editing" : "")}>
+                <button className={"chip" + (cat === c ? " on" : "")} onClick={() => (editCats ? setDelCat(c) : setCat(c))}>{c} <span className="num">{countBy[c]}</span>{editCats && <span className="chip-x" aria-label={"ลบหมวด " + c}>×</span>}</button>
+              </span>
+            ))}
+            {cats.length > 0 && <button className="btn ghost" onClick={() => { setEditCats(!editCats); setDelCat(null); }}>{editCats ? "เสร็จ" : "จัดการหมวด"}</button>}
           </div>
+          {delCat && (
+            <div className="confirm">
+              <span>ลบหมวด “{delCat}” และสินค้า {countBy[delCat]} ตัวในหมวดนี้?{linkCount(delCat) > 0 && ` (มีลิงก์ affiliate ที่สร้างไว้ ${linkCount(delCat)} ลิงก์จะหายด้วย)`}</span>
+              <div className="bar">
+                <button className="btn danger" onClick={() => removeCat(delCat)}>ลบหมวด</button>
+                <button className="btn" onClick={() => setDelCat(null)}>ยกเลิก</button>
+              </div>
+            </div>
+          )}
           {busy && <p className="hint">{busy}</p>}
           <details className="explain">
             <summary>คะแนนคิดยังไง?</summary>
