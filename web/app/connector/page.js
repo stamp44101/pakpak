@@ -8,7 +8,6 @@ export default function Connector() {
   }
   return (
     <div className="wrap" style={{ maxWidth: 680 }}>
-      <title>ติดตั้ง ปั๊กปัก Connector</title>
       <div>
         <h1>ติดตั้ง ปั๊กปัก Connector</h1>
         <p className="sub">ส่วนเสริม Chrome ที่ให้ปั๊กปักอ่านสินค้าและสร้างลิงก์จาก Shopee Affiliate ที่คุณล็อกอินไว้ ไม่เก็บรหัสผ่านหรือ cookie · ใช้เวลาราว 1 นาที · ใช้บนคอมกับ Chrome</p>

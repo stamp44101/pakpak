@@ -49,6 +49,7 @@ function loadLocal() { try { return JSON.parse(ls.get("") || "{}"); } catch { re
 
 export default function Home() {
   const [me, setMe] = useState(null); // {member, seats, left, loginReady}
+  const [signedHint, setSignedHint] = useState(false); // this browser was signed in last time
   const [extOk, setExtOk] = useState(null);
   const [account, setAccount] = useState(null); // live Shopee Affiliate session via Connector
   const [linked, setLinked] = useState(null); // Shopee account name saved on the member
@@ -77,6 +78,7 @@ export default function Home() {
   useEffect(() => {
     const q = new URLSearchParams(location.search);
     if (q.get("login")) { say(q.get("login") === "cancelled" ? "ยกเลิกการเข้าสู่ระบบ" : "เข้าสู่ระบบไม่สำเร็จ ลองอีกครั้ง"); history.replaceState(null, "", "/"); }
+    setSignedHint(ls.get(".in") === "1");
     skipSave.current = true;
     setProducts(loadLocal().products || {});
     api("/api/me").then(async (r) => {
@@ -308,7 +310,8 @@ export default function Home() {
     say("กด “ให้ AI ให้คะแนนตัวนี้” ที่สินค้าอันดับ 1");
   }
 
-  if (me && !member && !me.liffSigningIn) return <Landing me={me} onLogin={() => ls.set(".lineOut", null)} />;
+  useEffect(() => { if (me) ls.set(".in", me.member ? "1" : null); }, [me]);
+  if ((me && !member && !me.liffSigningIn) || (!me && !signedHint)) return <Landing me={me} onLogin={() => ls.set(".lineOut", null)} />;
 
   return (
     <div className="wrap">
