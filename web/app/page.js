@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { effPrice, rank } from "../lib/score";
 
 const EXT_ID = process.env.NEXT_PUBLIC_EXT_ID || "oemnhmceapililgkfdfjamhbdpkkjbbm";
@@ -195,7 +195,16 @@ export default function Home() {
 
   const all = Object.values(products);
   const cats = [...new Set(all.map((p) => p.category).filter(Boolean))];
-  const ranked = useMemo(() => rank(all.filter((p) => !cat || p.category === cat)), [products, cat]);
+  // rank each category once per data change; switching category then only picks a cached list
+  const rankedBy = useMemo(() => {
+    const m = { "": rank(all) };
+    for (const c of new Set(all.map((p) => p.category).filter(Boolean))) m[c] = rank(all.filter((p) => p.category === c));
+    return m;
+  }, [products]);
+  const ranked = rankedBy[cat] || rankedBy[""];
+  const [limit, setLimit] = useState(40);
+  const [, startTransition] = useTransition();
+  const pickCat = (c) => { setOpen(null); setLimit(40); startTransition(() => setCat(c)); };
   const viewOnly = active && !account && extOk === false;
   const [editCats, setEditCats] = useState(false);
   const [delCat, setDelCat] = useState(null);
@@ -360,10 +369,10 @@ export default function Home() {
       {(
         <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div className="bar" id="cats">
-            <button className={"chip" + (!cat ? " on" : "")} onClick={() => setCat("")}>ทุกหมวด <span className="num">{all.length}</span></button>
+            <button className={"chip" + (!cat ? " on" : "")} onClick={() => pickCat("")}>ทุกหมวด <span className="num">{all.length}</span></button>
             {cats.map((c) => (
               <span key={c} className={"chip-wrap" + (editCats ? " editing" : "")}>
-                <button className={"chip" + (cat === c ? " on" : "")} onClick={() => (editCats ? setDelCat(c) : setCat(c))}>{c} <span className="num">{countBy[c]}</span>{editCats && <span className="chip-x" aria-label={"ลบหมวด " + c}>×</span>}</button>
+                <button className={"chip" + (cat === c ? " on" : "")} onClick={() => (editCats ? setDelCat(c) : pickCat(c))}>{c} <span className="num">{countBy[c]}</span>{editCats && <span className="chip-x" aria-label={"ลบหมวด " + c}>×</span>}</button>
               </span>
             ))}
             {cats.length > 0 && <button className="btn ghost" onClick={() => { setEditCats(!editCats); setDelCat(null); }}>{editCats ? "เสร็จ" : "จัดการหมวด"}</button>}
@@ -389,7 +398,7 @@ export default function Home() {
           </details>
           <div className="list">
             {!ranked.length && <div className="empty"><strong>ยังไม่มีสินค้า</strong><span>{ready ? (account ? "กดเลือกหมวดด้านบนเพื่อดึงสินค้า" : "เชื่อม Shopee Affiliate บนคอมเพื่อดึงสินค้า") : "กำลังโหลด…"}</span></div>}
-            {ranked.map((p, i) => (
+            {ranked.slice(0, limit).map((p, i) => (
               <div key={p.id} id={"row-" + p.id} className={"row" + (i < 10 ? " top10" : "")} onClick={(e) => { if (!e.target.closest(".detail")) setOpen(open === p.id ? null : p.id); }}>
                 <div className="rank">{i + 1}</div>
                 {p.image ? <img className="thumb" src={img(p.image)} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <div className="thumb" />}
@@ -431,6 +440,7 @@ export default function Home() {
               </div>
             ))}
           </div>
+          {ranked.length > limit && <button className="btn" style={{ alignSelf: "center" }} onClick={() => setLimit(limit + 40)}>แสดงเพิ่มอีก {Math.min(40, ranked.length - limit)} ตัว (จาก {ranked.length})</button>}
         </section>
       )}
       </>}

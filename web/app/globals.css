@@ -120,3 +120,5 @@ td input{width:84px;padding:5px 7px}
 .chip-wrap.editing .chip{border-style:dashed}
 .confirm{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--bad);border-radius:10px;padding:10px 14px}
 .btn.danger{background:var(--bad);border-color:var(--bad);color:#fff}
+
+.row{content-visibility:auto;contain-intrinsic-size:auto 92px}
