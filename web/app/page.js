@@ -11,6 +11,8 @@ const PRESETS = [
   ["สัตว์เลี้ยง", ["ของเล่นแมว", "ทรายแมว"]],
 ];
 const STORE = "pukpak.v1";
+const DAY = 864e5, STALE_MS = 3 * DAY;
+const ago = (t) => { if (!t) return "ไม่ทราบ"; const d = Math.floor((Date.now() - t) / DAY); return d <= 0 ? "วันนี้" : d === 1 ? "เมื่อวาน" : `${d} วันก่อน`; };
 const img = (id, size = "_tn") => (id ? `https://down-th.img.susercontent.com/file/${id}${size}` : "");
 const fmt = (n) => (n == null || isNaN(n) ? "–" : Number(n).toLocaleString("th-TH", { maximumFractionDigits: 1 }));
 
@@ -59,7 +61,9 @@ export default function Home() {
   const poll = useRef(null);
   const saveT = useRef(null);
   const skipSave = useRef(true);
+  const productsRef = useRef({});
 
+  productsRef.current = products;
   const say = (t) => { setToast(t); clearTimeout(say.t); say.t = setTimeout(() => setToast(""), 3000); };
   const member = me && me.member;
   const active = member && member.status === "active";
@@ -120,6 +124,12 @@ export default function Home() {
     return !!s.loggedIn;
   }
   useEffect(() => { if (active) checkStatus(); }, [active]);
+  useEffect(() => {
+    if (!active) return;
+    const onVis = () => { if (document.visibilityState === "visible" && extOk) checkStatus(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [active, extOk]);
   useEffect(() => () => { clearInterval(poll.current); clearTimeout(saveT.current); }, []);
 
   async function connectShopee() {
@@ -148,28 +158,41 @@ export default function Home() {
   }
 
   // ---- data ----
-  async function pull(keywords, category) {
-    if (!account) return say("เชื่อม Shopee Affiliate ก่อน");
-    setBusy("กำลังดึงสินค้า…");
-    const next = { ...products };
+  async function pull(keywords, category, { silent = false } = {}) {
+    if (!account) { if (!silent) say("เชื่อม Shopee Affiliate ก่อน"); return; }
+    const tag = category || keywords[0];
+    if (!silent) setBusy("กำลังดึงสินค้า…"); else setSync(`กำลังอัปเดต “${tag}”…`);
+    const next = { ...productsRef.current };
     let added = 0;
     for (const k of keywords) {
       for (const offset of [0, 20]) {
         const r = await ext({ type: "search", opts: { keyword: k, offset, limit: 20, sortType: 2 } });
-        if (r.error) { setBusy(""); if (r.error === "not_logged_in") setAccount(null); return say("ดึงไม่สำเร็จ: " + r.error); }
+        if (r.error) { setBusy(""); if (r.error === "not_logged_in") setAccount(null); if (!silent) say("ดึงไม่สำเร็จ: " + (r.error === "not_logged_in" ? "ยังไม่ได้ล็อกอิน Shopee Affiliate" : r.error)); return; }
         for (const it of r.items) {
           const old = next[it.id];
           const { longLink, ...rest } = it;
-          next[it.id] = { ...old, ...rest, category: category || old?.category || k, keyword: k, fetchedAt: Date.now() };
+          next[it.id] = { ...old, ...rest, category: tag, keyword: k, fetchedAt: Date.now() };
           if (!old) added++;
         }
       }
     }
-    const tag = category || keywords[0];
-    setProducts(next); setBusy(""); setCat(tag); setKw("");
-    say(`ได้สินค้าใหม่ ${added} ตัว ในหมวด “${tag}”`);
+    // links for the Top 20 of this category now, so they still work after Shopee logout / on the phone
+    const top = rank(Object.values(next).filter((p) => p.category === tag)).slice(0, 20).filter((p) => !p.affLink);
+    if (top.length) {
+      if (!silent) setBusy("กำลังสร้างลิงก์ Top 20…");
+      const r = await ext({ type: "links", items: top.map((p) => ({ itemId: p.itemId, shopId: p.shopId })), subIds: ["pukpak"] });
+      for (const l of r.links || []) {
+        const id = l.shopId + "_" + l.itemId;
+        if (next[id] && l.link) next[id] = { ...next[id], affLink: l.link, linkAt: Date.now() };
+      }
+    }
+    setProducts(next); setBusy("");
+    if (silent) { setSync(`อัปเดต “${tag}” แล้ว`); return; }
+    setCat(tag); setKw("");
+    say(`ได้สินค้าใหม่ ${added} ตัว ในหมวด “${tag}” พร้อมลิงก์ Top 20`);
     setTimeout(() => document.getElementById("cats")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
   }
+  const keywordsFor = (c) => (PRESETS.find(([n]) => n === c) || [null, [...new Set(Object.values(productsRef.current).filter((p) => p.category === c).map((p) => p.keyword || c))]])[1];
 
   const patch = (id, data) => setProducts((prev) => ({ ...prev, [id]: { ...prev[id], ...data } }));
 
@@ -204,6 +227,14 @@ export default function Home() {
   const ranked = rankedBy[cat] || rankedBy[""];
   const [limit, setLimit] = useState(40);
   const [, startTransition] = useTransition();
+  const newestBy = useMemo(() => all.reduce((m, p) => ((m[p.category] = Math.max(m[p.category] || 0, p.fetchedAt || 0)), m), {}), [products]);
+  const refreshed = useRef(false);
+  useEffect(() => {
+    if (!account || !ready || refreshed.current) return;
+    refreshed.current = true;
+    const stale = Object.entries(newestBy).filter(([c, t]) => c && t && Date.now() - t > STALE_MS).sort((a, b) => a[1] - b[1]).slice(0, 2);
+    (async () => { for (const [c] of stale) await pull(keywordsFor(c), c, { silent: true }); })();
+  }, [account, ready]);
   const pickCat = (c) => { setOpen(null); setLimit(40); startTransition(() => setCat(c)); };
   const viewOnly = active && !account && extOk === false;
   const [editCats, setEditCats] = useState(false);
@@ -330,6 +361,7 @@ export default function Home() {
 
       {active && !showOnboarding && !account && extOk !== false && (
         <section className="panel">
+          {linked && <p className="hint" style={{ margin: 0 }}>หลุดจาก Shopee Affiliate อยู่ ข้อมูลและลิงก์เดิมยังใช้ได้ครบ ล็อกอินอีกครั้งเพื่อสแกนหรือสร้างลิงก์ใหม่</p>}
           <h2>เชื่อม Shopee Affiliate ของคุณ</h2>
           <div className="steps">
             <div className="step">
@@ -349,6 +381,7 @@ export default function Home() {
       {viewOnly && (
         <section className="panel">
           <p className="hint" style={{ margin: 0 }}>เครื่องนี้ดูคะแนนและก๊อปลิงก์ได้ ส่วนการดึงสินค้าใหม่และสร้างลิงก์ ใช้คอมที่ติดตั้ง <a href="/connector" target="_blank" rel="noopener">ปั๊กปัก Connector</a> (Chrome)</p>
+          <ShopeeOffInfo />
         </section>
       )}
 
@@ -363,6 +396,8 @@ export default function Home() {
             <input className="grow" id="kw" value={kw} onChange={(e) => setKw(e.target.value)} placeholder="หรือพิมพ์คำค้น เช่น แปรงขัดห้องน้ำ" />
             <button className="btn" disabled={!!busy}>ดึงสินค้า</button>
           </form>
+          <p className="hint" style={{ margin: 0 }}>สแกนแต่ละหมวด ระบบสร้างลิงก์ให้ Top 20 ทันที ออกจาก Shopee หรือปิดคอมแล้วก็ยังก๊อปลิงก์ได้</p>
+          <ShopeeOffInfo />
         </section>
       )}
 
@@ -377,6 +412,12 @@ export default function Home() {
             ))}
             {cats.length > 0 && <button className="btn ghost" onClick={() => { setEditCats(!editCats); setDelCat(null); }}>{editCats ? "เสร็จ" : "จัดการหมวด"}</button>}
           </div>
+          {cat && newestBy[cat] > 0 && (
+            <p className={"hint fresh" + (Date.now() - newestBy[cat] > STALE_MS ? " stale" : "")} style={{ margin: 0 }}>
+              ข้อมูลหมวดนี้อัปเดต{ago(newestBy[cat])}{Date.now() - newestBy[cat] > STALE_MS && " · ค่าคอมและราคาอาจเปลี่ยนแล้ว"}
+              {account && Date.now() - newestBy[cat] > DAY && <button className="btn ghost" onClick={() => pull(keywordsFor(cat), cat)} disabled={!!busy}>อัปเดตตอนนี้</button>}
+            </p>
+          )}
           {delCat && (
             <div className="confirm">
               <span>ลบหมวด “{delCat}” และสินค้า {countBy[delCat]} ตัวในหมวดนี้?{linkCount(delCat) > 0 && ` (มีลิงก์ affiliate ที่สร้างไว้ ${linkCount(delCat)} ลิงก์จะหายด้วย)`}</span>
@@ -409,6 +450,8 @@ export default function Home() {
                     <span>ขาย <span className="num">{fmt(p.sold)}</span></span>
                     <span>คอม <span className="num">{fmt(p.commission)}%</span> ≈ ฿<span className="num">{fmt(p._perOrder)}</span>/ชิ้น</span>
                     <span>★ <span className="num">{fmt(p.rating)}</span></span>
+                    {p.affLink && <span className="tag a">มีลิงก์</span>}
+                    {p.fetchedAt && Date.now() - p.fetchedAt > STALE_MS && <span className="tag b">ข้อมูล{ago(p.fetchedAt)}</span>}
                     {p.shop && <span className="tag">{p.shop}</span>}
                   </div>
                 </div>
@@ -429,7 +472,7 @@ export default function Home() {
                       <button className="btn primary" disabled={aiBusy === p.id} onClick={() => scoreOne(p)}>{aiBusy === p.id ? "AI กำลังให้คะแนน…" : "ให้ AI ให้คะแนนตัวนี้"}</button>
                       <span className="hint">ถ้ามีคนให้คะแนนสินค้านี้แล้ว จะได้คะแนนทันทีโดยไม่เสียค่า AI</span>
                     </div>}
-                    {p.affLink && <div className="linkbox">{p.affLink} · Sub ID: pukpak / {p.subId}</div>}
+                    {p.affLink && <div className="linkbox">{p.affLink} · Sub ID: pukpak{p.subId ? " / " + p.subId : ""}</div>}
                     <div className="bar">
                       {p.affLink && <button className="btn primary" onClick={() => copyLink(p)}>คัดลอกลิงก์</button>}
                       {account && !p.affLink && <button className="btn primary" onClick={() => makeLink(p)}>สร้างลิงก์ affiliate</button>}
@@ -463,4 +506,17 @@ function Step({ done, current, title, hint, children }) {
 }
 function mobileUA() {
   return typeof navigator !== "undefined" && /Android|iPhone|iPad/i.test(navigator.userAgent);
+}
+
+function ShopeeOffInfo() {
+  return (
+    <details className="explain">
+      <summary>ถ้าออกจาก Shopee Affiliate หรือปิดคอม ข้อมูลจะเป็นยังไง?</summary>
+      <div className="explain-body">
+        <p><b className="ok">✓ ยังใช้ได้</b> สินค้าที่สแกนไว้ คะแนน และลิงก์ที่สร้างแล้ว เก็บไว้ในบัญชีปั๊กปักของคุณ เปิดจากมือถือหรือคอมเครื่องไหนก็เห็น ลิงก์ยังใช้ได้และค่าคอมยังเข้าบัญชีคุณ</p>
+        <p><b className="no">✗ ต้องล็อกอินก่อน</b> สแกนสินค้าใหม่ อัปเดตข้อมูล และสร้างลิงก์ใหม่ ต้องใช้คอมที่ติดตั้ง Connector และล็อกอิน Shopee Affiliate อยู่</p>
+        <p><b className="warn">! อาจเปลี่ยน</b> ค่าคอม ราคา และยอดขาย เป็นข้อมูล ณ วันที่สแกน ดูป้าย “อัปเดต…” ถ้าเกิน 3 วันควรอัปเดตก่อนทำคลิป โดยเฉพาะช่วงแคมเปญอย่าง 11.11</p>
+      </div>
+    </details>
+  );
 }
