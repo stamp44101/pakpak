@@ -195,6 +195,37 @@ export default function Home() {
   const ranked = useMemo(() => rank(all.filter((p) => !cat || p.category === cat)), [products, cat]);
   const viewOnly = active && !account && extOk === false;
 
+  // ---- onboarding: 4 steps, detected from what the member has actually done ----
+  const [obHidden, setObHidden] = useState(false);
+  useEffect(() => { setObHidden(ls.get(".obHide") === "1"); }, []);
+  const serverDone = (member && member.onboarding && member.onboarding.done) || [];
+  const obDone = [...new Set([
+    ...serverDone,
+    ...(extOk ? ["connector"] : []),
+    ...(account || linked ? ["shopee"] : []),
+    ...(all.length ? ["scan"] : []),
+    ...(all.some((p) => p.ai) ? ["ai"] : []),
+  ])];
+  const obKey = obDone.slice().sort().join(",");
+  useEffect(() => {
+    if (!active || obKey === serverDone.slice().sort().join(",")) return;
+    api("/api/me", "POST", { done: obDone });
+  }, [obKey, active]);
+  const showOnboarding = active && !obHidden && obDone.length < 4;
+  const obNext = ["connector", "shopee", "scan", "ai"].find((k) => !obDone.includes(k));
+  function startScan() {
+    const el = document.getElementById("scan");
+    if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 1600); }
+    say("เลือกหมวดที่คุณทำคลิป หรือพิมพ์คำค้นเอง");
+  }
+  function tryAI() {
+    const top = ranked[0];
+    if (!top) return startScan();
+    setOpen(top.id);
+    setTimeout(() => document.getElementById("row-" + top.id)?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
+    say("กด “ให้ AI ให้คะแนนตัวนี้” ที่สินค้าอันดับ 1");
+  }
+
   return (
     <div className="wrap">
       <header className="top">
@@ -248,7 +279,33 @@ export default function Home() {
         <section className="panel"><h2>บัญชีนี้ถูกระงับการใช้งาน</h2><p className="hint">ติดต่อผู้ดูแลปั๊กปักหากคิดว่าเป็นความผิดพลาด</p></section>
       )}
 
-      {active && !account && extOk !== false && (
+      {showOnboarding && (
+        <section className="panel onboard">
+          <div className="bar" style={{ justifyContent: "space-between" }}>
+            <h2>เริ่มต้นใช้งาน <span className="num hint">{obDone.length}/4</span></h2>
+            <button className="btn ghost" onClick={() => { ls.set(".obHide", "1"); setObHidden(true); }}>ซ่อน</button>
+          </div>
+          <div className="progress"><i style={{ width: `${obDone.length * 25}%` }} /></div>
+          {mobileUA() && !obDone.includes("shopee") && <p className="hint" style={{ margin: 0 }}>ขั้น 1–2 ต้องทำบนคอม (Chrome) ครั้งเดียว หลังจากนั้นเปิดดูบนมือถือได้ตลอด</p>}
+          <ol className="steps-list">
+            <Step done={obDone.includes("connector")} current={obNext === "connector"} title="ติดตั้ง ปั๊กปัก Connector" hint="ส่วนเสริม Chrome ที่อ่านข้อมูลจาก Shopee Affiliate ที่คุณล็อกอินไว้ ใช้เวลาราว 1 นาที">
+              <a className="btn primary" href="/connector" target="_blank" rel="noopener">ดูวิธีติดตั้ง ↗</a>
+              <button className="btn" onClick={checkStatus}>ติดตั้งแล้ว ตรวจอีกครั้ง</button>
+            </Step>
+            <Step done={obDone.includes("shopee")} current={obNext === "shopee"} title="เชื่อม Shopee Affiliate" hint="ระบบเปิดแท็บ Shopee Affiliate ให้ ล็อกอินตามปกติ แล้วกลับมาที่นี่ ระบบจะรู้เอง">
+              <button className="btn primary" disabled={!extOk} onClick={connectShopee}>เชื่อม Shopee Affiliate ↗</button>
+            </Step>
+            <Step done={obDone.includes("scan")} current={obNext === "scan"} title="สแกนตะกร้าแรก" hint="เลือกหมวดที่คุณทำคลิป ปั๊กปักจะดึงสินค้า 40 ตัวแล้วจัดอันดับให้">
+              <button className="btn primary" disabled={!account} onClick={startScan}>เลือกหมวด</button>
+            </Step>
+            <Step done={obDone.includes("ai")} current={obNext === "ai"} title="ลองให้ AI ให้คะแนน 1 ตัว" hint="AI บอกว่าสินค้าทำคลิปง่ายแค่ไหน พร้อม hook 3 วินาทีแรก">
+              <button className="btn primary" disabled={!all.length} onClick={tryAI}>เปิดสินค้าอันดับ 1</button>
+            </Step>
+          </ol>
+        </section>
+      )}
+
+      {active && !showOnboarding && !account && extOk !== false && (
         <section className="panel">
           <h2>เชื่อม Shopee Affiliate ของคุณ</h2>
           <div className="steps">
@@ -274,7 +331,7 @@ export default function Home() {
 
       {active && <>
       {account && (
-        <section className="panel">
+        <section className="panel" id="scan">
           <h2>ดึงสินค้าจาก Shopee Affiliate</h2>
           <div className="bar">
             {PRESETS.map(([c, kws]) => <button key={c} className="chip" disabled={!!busy} onClick={() => pull(kws, c)}>{c}</button>)}
@@ -293,10 +350,19 @@ export default function Home() {
             {cats.map((c) => <button key={c} className={"chip" + (cat === c ? " on" : "")} onClick={() => setCat(c)}>{c}</button>)}
           </div>
           {busy && <p className="hint">{busy}</p>}
+          <details className="explain">
+            <summary>คะแนนคิดยังไง?</summary>
+            <div className="explain-body">
+              <p><b>คะแนนรวม 100</b> = data 60 + AI 40 · แถบสีส้มคือ Top 10</p>
+              <p><b>data (คำนวณจากตัวเลขจริง ไม่เสียค่า AI)</b> ยอดขาย 20 · ค่าคอม 15 · rating + รีวิว 10 · ราคาซื้อง่าย ฿99–599 อีก 10 · ร้าน Mall/Preferred 5</p>
+              <p><b>AI (กดให้คะแนนทีละตัว)</b> โชว์ปัญหา→ทางแก้ได้ใน 3 วิ 15 · มีภาพหยุดนิ้ว 15 · เล่าได้หลายมุม 10</p>
+              <p><b>≈ ฿/ชิ้น</b> = ราคา × % ค่าคอม คือค่าคอมโดยประมาณต่อ 1 order</p>
+            </div>
+          </details>
           <div className="list">
             {!ranked.length && <div className="empty"><strong>ยังไม่มีสินค้า</strong><span>{ready ? (account ? "กดเลือกหมวดด้านบนเพื่อดึงสินค้า" : "เชื่อม Shopee Affiliate บนคอมเพื่อดึงสินค้า") : "กำลังโหลด…"}</span></div>}
             {ranked.map((p, i) => (
-              <div key={p.id} className={"row" + (i < 10 ? " top10" : "")} onClick={(e) => { if (!e.target.closest(".detail")) setOpen(open === p.id ? null : p.id); }}>
+              <div key={p.id} id={"row-" + p.id} className={"row" + (i < 10 ? " top10" : "")} onClick={(e) => { if (!e.target.closest(".detail")) setOpen(open === p.id ? null : p.id); }}>
                 <div className="rank">{i + 1}</div>
                 {p.image ? <img className="thumb" src={img(p.image)} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <div className="thumb" />}
                 <div style={{ minWidth: 0 }}>
@@ -344,4 +410,19 @@ export default function Home() {
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
   );
+}
+
+function Step({ done, current, title, hint, children }) {
+  return (
+    <li className={"ob-step" + (done ? " done" : current ? " current" : "")}>
+      <span className="ob-dot" aria-hidden="true">{done ? "✓" : ""}</span>
+      <div style={{ minWidth: 0 }}>
+        <b>{title}</b>
+        {!done && current && <><p className="hint" style={{ margin: "2px 0 8px" }}>{hint}</p><div className="bar">{children}</div></>}
+      </div>
+    </li>
+  );
+}
+function mobileUA() {
+  return typeof navigator !== "undefined" && /Android|iPhone|iPad/i.test(navigator.userAgent);
 }

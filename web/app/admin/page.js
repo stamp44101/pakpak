@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 
 const STATUS = { active: "ใช้งานได้", waitlist: "รอคิว", revoked: "ระงับ" };
+const STEPS = [["connector", "ติดตั้ง Connector"], ["shopee", "เชื่อม Shopee"], ["scan", "สแกนตะกร้าแรก"], ["ai", "ลอง AI"]];
+const nextStep = (done) => (STEPS.find(([k]) => !done.includes(k)) || [null, "ครบแล้ว"])[1];
 
 export default function Admin() {
   const [data, setData] = useState(null);
@@ -35,6 +37,7 @@ export default function Admin() {
                   <span className={"tag" + (m.status === "active" ? " a" : m.status === "waitlist" ? " b" : "")}>{STATUS[m.status]}</span>
                   <span>สมัคร {new Date(m.joinedAt).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}</span>
                   <span>AI วันนี้ <span className="num">{m.aiToday}</span></span>
+                  {m.status === "active" && <span title={STEPS.map(([k, l]) => (m.onboarding.includes(k) ? "✓ " : "· ") + l).join("\n")}>เริ่มต้น <span className="num">{m.onboarding.length}/4</span>{m.onboarding.length < 4 ? ` · ติดที่: ${nextStep(m.onboarding)}` : ""}</span>}
                 </div>
               </div>
               {!m.admin && (
