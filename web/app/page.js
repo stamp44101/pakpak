@@ -60,7 +60,6 @@ export default function Home() {
   const [products, setProducts] = useState({});
   const [ready, setReady] = useState(false);
   const [sync, setSync] = useState("");
-  const [view, setView] = useState("pick");
   const [cat, setCat] = useState("");
   const [kw, setKw] = useState("");
   const [busy, setBusy] = useState("");
@@ -214,9 +213,7 @@ export default function Home() {
   }
 
   async function makeLink(p) {
-    const group = p.pick || "X";
-    const idx = Object.values(products).filter((x) => x.pick === group && x.subId).length + 1;
-    const subId = p.subId || `${group}${idx}`;
+    const subId = p.subId || String(p.itemId).slice(-8);
     const r = await ext({ type: "links", items: [{ itemId: p.itemId, shopId: p.shopId }], subIds: ["pukpak", subId] });
     if (r.error || !r.links?.[0]) return say("สร้างลิงก์ไม่สำเร็จ: " + (r.error || "ไม่มีลิงก์"));
     patch(p.id, { affLink: r.links[0].link, subId });
@@ -320,11 +317,7 @@ export default function Home() {
       )}
       {viewOnly && <p className="hint">อุปกรณ์นี้ดูและก๊อปลิงก์ได้ ส่วนการดึงสินค้าใหม่และสร้างลิงก์ทำบนคอมที่ติดตั้ง Connector</p>}
 
-      <nav role="tablist">
-        {[["pick", "เลือกตะกร้า"], ["ab", "ผลคลิป A/B"]].map(([v, l]) => <button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)}>{l}</button>)}
-      </nav>
-
-      {view === "pick" && (
+      {(
         <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div className="bar">
             <button className={"chip" + (!cat ? " on" : "")} onClick={() => setCat("")}>ทุกหมวด</button>
@@ -345,7 +338,6 @@ export default function Home() {
                     <span>คอม <span className="num">{fmt(p.commission)}%</span> ≈ ฿<span className="num">{fmt(p._perOrder)}</span>/ชิ้น</span>
                     <span>★ <span className="num">{fmt(p.rating)}</span></span>
                     {p.shop && <span className="tag">{p.shop}</span>}
-                    {p.pick && <span className={"tag " + p.pick.toLowerCase()}>กลุ่ม {p.pick}</span>}
                   </div>
                 </div>
                 <div className="scores">
@@ -367,8 +359,6 @@ export default function Home() {
                     </div>}
                     {p.affLink && <div className="linkbox">{p.affLink} · Sub ID: pukpak / {p.subId}</div>}
                     <div className="bar">
-                      <button className="btn" onClick={() => patch(p.id, { pick: p.pick === "A" ? null : "A" })}>{p.pick === "A" ? "เอาออกจากกลุ่ม A" : "ใช้ทำคลิปกลุ่ม A"}</button>
-                      <button className="btn" onClick={() => patch(p.id, { pick: p.pick === "B" ? null : "B" })}>{p.pick === "B" ? "เอาออกจากกลุ่ม B" : "ตั้งเป็น control กลุ่ม B"}</button>
                       {p.affLink && <button className="btn primary" onClick={() => copyLink(p)}>คัดลอกลิงก์</button>}
                       {account && !p.affLink && <button className="btn primary" onClick={() => makeLink(p)}>สร้างลิงก์ affiliate</button>}
                       {p.url && <a className="btn" href={p.url} target="_blank" rel="noopener">หน้าสินค้า ↗</a>}
@@ -381,44 +371,7 @@ export default function Home() {
         </section>
       )}
 
-      {view === "ab" && <ABView products={products} patch={patch} />}
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
-  );
-}
-
-function ABView({ products, patch }) {
-  const picked = rank(Object.values(products).filter((p) => p.pick)).sort((a, b) => a.pick.localeCompare(b.pick) || b._t - a._t);
-  const g = { A: { v: 0, o: 0, c: 0, e: 0, n: 0 }, B: { v: 0, o: 0, c: 0, e: 0, n: 0 } };
-  for (const p of picked) { const c = p.clip || {}; if (+c.views > 0) { const s = g[p.pick]; s.n++; s.v += +c.views; s.o += +c.orders || 0; s.c += +c.clicks || 0; s.e += +c.earn || 0; } }
-  const opk = (s) => (s.v ? (s.o / s.v) * 1000 : null);
-  const A = opk(g.A), B = opk(g.B), ratio = A != null && B ? A / B : null;
-  let verdict = <span className="pend">รอผลทั้งสองกลุ่ม</span>;
-  if (ratio != null) verdict = ratio >= 2 ? <span className="pass">ผ่าน · A ดีกว่า {ratio.toFixed(1)} เท่า</span> : <span className="fail">ยังไม่ผ่าน · {ratio.toFixed(1)} เท่า</span>;
-  else if (A != null && g.B.n && g.B.o === 0 && g.A.o > 0) verdict = <span className="pass">ผ่าน · B ยังไม่มี order</span>;
-  const setClip = (p, f, v) => patch(p.id, { clip: { ...(p.clip || {}), [f]: v === "" ? null : +v } });
-
-  return (
-    <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div className="verdict">
-        <div className="vcard"><p className="hint">ผลตัดสิน go / no-go</p><div style={{ fontFamily: "var(--display)", fontSize: 18 }}>{verdict}</div></div>
-        <div className="vcard"><p className="hint">Order ต่อ 1,000 views · A / B</p><div className="big">{A == null ? "–" : A.toFixed(2)} / {B == null ? "–" : B.toFixed(2)}</div></div>
-        <div className="vcard"><p className="hint">ค่าคอมเฉลี่ยต่อคลิป (฿) · A / B</p><div className="big">{g.A.n ? fmt(g.A.e / g.A.n) : "–"} / {g.B.n ? fmt(g.B.e / g.B.n) : "–"}</div></div>
-      </div>
-      <p className="hint">กลุ่ม A = สินค้าจาก Top 10 · กลุ่ม B = สินค้าที่เลือกเองตามปกติ (control) · ผ่านเมื่อ order ต่อ 1,000 views ของ A ≥ 2 เท่าของ B · Sub ID ใช้ดูยอดในรายงานคำสั่งซื้อของ Shopee Affiliate</p>
-      <div className="tablewrap">
-        {!picked.length ? <div className="empty"><strong>ยังไม่ได้เลือกสินค้า</strong><span>เปิดสินค้าในแท็บ “เลือกตะกร้า” แล้วเลือกกลุ่ม A และ B อย่างละ 5 ตัว</span></div> :
-          <table><thead><tr><th>กลุ่ม</th><th>สินค้า</th><th className="r">คะแนน</th><th>Sub ID</th><th>Views</th><th>Clicks</th><th>Orders</th><th>ค่าคอม ฿</th><th className="r">Order/1k</th></tr></thead>
-            <tbody>{picked.map((p) => { const c = p.clip || {}; return (
-              <tr key={p.id}>
-                <td><span className={"tag " + p.pick.toLowerCase()}>{p.pick}</span></td>
-                <td style={{ maxWidth: 260 }}>{p.name}</td>
-                <td className="r num">{Math.round(p._t)}</td>
-                <td className="num">{p.subId ? `pukpak/${p.subId}` : "–"}</td>
-                {["views", "clicks", "orders", "earn"].map((f) => <td key={f}><input className="num" inputMode="decimal" id={`${f}-${p.id}`} defaultValue={c[f] ?? ""} onBlur={(e) => setClip(p, f, e.target.value)} /></td>)}
-                <td className="r num">{+c.views ? (((+c.orders || 0) / c.views) * 1000).toFixed(2) : "–"}</td>
-              </tr>); })}</tbody></table>}
-      </div>
-    </section>
   );
 }

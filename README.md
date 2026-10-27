@@ -3,7 +3,7 @@
 ปักตะกร้าให้ปัง ต้องเริ่มจากเลือกตะกร้าให้เป็น
 
 - `extension/` — ปั๊กปัก Connector (Chrome MV3) อ่านข้อมูลจากแท็บ Shopee Affiliate ที่ผู้ใช้ล็อกอินไว้: เช็คบัญชี, ค้นสินค้า, สร้างลิงก์พร้อม Sub ID
-- `web/` — Next.js app (deploy บน Vercel): เชื่อม Connector → ดึงสินค้า → data score + AI score → Top 10 → สร้างลิงก์ → ผล A/B
+- `web/` — Next.js app (deploy บน Vercel): เชื่อม Connector → ดึงสินค้า → data score + AI score → Top 10 → สร้างลิงก์
 
 ## รันในเครื่อง
 1. `chrome://extensions` → Developer mode → Load unpacked → เลือก `extension/`

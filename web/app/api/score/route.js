@@ -21,28 +21,42 @@ export async function POST(req) {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return Response.json({ error: "ยังไม่ได้ตั้ง ANTHROPIC_API_KEY บน server" }, { status: 500 });
 
-  const prompt = `คุณเป็นครีเอเตอร์ทำคลิปสั้น 9:16 ปักตะกร้า Shopee ในไทย ประเมินว่าสินค้านี้ทำคลิปขายได้ง่ายแค่ไหน
-ให้คะแนน 0-10:
-- problem: โชว์ปัญหา→ทางแก้ได้ใน 3 วินาทีแรก
-- visual: มีภาพที่หยุดนิ้ว (before/after, เห็นผลทันที, แปลกตา)
-- multi: เล่าได้หลาย angle ทำซ้ำได้หลายคลิป
-พร้อม hook ภาษาไทยหนึ่งประโยคสำหรับ 3 วินาทีแรก, angles 2-3 ข้อสั้นๆ, why เหตุผลหนึ่งประโยค
-ตอบเป็น JSON object เท่านั้น: {"problem","visual","multi","hook","angles":[],"why"}
+  const prompt = `คุณเป็นครีเอเตอร์ทำคลิปสั้น 9:16 ปักตะกร้า Shopee ในไทย ประเมินว่าสินค้านี้ทำคลิปขายได้ง่ายแค่ไหน แล้วส่งผลผ่าน tool submit_score
+- problem (0-10): โชว์ปัญหา→ทางแก้ได้ใน 3 วินาทีแรก
+- visual (0-10): มีภาพที่หยุดนิ้ว (before/after, เห็นผลทันที, แปลกตา)
+- multi (0-10): เล่าได้หลาย angle ทำซ้ำได้หลายคลิป
+- hook: ประโยคภาษาไทยสำหรับ 3 วินาทีแรก
+- angles: 2-3 มุมเล่าสั้นๆ ภาษาไทย
+- why: เหตุผลหนึ่งประโยค
 สินค้า: ${JSON.stringify({ name: String(item.name).slice(0, 200), price: item.price, category: item.category || "" })}`;
 
+  const tool = {
+    name: "submit_score",
+    description: "ส่งคะแนนความง่ายในการทำคลิปขายของสินค้า",
+    input_schema: {
+      type: "object",
+      properties: {
+        problem: { type: "number" }, visual: { type: "number" }, multi: { type: "number" },
+        hook: { type: "string" }, angles: { type: "array", items: { type: "string" } }, why: { type: "string" },
+      },
+      required: ["problem", "visual", "multi", "hook", "angles", "why"],
+    },
+  };
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({ model: MODEL, max_tokens: 600, messages: [{ role: "user", content: prompt }] }),
+    body: JSON.stringify({ model: MODEL, max_tokens: 800, tools: [tool], tool_choice: { type: "tool", name: "submit_score" }, messages: [{ role: "user", content: prompt }] }),
   });
-  if (!r.ok) return Response.json({ error: "AI error " + r.status }, { status: 502 });
+  if (!r.ok) {
+    const t = await r.text().catch(() => "");
+    return Response.json({ error: `AI error ${r.status}`, detail: t.slice(0, 300) }, { status: 502 });
+  }
   const j = await r.json();
-  const text = (j.content || []).map((c) => c.text || "").join("");
-  const m = text.match(/\{[\s\S]*\}/);
-  let s;
-  try { s = JSON.parse(m ? m[0] : text); } catch { return Response.json({ error: "AI ตอบไม่เป็น JSON" }, { status: 502 }); }
+  const s = (j.content || []).find((c) => c.type === "tool_use")?.input;
+  if (!s) return Response.json({ error: "AI ไม่ส่งคะแนนกลับมา" }, { status: 502 });
+  const clamp = (v) => Math.max(0, Math.min(10, +v || 0));
   const score = {
-    problem: +s.problem || 0, visual: +s.visual || 0, multi: +s.multi || 0,
+    problem: clamp(s.problem), visual: clamp(s.visual), multi: clamp(s.multi),
     hook: String(s.hook || ""), angles: (s.angles || []).slice(0, 3).map(String), why: String(s.why || ""),
     model: MODEL, at: Date.now(),
   };
