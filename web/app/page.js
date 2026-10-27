@@ -300,9 +300,12 @@ export default function Home() {
   return (
     <div className="wrap">
       <header className="top">
-        <div>
+        <div className="brand">
+          <img src="/logo.svg" alt="" width="44" height="44" />
+          <div>
           <h1>ปั๊กปัก</h1>
           <p className="sub">ปักตะกร้าให้ปัง ต้องเริ่มจากเลือกตะกร้าให้เป็น</p>
+          </div>
         </div>
         {member && (
           <div className="bar">
