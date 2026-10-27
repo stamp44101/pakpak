@@ -350,7 +350,7 @@ export default function Home() {
             <span className="who">{member.name}</span>
             {active && <PlanBadge member={member} />}
             <a className="btn" href="/settings">บัญชีของฉัน</a>
-            {pro && <span className={"src" + (account ? " ok" : "")}><i />{account ? `Shopee: ${account.name}` : linked ? `Shopee: ${linked}` : "ยังไม่เชื่อม Shopee"}</span>}
+            {pro && advanced && <span className={"src" + (account ? " ok" : "")}><i />{account ? `Shopee: ${account.name}` : linked ? `Shopee: ${linked}` : "ยังไม่เชื่อม Shopee"}</span>}
             {sync && <span className="hint">{sync}</span>}
             {member.admin && <a className="btn" href="/admin">จัดการสมาชิก</a>}
             {!confirmOut && <button className="btn" onClick={() => setConfirmOut(true)}>ออกจากระบบ</button>}
@@ -434,18 +434,6 @@ export default function Home() {
         </section>
       )}
       {active && !pro && <Upgrade price={me.price} />}
-      {pro && catalogMode && !extOk && (
-        <section className="panel adv-card">
-          <div>
-            <h2>อยากได้มากกว่านี้?</h2>
-            <p className="hint">ตอนนี้คุณใช้ท็อปจากคลังกลาง เอาลิงก์ผ่านแอป Shopee ได้ตามปกติ ถ้าอยากได้เพิ่ม เปิดขั้นสูงได้ทุกเมื่อ</p>
-          </div>
-          <div className="adv-opts">
-            <a href="/settings#advanced"><b>ลิงก์อัตโนมัติทุกตัว</b><span>ไม่ต้องกดแชร์ทีละตัว</span></a>
-            <a href="/settings#advanced"><b>สแกนหมวดที่คุณทำเอง</b><span>คำค้นอะไรก็ได้</span></a>
-          </div>
-        </section>
-      )}
       {pro && viewOnly && !catalogMode && (
         <section className="panel">
           <p className="hint" style={{ margin: 0 }}>เครื่องนี้ดูคะแนนและก๊อปลิงก์ได้ ส่วนการสแกนใหม่และสร้างลิงก์ ใช้คอมที่ติดตั้ง <a href="/connector" target="_blank" rel="noopener">ปั๊กปัก Connector</a> (ขั้นสูง)</p>
