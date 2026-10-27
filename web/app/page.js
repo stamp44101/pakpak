@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { effPrice, rank } from "../lib/score";
 import Landing from "./Landing";
+import LinkHowto from "./LinkHowto";
 
 const LIFF_ID = process.env.NEXT_PUBLIC_LIFF_ID || "2012241865-bvKNVlJR";
 const inLine = () => typeof navigator !== "undefined" && /\bLine\//i.test(navigator.userAgent);
@@ -288,6 +289,7 @@ export default function Home() {
   // ---- onboarding: mobile-first. 3 simple steps for everyone; PC scanning is "ขั้นสูง" (opt-in) ----
   const [obHidden, setObHidden] = useState(false);
   const [nudge, setNudge] = useState(null); // "links" | "cats"
+  const [showHowto, setShowHowto] = useState(false);
   useEffect(() => { setObHidden(ls.get(".obHide2") === "1"); }, []);
   const serverDone = (member && member.onboarding && member.onboarding.done) || [];
   const advanced = !!(extOk || account || !catalogMode && all.length);
@@ -407,7 +409,9 @@ export default function Home() {
             </Step>
             <Step done={obDone.includes("applink")} current={obNext === "applink"} title="เอาลิงก์ของคุณเอง 1 ตัว" hint="เปิดสินค้าในแอป Shopee → กดปุ่มแชร์ ↗ มุมขวาบน → คัดลอกลิงก์ = ลิงก์ affiliate ของคุณ">
               <button className="btn primary" disabled={!ranked.length} onClick={openTop}>เปิดสินค้าอันดับ 1</button>
+              <button className="btn" aria-expanded={showHowto} onClick={() => setShowHowto(!showHowto)}>{showHowto ? "ซ่อนวิธี" : "ดูวิธี 4 ขั้น"}</button>
             </Step>
+            {showHowto && obNext === "applink" && <li className="howto-wrap"><LinkHowto /></li>}
           </ol>
         </section>
       )}
@@ -535,7 +539,7 @@ export default function Home() {
                       {pro && !catalogMode && account && !p.affLink && <button className="btn primary" onClick={() => makeLink(p)}>สร้างลิงก์ affiliate</button>}
                       {shared && !p.affLink && p.url && <a className="btn primary" href={p.url} target="_blank" rel="noopener" onClick={usedAppLink}>เปิดในแอป Shopee</a>}
                       {shared && !p.affLink && p.url && <button className="btn" onClick={async () => { try { await navigator.clipboard.writeText(p.url); usedAppLink(); say("คัดลอกลิงก์สินค้าแล้ว"); } catch { say(p.url); } }}>คัดลอกลิงก์สินค้า</button>}
-                      {shared && !p.affLink && p.url && <span className="hint">ในแอป Shopee กดปุ่มแชร์ ↗ มุมขวาบน แล้วคัดลอกลิงก์ = ลิงก์ affiliate ของคุณเอง</span>}
+                      {shared && !p.affLink && p.url && <span className="hint">ในแอป Shopee กดปุ่มแชร์ ↗ มุมขวาบน แล้วคัดลอกลิงก์ = ลิงก์ affiliate ของคุณเอง · <a href="/settings#howto">ดูภาพ 4 ขั้น</a></span>}
                       {p.url && <a className="btn" href={p.url} target="_blank" rel="noopener">หน้าสินค้า ↗</a>}
                     </div>
                   </div>

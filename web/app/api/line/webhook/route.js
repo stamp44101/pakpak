@@ -87,8 +87,9 @@ async function handle(e) {
   if (e.type !== "message" || e.message.type !== "text") return;
   const t = e.message.text.trim();
 
+  if (/^(วิธีเอาลิงก์|เอาลิงก์ยังไง)/.test(t)) return reply(e.replyToken, linkHowto());
   if (/^(วิธีใช้|ช่วยเหลือ|help)/i.test(t)) return reply(e.replyToken, howto());
-  if (state.shared && /^(ลิงก์|ลิ้ง|link)/i.test(t)) return reply(e.replyToken, text(`เอาลิงก์ของคุณเองได้จากมือถือเลย:\n1) กด "ท็อป 5 วันนี้" แล้วเลือกสินค้า\n2) กด "เปิดในแอป Shopee"\n3) กดปุ่มแชร์ ↗ มุมขวาบน → คัดลอกลิงก์ = ลิงก์ affiliate ของคุณ\n\nอยากได้ลิงก์อัตโนมัติทุกตัว ${pro ? "เปิดขั้นสูงบนคอม (กด \"วิธีใช้\")" : "เป็นขั้นสูงของแพ็ก Pro (พิมพ์ \"อัปเกรด\")"}`, HELP_QR()));
+  if (state.shared && /^(ลิงก์|ลิ้ง|link)/i.test(t)) return reply(e.replyToken, [text(`เอาลิงก์ของคุณเองได้จากมือถือ 4 ขั้น เลื่อนดูได้เลย 👉\nอยากได้ลิงก์อัตโนมัติทุกตัว ${pro ? "เปิดขั้นสูงบนคอม (กด \"วิธีใช้\")" : "เป็นขั้นสูงของแพ็ก Pro (พิมพ์ \"อัปเกรด\")"}`), linkHowto()]);
   if (/^(ติดต่อแอดมิน|แอดมิน)/.test(t)) return reply(e.replyToken, text("รับเรื่องแล้วครับ พิมพ์รายละเอียดทิ้งไว้ได้เลย แอดมินจะตอบกลับในแชทนี้ 🙏"));
   if (!all.length) return reply(e.replyToken, { type: "flex", altText: "ยังไม่มีข้อมูลตะกร้า", contents: card("ยังไม่มีข้อมูลตะกร้า", "คลังกลางกำลังอัปเดต ลองใหม่อีกสักครู่ หรือพิมพ์ \"ติดต่อแอดมิน\"", [openApp("เปิดปั๊กปัก")]) });
 
@@ -99,6 +100,26 @@ async function handle(e) {
   if (/^(ลิงก์|ลิ้ง|link)/i.test(t)) return reply(e.replyToken, links(all));
   if (/^สถานะ/.test(t)) return reply(e.replyToken, status(all, cats, state, m, pro));
   return reply(e.replyToken, text(`พิมพ์ได้แบบนี้ครับ\n• ท็อป — 5 ตะกร้าน่าทำคลิปที่สุด\n• ท็อป ห้องครัว — เฉพาะหมวด\n• หมวด — เลือกหมวด\n• ลิงก์ — ลิงก์ affiliate ที่สร้างแล้ว\n• สถานะ — ข้อมูลอัปเดตล่าสุดเมื่อไร`, HELP_QR()));
+}
+
+// "เอาลิงก์ของตัวเอง" in 4 steps, from a real screen recording (images in /public/howto)
+const LINK_STEPS = [
+  ["กดเปิดในแอป Shopee", "ที่การ์ดสินค้า กด \"เปิดในแอป Shopee\" (หรือ \"เปิดลิงก์\")"],
+  ["กด Allow", "ถ้ามีกล่องถามว่าจะเปิดแอปไหม กด Allow"],
+  ["กดปุ่มแชร์", "ในหน้าสินค้าของแอป Shopee กดปุ่มแชร์ ↗ มุมขวาบน"],
+  ["กดคัดลอกลิงก์", "ได้ลิงก์ affiliate ของคุณ พร้อมเห็นค่าคอมที่จะได้ เอาไปปักตะกร้าได้เลย"],
+];
+function linkHowto() {
+  return { type: "flex", altText: "วิธีเอาลิงก์ของคุณ 4 ขั้น", contents: { type: "carousel", contents: LINK_STEPS.map(([title, body], i) => ({
+    type: "bubble", size: "kilo",
+    hero: { type: "image", url: `${APP}/howto/step${i + 1}.jpg`, size: "full", aspectRatio: "1:1", aspectMode: "cover" },
+    body: { type: "box", layout: "vertical", spacing: "xs", paddingAll: "14px", contents: [
+      { type: "text", text: `ขั้น ${i + 1}/4`, size: "xs", color: "#E5480A", weight: "bold" },
+      { type: "text", text: title, weight: "bold", size: "md", wrap: true },
+      { type: "text", text: body, size: "xs", color: "#666666", wrap: true },
+    ] },
+    ...(i === 3 ? { footer: { type: "box", layout: "vertical", contents: [{ type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "message", label: "ลองเลย: ท็อป 5 วันนี้", text: "ท็อป" } }] } } : {}),
+  })) } };
 }
 
 function howto() {
@@ -113,7 +134,8 @@ function howto() {
     ] },
     footer: { type: "box", layout: "vertical", spacing: "sm", contents: [
       { type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "message", label: "ท็อป 5 วันนี้", text: "ท็อป" } },
-      { type: "button", style: "secondary", height: "sm", action: { type: "uri", label: "ขั้นสูง (คอม)", uri: `${APP}/connector` } },
+      { type: "button", style: "secondary", height: "sm", action: { type: "message", label: "ดูวิธีเอาลิงก์ (4 ขั้น)", text: "วิธีเอาลิงก์" } },
+      { type: "button", style: "link", height: "sm", action: { type: "uri", label: "ขั้นสูง (คอม)", uri: `${APP}/connector` } },
     ] },
   } };
 }
@@ -156,7 +178,7 @@ function top(all, want, cats) {
   const newest = Math.max(...all.filter((p) => p.category === c).map((p) => p.fetchedAt || 0));
   const others = cats.filter((x) => x !== c).slice(0, 12).map((x) => qr(x, "ท็อป " + x));
   return [
-    text(`ท็อป 5 หมวด "${c}" · ข้อมูล ${ago(newest)}${list.some((p) => p.affLink) ? "" : "\n\nเอาลิงก์ของคุณเองได้จากมือถือเลย ไม่ต้องใช้คอม:\n1) กด \"เปิดในแอป Shopee\"\n2) ในหน้าสินค้า กดปุ่มแชร์ ↗ มุมขวาบน\n3) คัดลอกลิงก์ = ลิงก์ affiliate ของคุณ (ต้องล็อกอินแอปด้วยบัญชีที่สมัคร affiliate)"}`),
+    text(`ท็อป 5 หมวด "${c}" · ข้อมูล ${ago(newest)}${list.some((p) => p.affLink) ? "" : "\nเอาลิงก์ของคุณ: กด \"เปิดในแอป Shopee\" → แชร์ ↗ → คัดลอกลิงก์ (พิมพ์ \"วิธีเอาลิงก์\" ดูภาพ 4 ขั้น)"}`),
     { type: "flex", altText: `ท็อป 5 ${c}`, contents: { type: "carousel", contents: list.map((p, i) => bubble(p, i + 1)) }, ...(others.length ? { quickReply: { items: others } } : {}) },
   ];
 }

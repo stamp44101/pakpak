@@ -1,6 +1,7 @@
 "use client";
 // "บัญชีของฉัน": what this member has set up, what is missing, and what their plan includes.
 import { useEffect, useState } from "react";
+import LinkHowto from "../LinkHowto";
 
 const EXT_ID = process.env.NEXT_PUBLIC_EXT_ID || "oemnhmceapililgkfdfjamhbdpkkjbbm";
 const OA_ADD = "https://line.me/R/ti/p/@979soyth";
@@ -113,6 +114,7 @@ export default function Settings() {
             {!appLinkDone && <a className="btn" href="/">ไปเลือกสินค้า</a>}
           </Item>
         </ol>
+        <div id="howto"><p className="hint" style={{ margin: "4px 0 8px" }}>วิธีเอาลิงก์ของคุณเอง 4 ขั้น (จากหน้าจอจริง)</p><LinkHowto /></div>
       </section>
 
       <section className="panel" id="advanced">
