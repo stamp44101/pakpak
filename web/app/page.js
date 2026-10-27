@@ -334,6 +334,7 @@ export default function Home() {
             {member.picture && <img className="avatar" src={member.picture} alt="" referrerPolicy="no-referrer" />}
             <span className="who">{member.name}</span>
             {active && <PlanBadge member={member} />}
+            <a className="btn" href="/settings">บัญชีของฉัน</a>
             {pro && <span className={"src" + (account ? " ok" : "")}><i />{account ? `Shopee: ${account.name}` : linked ? `Shopee: ${linked}` : "ยังไม่เชื่อม Shopee"}</span>}
             {sync && <span className="hint">{sync}</span>}
             {member.admin && <a className="btn" href="/admin">จัดการสมาชิก</a>}

@@ -35,6 +35,7 @@ async function handle(e) {
   if (!e.replyToken || e.source?.type !== "user") return;
   const uid = e.source.userId;
   const m = await getMember(uid);
+  if (m && (!m.botSeenAt || Date.now() - m.botSeenAt > 864e5)) { m.botSeenAt = Date.now(); await saveMember(m); }
 
   // ---- buying Pro: choose plan → send slip → admin approves in /admin ----
   if (m && m.status !== "revoked") {
