@@ -216,9 +216,11 @@ function buyCard(m, why) {
 }
 
 function payInfo(plan) {
-  const amount = plan === "year" ? PRICE.year : PRICE.month;
-  const how = process.env.PAYMENT_INFO || "แอดมินจะส่งเลขพร้อมเพย์ให้ในแชทนี้";
-  return text(`แพ็ก Pro ${plan === "year" ? "รายปี" : "รายเดือน"} ยอด ฿${amount.toLocaleString("en-US")}\n\n1) โอนผ่าน${how.startsWith("แอดมิน") ? "พร้อมเพย์" : ""}\n${how}\n2) ส่งรูปสลิปในแชทนี้ได้เลย\n\nแอดมินตรวจแล้วเปิดสิทธิ์ให้ทันที ระบบจะแจ้งในแชทนี้`);
+  const amount = (plan === "year" ? PRICE.year : PRICE.month).toLocaleString("en-US");
+  return [
+    text(`แพ็ก Pro ${plan === "year" ? "รายปี" : "รายเดือน"} ยอด ฿${amount}\n\n1) สแกน QR พร้อมเพย์ด้านล่าง (ร้าน ปั๊กปัก · บัญชี ทัตติพงษ์ วงษ์สวรรค์) รับได้ทุกธนาคาร\n2) โอน ฿${amount} แล้วส่งรูปสลิปในแชทนี้\n\nแอดมินตรวจแล้วเปิดสิทธิ์ให้ ระบบจะแจ้งในแชทนี้ทันที`),
+    { type: "image", originalContentUrl: `${APP}/pay-qr.jpg`, previewImageUrl: `${APP}/pay-qr-preview.jpg` },
+  ];
 }
 
 async function notifyAdmins(m) {
