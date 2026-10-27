@@ -59,6 +59,7 @@ async function handle(e) {
 
   // admin can preview the Free experience: "ดูแบบ free" / "ดูแบบ pro"
   const admin = await isAdmin(uid);
+  if (admin && (m.plan !== "pro" || m.proUntil || m.pendingOrder)) { m.plan = "pro"; m.proUntil = null; m.pendingOrder = null; await saveMember(m); }
   const tt = e.type === "message" && e.message.type === "text" ? e.message.text.trim().toLowerCase() : "";
   if (admin && /^ดูแบบ\s*(free|pro)$/.test(tt)) {
     m.viewAsFree = tt.endsWith("free");
