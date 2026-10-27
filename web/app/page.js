@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { effPrice, rank } from "../lib/score";
+import Landing from "./Landing";
 
 const LIFF_ID = process.env.NEXT_PUBLIC_LIFF_ID || "2012241865-bvKNVlJR";
 const inLine = () => typeof navigator !== "undefined" && /\bLine\//i.test(navigator.userAgent);
@@ -296,6 +297,8 @@ export default function Home() {
     setTimeout(() => document.getElementById("row-" + top.id)?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
     say("กด “ให้ AI ให้คะแนนตัวนี้” ที่สินค้าอันดับ 1");
   }
+
+  if (me && !member && !me.liffSigningIn) return <Landing me={me} onLogin={() => ls.set(".lineOut", null)} />;
 
   return (
     <div className="wrap">
