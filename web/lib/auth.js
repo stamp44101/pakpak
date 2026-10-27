@@ -20,8 +20,14 @@ export const clearCookie = () => `${COOKIE}=; Path=/; HttpOnly; Secure; SameSite
 export function readSession(req) {
   if (!process.env.LINE_CHANNEL_SECRET) return null;
   const c = (req.headers.get("cookie") || "").split(/;\s*/).find((x) => x.startsWith(COOKIE + "="));
-  if (!c) return null;
-  const [body, sig] = c.slice(COOKIE.length + 1).split(".");
+  return c ? readSessionValue(c.slice(COOKIE.length + 1)) : null;
+}
+
+// Same check from a raw cookie value (server components use next/headers cookies()).
+export const SESSION_COOKIE = COOKIE;
+export function readSessionValue(value) {
+  if (!process.env.LINE_CHANNEL_SECRET || !value) return null;
+  const [body, sig] = value.split(".");
   if (!body || !sig) return null;
   const a = Buffer.from(sig), b = Buffer.from(sign(body));
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
