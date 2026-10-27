@@ -200,33 +200,37 @@ export default function Landing({ me, onLogin }) {
       </section>
 
       <section className="lp-price">
-        <h2>ราคา</h2>
-        <p className="lp-price-note">Early Access {me?.seats || 10} คนแรก ได้ใช้ Pro ฟรี 30 วัน ไม่ต้องผูกบัตร</p>
+        <div className="lp-price-head">
+          <h2>ราคา</h2>
+          <p>Early Access {me?.seats || 10} คนแรก ได้ใช้ Pro ฟรี 30 วัน ครบแล้วเป็น Free อัตโนมัติ ไม่มีตัดเงิน</p>
+        </div>
         <div className="lp-plans">
           <div className="lp-plan">
             <h3>Free</h3>
             <p className="lp-plan-price"><b>฿0</b></p>
             <p className="lp-plan-for">ใช้บนมือถืออย่างเดียวก็ได้</p>
             <ul>
-              <li>ท็อป 5 ของทุกหมวด อัปเดตจากทีมปั๊กปัก</li>
+              <li>ท็อป 5 ของทุกหมวด อัปเดตโดยทีมปั๊กปัก</li>
               <li>AI ไอเดียคลิป วันละ 3 ตัว</li>
-              <li>เอาลิงก์ของคุณเองผ่านแอป Shopee (กดแชร์ → คัดลอก)</li>
+              <li>เอาลิงก์ของคุณเองผ่านแอป Shopee</li>
               <li>ใช้ในแชท LINE ได้ครบ</li>
             </ul>
+            <a className="lp-plan-btn" href={LOGIN} onClick={onLogin}>เริ่มใช้ฟรี</a>
           </div>
           <div className="lp-plan pro">
             <h3>Pro</h3>
-            <p className="lp-plan-price"><b>฿199</b>/เดือน</p>
-            <p className="lp-plan-for">หรือ ฿1,990/ปี (ได้ฟรี 2 เดือน)</p>
+            <p className="lp-plan-price"><b>฿199</b><span>/เดือน</span></p>
+            <p className="lp-plan-for">หรือ ฿1,990/ปี ได้ฟรี 2 เดือน</p>
             <ul>
               <li>สแกนหมวดและคำค้นของคุณเองไม่จำกัด</li>
               <li>ดูได้ทุกตัว ไม่ใช่แค่ท็อป 5</li>
-              <li>ลิงก์ affiliate Top 20 สร้างให้อัตโนมัติ ก๊อปในแชทได้ทันที</li>
+              <li>ลิงก์ affiliate Top 20 สร้างให้อัตโนมัติ</li>
               <li>AI ไอเดียคลิป วันละ 30 ตัว</li>
             </ul>
-            <Cta me={me} onLogin={onLogin} />
+            <a className="lp-plan-btn pro" href={LOGIN} onClick={onLogin}>{(me?.left ?? 1) > 0 ? "ลอง Pro ฟรี 30 วัน" : "สมัครด้วย LINE"}</a>
           </div>
         </div>
+        {me && <p className="lp-price-seats">{me.left > 0 ? <>Early Access เหลือ <b>{me.left}</b> จาก {me.seats} ที่</> : "Early Access เต็มแล้ว สมัครไว้เพื่อเข้าคิวได้"}</p>}
       </section>
 
       <section className="lp-faq">
