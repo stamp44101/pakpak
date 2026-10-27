@@ -1,7 +1,7 @@
 import React from "react";
-import { AbsoluteFill, Audio, Sequence, interpolate, staticFile, useCurrentFrame, useVideoConfig, spring } from "remotion";
-import { SCENES, CAPTIONS, PRODUCTS, ARRIVAL, RANKED, TOP_AI, f, vo, VO_OFFSET, TOTAL_SEC } from "./data";
-import { BrowserWindow, AppHeader, ObStep, ProductRow, ROW_H, Thumb, LogoMark, Cursor, pathAt, Caption, Callout, clamp, lerp, useSpring } from "./ui";
+import { AbsoluteFill, Audio, Img, Sequence, interpolate, staticFile, useCurrentFrame, useVideoConfig, spring } from "remotion";
+import { SCENES, CAPTIONS, LINE_CAPTIONS, PRODUCTS, ARRIVAL, RANKED, TOP_AI, f, vo, VO_OFFSET, TOTAL_SEC, SPLIT_RAW, LINE_SHIFT, LINE_AT } from "./data";
+import { BrowserWindow, AppHeader, ObStep, ProductRow, ROW_H, Thumb, LogoMark, Wordmark, BRAND_GRAD, Cursor, pathAt, Caption, Callout, clamp, lerp, useSpring } from "./ui";
 
 const byId = Object.fromEntries(PRODUCTS.map((p) => [p.id, p]));
 const ACCENT = "#d9480f";
@@ -91,17 +91,18 @@ function SceneProblem() {
 function SceneLogo({ lines }) {
   const frame = useCurrentFrame();
   const s = useSpring(2, { damping: 9, stiffness: 140, mass: 0.9 });
+  const w = useSpring(8, { damping: 12, stiffness: 150 });
   const flash = interpolate(frame, [0, 6], [1, 0], clamp);
   return (
     <AbsoluteFill>
-      <Bg tone="orange" />
-      <AbsoluteFill style={{ background: "#fff", opacity: flash }} />
-      <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 40, paddingBottom: 240 }}>
-        <div style={{ transform: `scale(${s}) rotate(${(1 - s) * -25}deg)` }}><LogoMark size={300} color="#fff" accent={ACCENT} /></div>
-        <div style={{ font: "700 190px/1 Anuphan", color: "#fff", transform: `translateY(${(1 - s) * 80}px)`, opacity: s, letterSpacing: "-0.02em" }}>ปั๊กปัก</div>
-        {lines.map(([text, at, size], i) => {
+      <Bg />
+      <AbsoluteFill style={{ background: BRAND_GRAD, opacity: flash }} />
+      <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 34, paddingBottom: 240 }}>
+        <div style={{ transform: `scale(${s}) rotate(${(1 - s) * -25}deg)`, filter: "drop-shadow(0 30px 40px rgba(254,84,8,.35))" }}><LogoMark size={380} /></div>
+        <div style={{ transform: `translateY(${(1 - w) * 80}px) scale(${0.8 + 0.2 * w})`, opacity: w }}><Wordmark width={760} /></div>
+        {lines.map(([text, at, size, hl], i) => {
           const ls = spring({ frame: frame - at, fps: 30, config: { damping: 12, stiffness: 170 } });
-          return <div key={i} style={{ font: `600 ${size}px/1.25 Kanit`, color: "#fff", textAlign: "center", opacity: ls, transform: `translateY(${(1 - ls) * 40}px)`, padding: "0 60px" }}>{text}</div>;
+          return <div key={i} style={{ font: `700 ${size}px/1.25 Kanit`, color: hl ? "#FE5408" : "#2d2926", textAlign: "center", opacity: ls, transform: `translateY(${(1 - ls) * 40}px)`, padding: "0 60px" }}>{text}</div>;
         })}
       </AbsoluteFill>
     </AbsoluteFill>
@@ -352,7 +353,7 @@ function Phone({ style }) {
         <div style={{ position: "absolute", top: 12, left: "50%", transform: "translateX(-50%)", width: 120, height: 34, borderRadius: 17, background: "#1d2221", zIndex: 5 }} />
         <div style={{ width: 360, transform: "scale(1.144)", transformOrigin: "0 0", paddingTop: 44 }}>
           <div className="wrap" style={{ padding: "12px 12px", gap: 10 }}>
-            <header className="top"><div><h1 style={{ fontSize: 22 }}>ปั๊กปัก</h1><p className="sub" style={{ fontSize: 11 }}>ปักตะกร้าให้ปัง ต้องเริ่มจากเลือกตะกร้าให้เป็น</p></div></header>
+            <header className="top"><div className="brand" style={{ gap: 8 }}><LogoMark size={34} style={{ borderRadius: 9 }} /><div><h1 style={{ fontSize: 22 }}>ปั๊กปัก</h1><p className="sub" style={{ fontSize: 11 }}>ปักตะกร้าให้ปัง ต้องเริ่มจากเลือกตะกร้าให้เป็น</p></div></div></header>
             <div className="bar"><span className="chip">ทุกหมวด <span className="num">12</span></span><span className="chip on">ห้องครัว <span className="num">12</span></span></div>
             <RankedList upto={6} mobile />
           </div>
@@ -372,6 +373,98 @@ function SyncBadge({ delay }) {
   );
 }
 
+/* ---------------- S8b open via LINE ปั๊กปัก (LIFF) ---------------- */
+function LineChip({ delay }) {
+  const s = useSpring(delay, { damping: 12, stiffness: 160 });
+  return (
+    <div style={{ position: "absolute", left: 90, right: 90, top: 1290, transform: `translateY(${(1 - s) * 60}px)`, opacity: s, background: "#fff", borderRadius: 28, padding: "22px 28px", display: "flex", gap: 22, alignItems: "center", boxShadow: "0 16px 40px rgba(0,0,0,.12)", border: "3px solid #06C755" }}>
+      <Img src={staticFile("line-profile.png")} style={{ width: 96, height: 96, borderRadius: 48 }} />
+      <div><div style={{ font: "700 42px/1.2 Kanit" }}>หรือเปิดผ่าน LINE ปั๊กปัก</div><div style={{ font: "500 30px var(--body)", color: "#626b69" }}>เข้าระบบให้อัตโนมัติ ไม่ต้องล็อกอินซ้ำ</div></div>
+    </div>
+  );
+}
+
+const LINE_GREEN = "#06C755";
+function LineChat({ tapAt }) {
+  const frame = useCurrentFrame();
+  const msg = useSpring(6, { damping: 13, stiffness: 170 });
+  const pressed = frame >= tapAt && frame < tapAt + 6;
+  return (
+    <div style={{ position: "absolute", inset: 0, background: "#8aa6c8", display: "flex", flexDirection: "column" }}>
+      <div style={{ height: 112, paddingTop: 52, background: "#fff", display: "flex", alignItems: "center", gap: 14, padding: "52px 18px 0" }}>
+        <svg width="22" height="22" viewBox="0 0 24 24"><path d="M15 4 L7 12 L15 20" stroke="#1d2221" strokeWidth="2.6" fill="none" strokeLinecap="round" /></svg>
+        <Img src={staticFile("line-profile.png")} style={{ width: 44, height: 44, borderRadius: 22 }} />
+        <div style={{ font: "700 26px Kanit" }}>ปั๊กปัก</div>
+        <svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 2 L20 5 V11 C20 16 16 20 12 22 C8 20 4 16 4 11 V5 Z" fill={LINE_GREEN} /><path d="M8 12 L11 15 L16 9" stroke="#fff" strokeWidth="2.4" fill="none" /></svg>
+      </div>
+      <div style={{ flex: 1, padding: 18, display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-start", opacity: msg, transform: `translateY(${(1 - msg) * 30}px)` }}>
+          <Img src={staticFile("line-profile.png")} style={{ width: 40, height: 40, borderRadius: 20 }} />
+          <div style={{ background: "#fff", borderRadius: "6px 20px 20px 20px", padding: "14px 18px", font: "500 22px/1.4 var(--body)", maxWidth: 300 }}>Top 10 ตะกร้าหมวดห้องครัวพร้อมแล้ว กดเปิดปั๊กปักด้านล่างได้เลย</div>
+        </div>
+      </div>
+      <div style={{ background: "#fff", padding: 10, display: "grid", gridTemplateColumns: "2fr 1fr", gap: 8, height: 250 }}>
+        <div style={{ background: BRAND_GRAD, borderRadius: 14, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, transform: `scale(${pressed ? 0.95 : 1})`, boxShadow: pressed ? "inset 0 0 0 4px rgba(0,0,0,.15)" : "none" }}>
+          <LogoMark size={96} style={{ boxShadow: "0 0 0 4px #fff" }} />
+          <div style={{ font: "700 28px Kanit", color: "#fff" }}>เปิดปั๊กปัก</div>
+        </div>
+        <div style={{ display: "grid", gap: 8 }}>
+          {["Top 10 วันนี้", "วิธีใช้"].map((t) => <div key={t} style={{ background: "#fff4ec", borderRadius: 14, display: "grid", placeItems: "center", font: "600 22px Kanit", color: "#c2410c" }}>{t}</div>)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LiffApp({ start }) {
+  const frame = useCurrentFrame();
+  const up = lerp(frame, start, start + 12, 1, 0);
+  const signedIn = frame >= start + 22;
+  return (
+    <div style={{ position: "absolute", inset: 0, background: "var(--bg)", transform: `translateY(${up * 100}%)` }}>
+      <div style={{ height: 96, background: "#fff", borderBottom: "1px solid #dfe3e1", display: "flex", alignItems: "flex-end", justifyContent: "space-between", padding: "0 20px 12px", font: "600 22px var(--body)" }}>
+        <span>ปั๊กปัก</span><span style={{ color: "#626b69" }}>✕</span>
+      </div>
+      <div style={{ width: 360, transform: "scale(1.41)", transformOrigin: "0 0" }}>
+        <div className="wrap" style={{ padding: 12, gap: 10 }}>
+          <header className="top"><div className="brand" style={{ gap: 8 }}><LogoMark size={34} style={{ borderRadius: 9 }} /><div><h1 style={{ fontSize: 22 }}>ปั๊กปัก</h1><p className="sub" style={{ fontSize: 11 }}>ปักตะกร้าให้ปัง ต้องเริ่มจากเลือกตะกร้าให้เป็น</p></div></div></header>
+          {!signedIn ? <section className="panel"><p className="hint" style={{ margin: 0 }}>กำลังเข้าสู่ระบบด้วย LINE…</p></section> : <>
+            <div className="bar"><span className="avatar" style={{ background: "linear-gradient(135deg,#ffb38a,#d9480f)", display: "inline-block" }} /><span className="who">คุณ</span><span className="src ok"><i />Shopee: myaffiliate</span></div>
+            <div className="bar"><span className="chip">ทุกหมวด <span className="num">12</span></span><span className="chip on">ห้องครัว <span className="num">12</span></span></div>
+            <RankedList upto={5} mobile />
+          </>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SceneLine() {
+  const frame = useCurrentFrame();
+  const L = (t) => f(LINE_AT + t - SCENES.line[0]);
+  const enter = useSpring(0, { damping: 15, stiffness: 120 });
+  const tapAt = L(1.45);
+  const openAt = tapAt + 6;
+  const autoAt = L(2.5), noLoginAt = L(4.13);
+  const fingerY = lerp(frame, tapAt - 14, tapAt, 1500, 1170);
+  return (
+    <AbsoluteFill>
+      <Bg />
+      <div style={{ position: "absolute", left: 270, top: 230, width: 540, height: 1110, borderRadius: 76, background: "#1d2221", padding: 16, boxShadow: "0 40px 90px rgba(0,0,0,.35)", transform: `translateY(${(1 - enter) * 1400}px) rotate(${(1 - enter) * -8}deg)` }}>
+        <div style={{ width: "100%", height: "100%", borderRadius: 62, overflow: "hidden", position: "relative" }}>
+          <LineChat tapAt={tapAt} />
+          {frame >= openAt && <LiffApp start={openAt} />}
+          <div style={{ position: "absolute", top: 14, left: "50%", transform: "translateX(-50%)", width: 130, height: 38, borderRadius: 19, background: "#1d2221", zIndex: 5 }} />
+        </div>
+      </div>
+      {frame < openAt + 10 && <div style={{ position: "absolute", left: 420, top: fingerY, width: 70, height: 70, borderRadius: 35, background: "rgba(29,34,33,.35)", border: "5px solid #fff", boxShadow: "0 6px 16px rgba(0,0,0,.3)", transform: `scale(${frame >= tapAt && frame < tapAt + 6 ? 0.8 : 1})` }} />}
+      <Callout x={70} y={150} delay={L(0.3)} bg={LINE_GREEN} rotate={-5} size={50}>LINE ปั๊กปัก</Callout>
+      {frame >= autoAt && <Callout x={560} y={700} delay={autoAt} rotate={5} size={46}>เข้าระบบอัตโนมัติ ✓</Callout>}
+      {frame >= noLoginAt && <Callout x={80} y={980} delay={noLoginAt} bg="#1d2221" rotate={-4} size={46}>ไม่ต้องล็อกอินซ้ำ</Callout>}
+    </AbsoluteFill>
+  );
+}
+
 /* ---------------- S9 CTA ---------------- */
 function SceneCTA() {
   const frame = useCurrentFrame();
@@ -385,10 +478,10 @@ function SceneCTA() {
       <Bg />
       <AbsoluteFill style={{ alignItems: "center", paddingTop: 170 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 30, transform: `scale(${title})` }}>
-          <LogoMark size={150} color={ACCENT} accent="#fff" />
-          <div style={{ font: "700 140px/1 Anuphan", color: "#1d2221" }}>ปั๊กปัก</div>
+          <LogoMark size={170} />
+          <Wordmark width={430} />
         </div>
-        <div style={{ font: "700 92px/1.2 Kanit", color: ACCENT, marginTop: 50, textAlign: "center", transform: `scale(${title})` }}>เปิด Early Access แล้ว!</div>
+        <div style={{ font: "700 92px/1.2 Kanit", color: "#FE5408", marginTop: 50, textAlign: "center", transform: `scale(${title})` }}>เปิด Early Access แล้ว!</div>
       </AbsoluteFill>
       <div style={{ position: "absolute", left: 30, top: 720, width: 1020, transform: `translateY(${(1 - s) * 400}px)`, opacity: s }}>
         <div style={{ width: 600, transform: "scale(1.7)", transformOrigin: "0 0" }}>
@@ -403,8 +496,9 @@ function SceneCTA() {
           </section>
         </div>
       </div>
+      <LineChip delay={f(1.4)} />
       <Cursor x={cur.x} y={cur.y} clicks={[clickAt]} />
-      <Callout x={330} y={1520} delay={f(vo(42.64) - SCENES.cta[0])} rotate={-3} size={64}>สิบที่แรก ใช้ได้ทันที</Callout>
+      <Callout x={330} y={1560} delay={f(vo(42.64) - SCENES.cta[0])} rotate={-3} size={64}>สิบที่แรก ใช้ได้ทันที</Callout>
     </AbsoluteFill>
   );
 }
@@ -416,7 +510,7 @@ const SFX = [
   ["whoosh", SCENES.scan[0] - 0.1], ["click", vo(18.08) - 0.13], ["ding", vo(22.96) + 0.9],
   ["whoosh", SCENES.detail[0] - 0.1], ["click", SCENES.detail[0] + 0.27], ["pop", vo(29.36) + 0.07],
   ["click", SCENES.link[0] + 0.4], ["click", SCENES.link[0] + 1.07], ["pop", SCENES.link[0] + 1.1], ["whoosh", vo(33.44) - 0.1], ["ding", vo(33.44) + 0.6],
-  ["impact", SCENES.brand[0]], ["whoosh", SCENES.cta[0] - 0.1], ["click", SCENES.cta[0] + 3.3], ["ding", vo(42.64)],
+  ["whoosh", SCENES.line[0] - 0.1], ["click", LINE_AT + 1.45], ["pop", LINE_AT + 2.5], ["ding", LINE_AT + 4.13], ["impact", SCENES.brand[0]], ["whoosh", SCENES.cta[0] - 0.1], ["click", SCENES.cta[0] + 3.3], ["ding", vo(42.64)],
 ];
 for (let t = 0; t < 12; t++) SFX.push(["tick", SCENES.scan[0] + (f(vo(18.08) - SCENES.scan[0]) + 6 + t * 5) / 30]);
 
@@ -426,7 +520,9 @@ function Sound() {
   return (
     <>
       <Audio src={staticFile("music.mp3")} volume={(fr) => interpolate(fr, [0, 10, f(vo(44.8)), f(vo(44.8)) + 15, end - 30, end], [0, 0.16, 0.16, 0.42, 0.42, 0], clamp)} />
-      <Sequence from={f(VO_OFFSET)}><Audio src={staticFile("vo_raw.mp3")} volume={1} /></Sequence>
+      <Sequence from={f(VO_OFFSET)} durationInFrames={f(SPLIT_RAW)}><Audio src={staticFile("vo_raw.mp3")} trimAfter={f(SPLIT_RAW)} /></Sequence>
+      <Sequence from={f(LINE_AT)}><Audio src={staticFile("vo_line.mp3")} /></Sequence>
+      <Sequence from={f(SPLIT_RAW + VO_OFFSET + LINE_SHIFT)}><Audio src={staticFile("vo_raw.mp3")} trimBefore={f(SPLIT_RAW)} /></Sequence>
       {SFX.map(([n, t], i) => (
         <Sequence key={i} from={Math.max(0, f(t))} durationInFrames={f(1.2)}><Audio src={staticFile(n + ".wav")} volume={n === "tick" ? 0.35 : n === "whoosh" ? 0.5 : 0.6} /></Sequence>
       ))}
@@ -447,9 +543,11 @@ export function Promo() {
       <Sequence {...seq("scan")}><SceneScan /></Sequence>
       <Sequence {...seq("detail")}><SceneDetail /></Sequence>
       <Sequence {...seq("link")}><SceneLink /></Sequence>
-      <Sequence {...seq("brand")}><SceneLogo lines={[["ปักตะกร้าให้ปัง", f(vo(37.56) - SCENES.brand[0]), 96], ["ต้องเริ่มจากเลือกตะกร้าให้เป็น", f(vo(38.96) - SCENES.brand[0]), 72]]} /></Sequence>
+      <Sequence {...seq("line")}><SceneLine /></Sequence>
+      <Sequence {...seq("brand")}><SceneLogo lines={[["ปักตะกร้าให้ปัง", f(vo(37.56) - SCENES.brand[0]), 100, true], ["ต้องเริ่มจากเลือกตะกร้าให้เป็น", f(vo(38.96) - SCENES.brand[0]), 72]]} /></Sequence>
       <Sequence {...seq("cta")}><SceneCTA /></Sequence>
       {CAPTIONS.map(([s, e, t], i) => <Caption key={i} text={t} start={f(vo(s))} end={f(vo(e))} />)}
+      {LINE_CAPTIONS.map(([s, e, t], i) => <Caption key={"l" + i} text={t} start={f(LINE_AT + s)} end={f(LINE_AT + e)} />)}
       <Sound />
     </AbsoluteFill>
   );

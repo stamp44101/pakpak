@@ -2,10 +2,14 @@ export const FPS = 30;
 export const W = 1080;
 export const H = 1920;
 export const VO_OFFSET = 0.3; // VO starts 0.3s into the timeline
-export const TOTAL_SEC = 48;
+export const TOTAL_SEC = 54;
+// extra VO line about LINE ปั๊กปัก is spliced in after the "มือถือ" sentence
+export const SPLIT_RAW = 36.6; // raw VO time where the main take is cut
+export const LINE_SHIFT = 6.0; // how much everything after the cut moves later
+export const LINE_AT = 37.15; // timeline start of vo_line.mp3
 
 // seconds on the timeline (VO word time + offset)
-export const vo = (t) => t + VO_OFFSET;
+export const vo = (t) => t + VO_OFFSET + (t >= SPLIT_RAW - 0.05 ? LINE_SHIFT : 0);
 export const f = (sec) => Math.round(sec * FPS);
 
 // Scene boundaries (timeline seconds), cut on VO sentence starts
@@ -17,8 +21,9 @@ export const SCENES = {
   scan: [17.55, 26.25],
   detail: [26.25, 31.5],
   link: [31.5, 36.9],
-  brand: [36.9, 41.0],
-  cta: [41.0, TOTAL_SEC],
+  line: [36.9, 42.9],
+  brand: [42.9, 47.0],
+  cta: [47.0, TOTAL_SEC],
 };
 
 // Captions follow the ElevenLabs word timestamps. *word* = highlight.
@@ -39,6 +44,11 @@ export const CAPTIONS = [
   [29.36, 31.25, "พร้อม *hook* 3 วินาทีแรก"],
   [31.36, 33.3, "สร้างลิงก์ *affiliate* ได้ทันที"],
   [33.44, 36.5, "สแกนบนคอม → *ดูต่อบนมือถือ*"],
+];
+// captions for vo_line.mp3, in seconds from LINE_AT
+export const LINE_CAPTIONS = [
+  [0.0, 2.2, "หรือเปิดผ่าน *LINE ปั๊กปัก*"],
+  [2.45, 5.5, "อัตโนมัติ *ไม่ต้องล็อกอินซ้ำ*"],
 ];
 
 // Mock products (หมวด ห้องครัว). d = data score /60, a = AI score /40

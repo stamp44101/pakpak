@@ -1,5 +1,5 @@
 import React from "react";
-import { interpolate, spring, useCurrentFrame, useVideoConfig, Easing } from "remotion";
+import { interpolate, spring, useCurrentFrame, useVideoConfig, Easing, Img, staticFile } from "remotion";
 import { fmt } from "./data";
 
 export const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" };
@@ -33,16 +33,13 @@ export function Thumb({ p, size = 64, radius = 8, style }) {
 }
 
 /* ---------- brand mark ---------- */
-export function LogoMark({ size = 160, color = "#fff", accent = "#d9480f" }) {
-  return (
-    <svg viewBox="0 0 120 120" width={size} height={size}>
-      <rect x="4" y="4" width="112" height="112" rx="30" fill={color} />
-      <path d="M26 50 H94 L86 92 a8 8 0 0 1 -8 6 H42 a8 8 0 0 1 -8 -6 Z" fill={accent} />
-      <path d="M40 50 L52 26 M80 50 L68 26" stroke={accent} strokeWidth="7" strokeLinecap="round" />
-      <path d="M46 72 L56 82 L76 62" stroke={color} strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-    </svg>
-  );
+export function LogoMark({ size = 160, style }) {
+  return <Img src={staticFile("logo.svg")} style={{ width: size, height: size, borderRadius: size * 0.226, display: "block", flex: "none", ...style }} />;
 }
+export function Wordmark({ width = 700, style }) {
+  return <Img src={staticFile("wordmark.svg")} style={{ width, height: width * 1152 / 3168, display: "block", ...style }} />;
+}
+export const BRAND_GRAD = "linear-gradient(180deg,#FD8A18,#FE5408)";
 
 /* ---------- cursor with click ripple ---------- */
 export function Cursor({ x, y, clicks = [], scale = 1 }) {
@@ -89,7 +86,7 @@ export function BrowserWindow({ x = 30, y = 170, width = 1020, height = 1300, ta
         <div style={{ display: "flex", gap: 8, flex: 1, minWidth: 0 }}>
           {tabs.map((t, i) => (
             <div key={t} style={{ padding: "10px 22px", borderRadius: "14px 14px 0 0", background: i === active ? "#fff" : "transparent", font: "500 24px var(--body)", color: i === active ? "#1d2221" : "#626b69", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 10, marginTop: 22 }}>
-              {i === 0 ? <LogoMark size={26} color="#d9480f" accent="#fff" /> : <i style={{ width: 22, height: 22, borderRadius: 6, background: "#ee4d2d" }} />}{t}
+              {i === 0 ? <LogoMark size={28} /> : <i style={{ width: 22, height: 22, borderRadius: 6, background: "#ee4d2d" }} />}{t}
             </div>
           ))}
         </div>
@@ -98,7 +95,7 @@ export function BrowserWindow({ x = 30, y = 170, width = 1020, height = 1300, ta
         <div style={{ flex: 1, height: 40, borderRadius: 20, background: "#f1f3f2", display: "flex", alignItems: "center", gap: 10, padding: "0 18px", font: "400 22px var(--body)", color: "#626b69" }}>
           <svg width="16" height="18" viewBox="0 0 16 18"><rect x="1" y="8" width="14" height="10" rx="2" fill="#626b69" /><path d="M4 8 V5 a4 4 0 0 1 8 0 V8" stroke="#626b69" strokeWidth="2" fill="none" /></svg>{address}
         </div>
-        <div style={{ width: 40, height: 40, borderRadius: 10, background: "#fdebe3", display: "grid", placeItems: "center" }}><LogoMark size={28} color="#d9480f" accent="#fff" /></div>
+        <LogoMark size={40} />
       </div>
       <div style={{ position: "relative", height: height - bar - 58, overflow: "hidden", background: "var(--bg)" }}>
         <div style={{ transform: `scale(${camScale})`, transformOrigin: origin, height: "100%" }}>
@@ -114,9 +111,12 @@ export function BrowserWindow({ x = 30, y = 170, width = 1020, height = 1300, ta
 export function AppHeader({ connected = false, shopName = "myaffiliate" }) {
   return (
     <header className="top">
-      <div>
-        <h1>ปั๊กปัก</h1>
-        <p className="sub">ปักตะกร้าให้ปัง ต้องเริ่มจากเลือกตะกร้าให้เป็น</p>
+      <div className="brand">
+        <LogoMark size={44} style={{ borderRadius: 11 }} />
+        <div>
+          <h1>ปั๊กปัก</h1>
+          <p className="sub">ปักตะกร้าให้ปัง ต้องเริ่มจากเลือกตะกร้าให้เป็น</p>
+        </div>
       </div>
       <div className="bar">
         <span className="avatar" style={{ background: "linear-gradient(135deg,#ffb38a,#d9480f)", display: "inline-block" }} />
@@ -187,11 +187,11 @@ export function Caption({ text, start, end, y = 1580 }) {
 }
 
 /* ---------- floating label used to call things out ---------- */
-export function Callout({ children, x, y, delay = 0, bg = "#d9480f", rotate = -4, size = 44 }) {
+export function Callout({ children, x, y, delay = 0, bg = BRAND_GRAD, rotate = -4, size = 44 }) {
   const s = useSpring(delay, { damping: 10, stiffness: 200, mass: 0.6 });
   if (s <= 0.001) return null;
   return (
-    <div style={{ position: "absolute", left: x, top: y, transform: `scale(${s}) rotate(${rotate}deg)`, transformOrigin: "50% 50%", background: bg, color: "#fff", font: `700 ${size}px/1.2 Kanit`, padding: "14px 28px", borderRadius: 20, boxShadow: "0 14px 30px rgba(217,72,15,.35)", zIndex: 60, whiteSpace: "nowrap" }}>
+    <div style={{ position: "absolute", left: x, top: y, transform: `scale(${s}) rotate(${rotate}deg)`, transformOrigin: "50% 50%", background: bg, color: "#fff", font: `700 ${size}px/1.2 Kanit`, padding: "14px 28px", borderRadius: 20, boxShadow: "0 14px 30px rgba(254,84,8,.35)", zIndex: 60, whiteSpace: "nowrap" }}>
       {children}
     </div>
   );
