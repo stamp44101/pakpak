@@ -512,7 +512,9 @@ export default function Home() {
                     <div className="bar">
                       {p.affLink && <button className="btn primary" onClick={() => copyLink(p)}>คัดลอกลิงก์</button>}
                       {pro && account && !p.affLink && <button className="btn primary" onClick={() => makeLink(p)}>สร้างลิงก์ affiliate</button>}
-                      {!pro && p.url && <button className="btn primary" onClick={async () => { try { await navigator.clipboard.writeText(p.url); say("คัดลอกลิงก์สินค้าแล้ว นำไปสร้างลิงก์ในแอป Shopee"); } catch { say(p.url); } }}>คัดลอกลิงก์สินค้า</button>}
+                      {!pro && p.url && <a className="btn primary" href={p.url} target="_blank" rel="noopener">เปิดในแอป Shopee</a>}
+                      {!pro && p.url && <button className="btn" onClick={async () => { try { await navigator.clipboard.writeText(p.url); say("คัดลอกลิงก์สินค้าแล้ว"); } catch { say(p.url); } }}>คัดลอกลิงก์สินค้า</button>}
+                      {!pro && p.url && <span className="hint">ในแอป Shopee กดปุ่มแชร์ ↗ มุมขวาบน แล้วคัดลอกลิงก์ = ลิงก์ affiliate ของคุณเอง</span>}
                       {p.url && <a className="btn" href={p.url} target="_blank" rel="noopener">หน้าสินค้า ↗</a>}
                     </div>
                   </div>
@@ -550,7 +552,16 @@ function Upgrade({ price }) {
     <section className="panel upgrade">
       <div>
         <h2>คุณใช้แพ็ก Free อยู่</h2>
-        <p className="hint">ดูท็อป 5 ของแต่ละหมวดจากคลังกลาง และให้ AI ดูได้วันละ 3 ตัว ลิงก์ให้กดคัดลอกลิงก์สินค้าไปสร้างในแอป Shopee</p>
+        <p className="hint">ดูท็อป 5 ของแต่ละหมวดจากคลังกลาง และให้ AI ดูได้วันละ 3 ตัว ใช้บนมือถืออย่างเดียวได้ ไม่ต้องยุ่งกับคอม</p>
+      </div>
+      <div className="howlink">
+        <b>เอาลิงก์ของคุณเองจากแอป Shopee</b>
+        <ol>
+          <li>เปิดสินค้าแล้วกด “เปิดในแอป Shopee”</li>
+          <li>ในหน้าสินค้า กดปุ่มแชร์ ↗ มุมขวาบน</li>
+          <li>คัดลอกลิงก์ ได้ลิงก์ affiliate ของคุณทันที</li>
+        </ol>
+        <p className="hint">ต้องล็อกอินแอป Shopee ด้วยบัญชีที่สมัคร Shopee Affiliate ไว้</p>
       </div>
       <ul className="upgrade-list">
         <li>สแกนหมวดและคำค้นของคุณเองไม่จำกัด ด้วย Connector</li>

@@ -19,6 +19,8 @@ const ago = (t) => { const h = (Date.now() - t) / 3600e3; return h < 1 ? "ไม
 const text = (t, quick) => ({ type: "text", text: t, ...(quick ? { quickReply: { items: quick } } : {}) });
 const qr = (label, txt) => ({ type: "action", action: { type: "message", label: label.slice(0, 20), text: txt } });
 const HELP_QR = () => [qr("ท็อป 5", "ท็อป"), qr("เลือกหมวด", "หมวด"), qr("ลิงก์ของฉัน", "ลิงก์"), qr("สถานะ", "สถานะ")];
+// LINE opens links in its own browser; this makes it hand off to Safari/Chrome, which then opens the Shopee app.
+const external = (u) => { try { const x = new URL(u); x.searchParams.set("openExternalBrowser", "1"); return x.toString(); } catch { return u; } };
 const openApp = (label = "เปิดปั๊กปัก") => ({ type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "uri", label, uri: LIFF_URL } });
 
 export async function POST(req) {
@@ -124,7 +126,7 @@ function top(all, want, cats) {
   const newest = Math.max(...all.filter((p) => p.category === c).map((p) => p.fetchedAt || 0));
   const others = cats.filter((x) => x !== c).slice(0, 12).map((x) => qr(x, "ท็อป " + x));
   return [
-    text(`ท็อป 5 หมวด "${c}" · ข้อมูล ${ago(newest)}${list.some((p) => p.affLink) ? "" : "\n(แพ็ก Free: กดคัดลอกลิงก์สินค้าไปสร้างลิงก์ในแอป Shopee · ลิงก์อัตโนมัติพิมพ์ \"อัปเกรด\")"}`),
+    text(`ท็อป 5 หมวด "${c}" · ข้อมูล ${ago(newest)}${list.some((p) => p.affLink) ? "" : "\n\nเอาลิงก์ของคุณเองได้จากมือถือเลย ไม่ต้องใช้คอม:\n1) กด \"เปิดในแอป Shopee\"\n2) ในหน้าสินค้า กดปุ่มแชร์ ↗ มุมขวาบน\n3) คัดลอกลิงก์ = ลิงก์ affiliate ของคุณ (ต้องล็อกอินแอปด้วยบัญชีที่สมัคร affiliate)"}`),
     { type: "flex", altText: `ท็อป 5 ${c}`, contents: { type: "carousel", contents: list.map((p, i) => bubble(p, i + 1)) }, ...(others.length ? { quickReply: { items: others } } : {}) },
   ];
 }
@@ -133,9 +135,14 @@ function bubble(p, n) {
   const score = Math.round(p._t), max = p._a ? 100 : 60;
   const link = p.affLink || p.url;
   const buttons = [];
-  if (p.affLink) buttons.push({ type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "clipboard", label: "คัดลอกลิงก์", clipboardText: p.affLink } });
-  else if (p.url) buttons.push({ type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "clipboard", label: "คัดลอกลิงก์สินค้า", clipboardText: p.url } });
-  if (link) buttons.push({ type: "button", style: "secondary", height: "sm", action: { type: "uri", label: p.affLink ? "เปิดลิงก์" : "หน้าสินค้า", uri: link } });
+  if (p.affLink) {
+    buttons.push({ type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "clipboard", label: "คัดลอกลิงก์", clipboardText: p.affLink } });
+    buttons.push({ type: "button", style: "secondary", height: "sm", action: { type: "uri", label: "เปิดลิงก์", uri: p.affLink } });
+  } else if (p.url) {
+    // Free: get your OWN affiliate link from the Shopee app (product page → share → copy)
+    buttons.push({ type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "uri", label: "เปิดในแอป Shopee", uri: external(p.url) } });
+    buttons.push({ type: "button", style: "secondary", height: "sm", action: { type: "clipboard", label: "คัดลอกลิงก์สินค้า", clipboardText: p.url } });
+  }
   buttons.push({ type: "button", style: "link", height: "sm", action: { type: "postback", label: p.ai ? "ดูไอเดียคลิป" : "ให้ AI ดู", data: `a=ai&id=${p.id}`, displayText: `ไอเดียคลิป #${n}` } });
   return {
     type: "bubble", size: "kilo",
@@ -148,6 +155,7 @@ function bubble(p, n) {
       { type: "text", text: p.name || "-", weight: "bold", size: "sm", wrap: true, maxLines: 2 },
       { type: "text", text: `${baht(effPrice(p))} · คอม ${(+p.commission || 0).toFixed(0)}% · ได้ ~${baht(p._perOrder)}/ออเดอร์`, size: "xs", color: "#555555", wrap: true },
       { type: "text", text: `ขายแล้ว ${(+p.sold || 0).toLocaleString("en-US")} · ⭐ ${(+p.rating || 0).toFixed(1)}${p.affLink ? " · มีลิงก์" : ""}`, size: "xs", color: "#888888", wrap: true },
+      ...(!p.affLink && p.url ? [{ type: "text", text: "เปิดในแอป → กดแชร์ ↗ → คัดลอกลิงก์ = ลิงก์ของคุณเอง", size: "xxs", color: "#E5480A", wrap: true }] : []),
     ] },
     footer: { type: "box", layout: "vertical", spacing: "xs", contents: buttons },
   };
