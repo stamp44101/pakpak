@@ -2,6 +2,9 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { effPrice, rank } from "../lib/score";
 
+const LIFF_ID = process.env.NEXT_PUBLIC_LIFF_ID || "2012241865-bvKNVlJR";
+const inLine = () => typeof navigator !== "undefined" && /\bLine\//i.test(navigator.userAgent);
+function loadScript(src) { return new Promise((ok, no) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = no; document.head.appendChild(s); }); }
 const EXT_ID = process.env.NEXT_PUBLIC_EXT_ID || "oemnhmceapililgkfdfjamhbdpkkjbbm";
 const PRESETS = [
   ["ของใช้ในบ้าน", ["ที่เก็บของ", "ไม้ถูพื้น"]],
@@ -74,7 +77,21 @@ export default function Home() {
     if (q.get("login")) { say(q.get("login") === "cancelled" ? "ยกเลิกการเข้าสู่ระบบ" : "เข้าสู่ระบบไม่สำเร็จ ลองอีกครั้ง"); history.replaceState(null, "", "/"); }
     skipSave.current = true;
     setProducts(loadLocal().products || {});
-    api("/api/me").then((r) => setMe(r.error ? { member: null, left: 0, seats: 10, loginReady: false } : r));
+    api("/api/me").then(async (r) => {
+      const base = r.error ? { member: null, left: 0, seats: 10, loginReady: false } : r;
+      // Opened inside the LINE app (rich menu / LIFF link): sign in automatically, no button needed.
+      if (!base.member && inLine() && ls.get(".lineOut") !== "1") {
+        setMe({ ...base, liffSigningIn: true });
+        try {
+          await loadScript("https://static.line-scdn.net/liff/edge/2/sdk.js");
+          await window.liff.init({ liffId: LIFF_ID });
+          if (!window.liff.isLoggedIn()) { window.liff.login({ redirectUri: location.href }); return; }
+          const res = await api("/api/auth/liff", "POST", { idToken: window.liff.getIDToken() });
+          if (!res.error) { const again = await api("/api/me"); if (!again.error) return setMe(again); }
+        } catch {}
+      }
+      setMe(base);
+    });
   }, []);
   useEffect(() => { if (active) pullState(); }, [active]);
 
@@ -148,7 +165,7 @@ export default function Home() {
     clearInterval(poll.current);
     setConfirmOut(false);
     await api("/api/auth/logout", "POST");
-    ls.set(".out", "1");
+    ls.set(".out", "1"); ls.set(".lineOut", "1");
     if (clearLocal) ls.set("", null);
     skipSave.current = true;
     setAccount(null); setLinked(null); setProducts({}); setReady(false); setOpen(null); setCat("");
@@ -310,13 +327,14 @@ export default function Home() {
         </section>
       )}
 
-      {me && !member && (
+      {me && !member && me.liffSigningIn && <section className="panel"><p className="hint" style={{ margin: 0 }}>กำลังเข้าสู่ระบบด้วย LINE…</p></section>}
+      {me && !member && !me.liffSigningIn && (
         <section className="panel hero-panel">
           <span className="eyebrow">Early Access</span>
           <h2 className="big">เลือกตะกร้าที่ทำคลิปแล้วขายได้ ก่อนเสียเวลาถ่าย</h2>
           <p className="hint">ปั๊กปักดึงสินค้าจาก Shopee Affiliate ของคุณ ให้คะแนนจากยอดขาย ค่าคอม รีวิว และให้ AI ประเมินว่าทำคลิปง่ายแค่ไหน พร้อม hook 3 วินาทีแรก</p>
           <div className="bar">
-            <a className={"btn line" + (me.loginReady ? "" : " disabled")} href={me.loginReady ? "/api/auth/line" : undefined}>เข้าสู่ระบบด้วย LINE</a>
+            <a className={"btn line" + (me.loginReady ? "" : " disabled")} href={me.loginReady ? "/api/auth/line" : undefined} onClick={() => ls.set(".lineOut", null)}>เข้าสู่ระบบด้วย LINE</a>
             <span className="seats">{me.left > 0 ? <>เหลือ <b className="num">{me.left}</b> จาก {me.seats} ที่</> : "Early Access เต็มแล้ว สมัครเพื่อเข้าคิวได้"}</span>
           </div>
           {!me.loginReady && <p className="hint">ระบบเข้าสู่ระบบยังตั้งค่าไม่เสร็จ</p>}
