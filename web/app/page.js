@@ -41,6 +41,7 @@ export default function Home() {
   const [busy, setBusy] = useState("");
   const [open, setOpen] = useState(null);
   const [toast, setToast] = useState("");
+  const [confirmOut, setConfirmOut] = useState(false);
   const poll = useRef(null);
 
   // restore + persist (per browser for v1)
@@ -48,10 +49,14 @@ export default function Home() {
   useEffect(() => { try { localStorage.setItem(STORE, JSON.stringify({ products })); } catch {} }, [products]);
   const say = (t) => { setToast(t); clearTimeout(say.t); say.t = setTimeout(() => setToast(""), 2800); };
 
+  const isOut = () => { try { return localStorage.getItem(STORE + ".out") === "1"; } catch { return false; } };
+  const setOut = (v) => { try { v ? localStorage.setItem(STORE + ".out", "1") : localStorage.removeItem(STORE + ".out"); } catch {} };
+
   async function checkStatus() {
     const p = await ext({ type: "ping" }, 3000);
     setExtOk(!p.error);
     if (p.error) return false;
+    if (isOut()) { setAccount(null); return false; } // user signed out of ปั๊กปัก; wait for them to connect again
     const s = await ext({ type: "status" });
     setAccount(s.loggedIn ? s : null);
     return !!s.loggedIn;
@@ -60,6 +65,7 @@ export default function Home() {
   useEffect(() => () => clearInterval(poll.current), []);
 
   async function login() {
+    setOut(false);
     await ext({ type: "openLogin" });
     clearInterval(poll.current);
     let n = 0;
@@ -68,6 +74,15 @@ export default function Home() {
       const ok = await checkStatus();
       if (ok || n > 100) { clearInterval(poll.current); if (ok) say("เชื่อม Shopee Affiliate แล้ว"); }
     }, 3000);
+  }
+
+  function logout(clearData) {
+    clearInterval(poll.current);
+    setOut(true);
+    setAccount(null);
+    setConfirmOut(false);
+    if (clearData) { setProducts({}); setCat(""); setOpen(null); }
+    say(clearData ? "ออกจากระบบและล้างข้อมูลแล้ว" : "ออกจากระบบแล้ว");
   }
 
   async function pull(keywords, category) {
@@ -128,8 +143,23 @@ export default function Home() {
           <h1>ปั๊กปัก</h1>
           <p className="sub">ปักตะกร้าให้ปัง ต้องเริ่มจากเลือกตะกร้าให้เป็น</p>
         </div>
-        <span className={"src" + (account ? " ok" : "")}><i />{account ? `Shopee Affiliate: ${account.name}` : "ยังไม่เชื่อม Shopee Affiliate"}</span>
+        <div className="bar">
+          <span className={"src" + (account ? " ok" : "")}><i />{account ? `Shopee Affiliate: ${account.name}` : "ยังไม่เชื่อม Shopee Affiliate"}</span>
+          {account && !confirmOut && <button className="btn" onClick={() => setConfirmOut(true)}>ออกจากระบบ</button>}
+        </div>
       </header>
+
+      {confirmOut && (
+        <section className="panel">
+          <h2>ออกจากระบบปั๊กปัก</h2>
+          <p className="hint">ปั๊กปักจะหยุดอ่านข้อมูลจาก Shopee Affiliate จนกว่าจะกดเชื่อมใหม่ ถ้าจะเดโมขั้นล็อกอิน Shopee ด้วย ให้ออกจากระบบในแท็บ Shopee Affiliate อีกที</p>
+          <div className="bar">
+            <button className="btn primary" onClick={() => logout(false)}>ออกจากระบบ (เก็บสินค้าและผลคลิปไว้)</button>
+            <button className="btn" onClick={() => logout(true)}>ออกและล้างข้อมูลทั้งหมด</button>
+            <button className="btn" onClick={() => setConfirmOut(false)}>ยกเลิก</button>
+          </div>
+        </section>
+      )}
 
       {!account && (
         <section className="panel">
