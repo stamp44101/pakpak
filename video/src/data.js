@@ -2,53 +2,47 @@ export const FPS = 30;
 export const W = 1080;
 export const H = 1920;
 export const VO_OFFSET = 0.3; // VO starts 0.3s into the timeline
-export const TOTAL_SEC = 54;
-// extra VO line about LINE ปั๊กปัก is spliced in after the "มือถือ" sentence
-export const SPLIT_RAW = 36.6; // raw VO time where the main take is cut
-export const LINE_SHIFT = 6.0; // how much everything after the cut moves later
-export const LINE_AT = 37.15; // timeline start of vo_line.mp3
+export const TOTAL_SEC = 60;
 
 // seconds on the timeline (VO word time + offset)
-export const vo = (t) => t + VO_OFFSET + (t >= SPLIT_RAW - 0.05 ? LINE_SHIFT : 0);
+export const vo = (t) => t + VO_OFFSET;
 export const f = (sec) => Math.round(sec * FPS);
 
-// Scene boundaries (timeline seconds), cut on VO sentence starts
+// Scene boundaries (timeline seconds), cut on VO sentence starts (vo2.mp3)
 export const SCENES = {
-  hook: [0, 3.95],
-  problem: [3.95, 7.5],
-  logo: [7.5, 11.0],
-  connect: [11.0, 17.55],
-  scan: [17.55, 26.25],
-  detail: [26.25, 31.5],
-  link: [31.5, 36.9],
-  line: [36.9, 42.9],
-  brand: [42.9, 47.0],
-  cta: [47.0, TOTAL_SEC],
+  hook: [0, 3.35],
+  problem: [3.35, 8.15],
+  logo: [8.15, 12.45],
+  signup: [12.45, 17.65],
+  top5: [17.65, 24.15],
+  score: [24.15, 30.45],
+  ai: [30.45, 35.4],
+  link: [35.4, 41.8],
+  pro: [41.8, 48.55],
+  brand: [48.55, 53.1],
+  cta: [53.1, TOTAL_SEC],
 };
 
-// Captions follow the ElevenLabs word timestamps. *word* = highlight.
+// Captions follow the ElevenLabs word timestamps (raw VO seconds). *word* = highlight.
 export const CAPTIONS = [
-  [0.08, 1.9, "ปักตะกร้าไปเป็นสิบคลิป…"],
-  [2.0, 3.6, "ทำไมยังไม่มี *ออเดอร์*?"],
-  [3.76, 5.36, "ปัญหาอาจไม่ใช่คลิป…"],
-  [5.4, 7.1, "แต่คือ *ตะกร้า* ที่คุณเลือก"],
-  [7.36, 8.8, "รู้จัก *ปั๊กปัก*!"],
-  [10.8, 13.2, "แค่ล็อกอิน *Shopee Affiliate*"],
-  [13.36, 14.85, "ติดตั้ง *Connector*"],
-  [14.96, 17.1, "ไม่ต้องกรอก *API key*"],
-  [17.36, 18.85, "เลือกหมวด → *กดสแกน*"],
-  [18.96, 20.85, "คะแนนจาก *ข้อมูลจริง*"],
-  [20.96, 22.85, "+ การวิเคราะห์ของ *AI*"],
-  [22.96, 25.95, "คัดเหลือ *Top 10* ที่น่าปักที่สุด"],
-  [26.08, 29.3, "บอกเหตุผลชัด ว่าทำไมน่าทำคลิป"],
-  [29.36, 31.25, "พร้อม *hook* 3 วินาทีแรก"],
-  [31.36, 33.3, "สร้างลิงก์ *affiliate* ได้ทันที"],
-  [33.44, 36.5, "สแกนบนคอม → *ดูต่อบนมือถือ*"],
-];
-// captions for vo_line.mp3, in seconds from LINE_AT
-export const LINE_CAPTIONS = [
-  [0.0, 2.2, "หรือเปิดผ่าน *LINE ปั๊กปัก*"],
-  [2.45, 5.5, "อัตโนมัติ *ไม่ต้องล็อกอินซ้ำ*"],
+  [0.16, 1.55, "ถ่ายมาสิบคลิป…"],
+  [1.6, 3.0, "ขายได้ *คลิปเดียว*?"],
+  [3.2, 5.52, "ปัญหามักไม่ใช่ฝีมือถ่าย…"],
+  [5.56, 7.7, "แต่เป็น *ตะกร้า* ที่เลือกตั้งแต่แรก"],
+  [12.32, 14.5, "สมัครด้วย *LINE* ปุ่มเดียว"],
+  [14.56, 17.3, "ใช้บนมือถือ *ไม่ต้องเปิดคอม*"],
+  [17.52, 18.95, "กด *ท็อป 5 วันนี้*"],
+  [19.04, 21.12, "ตะกร้าน่าทำคลิปทุกหมวด"],
+  [21.2, 23.9, "พร้อม *ค่าคอม* + เงินต่อออเดอร์"],
+  [24.0, 27.25, "คะแนนเต็ม 100 จาก *ข้อมูลจริง*"],
+  [27.4, 30.1, "+ *AI* ดูว่าเล่าเป็นคลิปได้ไหม"],
+  [30.32, 33.5, "กด *ให้ AI ดู* ได้ hook 3 วิแรก"],
+  [33.6, 35.1, "+ มุมเล่าคลิปทันที"],
+  [35.28, 38.45, "แอป Shopee → *แชร์* → คัดลอก"],
+  [38.56, 41.45, "ได้ *ลิงก์ของคุณเอง*"],
+  [41.68, 43.85, "อยากได้มากกว่านั้น → *Pro*"],
+  [52.96, 54.2, "*เริ่มใช้ฟรี* วันนี้"],
+  [54.32, 57.9, "Early Access ใช้ *Pro ฟรี 30 วัน*"],
 ];
 
 // Mock products (หมวด ห้องครัว). d = data score /60, a = AI score /40
@@ -67,14 +61,13 @@ export const PRODUCTS = [
   { id: "p12", icon: "rack", hue: 190, name: "ตะแกรงคว่ำจาน 2 ชั้น สแตนเลส", price: 399, sold: 1400, com: 6, rating: 4.4, d: 30, a: 15 },
 ].map((p) => ({ ...p, total: p.d + p.a, perOrder: (p.price * p.com) / 100 }));
 
-// order the scan "returns" them in
-export const ARRIVAL = ["p6", "p10", "p3", "p11", "p1", "p8", "p12", "p5", "p2", "p9", "p4", "p7"];
-export const RANKED = PRODUCTS.slice().sort((a, b) => b.total - a.total).map((p) => p.id);
+export const TOP5 = PRODUCTS.slice().sort((a, b) => b.total - a.total).slice(0, 5);
 
 export const TOP_AI = {
   hook: "ทอดไก่ทั้งตัว ไม่ใช้น้ำมันสักหยด… แล้วกรอบกว่าเดิม?",
   angles: ["เทียบก่อน-หลัง ทอดน้ำมัน vs หม้อทอด", "เมนู 3 อย่างใน 10 นาทีหลังเลิกงาน", "รีวิวล้างง่าย ถอดตะแกรงเข้าเครื่องล้างจาน"],
-  why: "ปัญหา→ทางแก้เห็นชัดใน 3 วิ มีภาพหยุดนิ้วตอนเปิดฝา เล่าได้หลายมุม",
+  scores: { problem: 9, visual: 9, multi: 8 },
 };
 
 export const fmt = (n) => Number(n).toLocaleString("th-TH", { maximumFractionDigits: 1 });
+export const baht = (n) => "฿" + Math.round(+n || 0).toLocaleString("en-US");
