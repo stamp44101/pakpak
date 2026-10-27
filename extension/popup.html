@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8">
+<style>
+  :root{--bg:#fff;--ink:#1d2221;--muted:#626b69;--line:#dfe3e1;--accent:#d9480f;--good:#2b8a3e}
+  @media (prefers-color-scheme:dark){:root{--bg:#1b201f;--ink:#e9ecea;--muted:#9aa4a1;--line:#2c3331;--accent:#ff7a3d;--good:#69db7c}}
+  body{margin:0;width:280px;font:14px/1.5 system-ui,"Noto Sans Thai",sans-serif;background:var(--bg);color:var(--ink)}
+  .wrap{padding:16px;display:flex;flex-direction:column;gap:10px}
+  h1{font-size:16px;margin:0}
+  .st{display:flex;align-items:center;gap:8px;color:var(--muted)}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+  .ok .dot{background:var(--good)} .ok{color:var(--ink)}
+  button{font:inherit;font-weight:500;border:0;border-radius:8px;padding:8px 12px;background:var(--accent);color:#fff;cursor:pointer}
+  p{margin:0;color:var(--muted);font-size:12.5px}
+</style></head>
+<body><div class="wrap">
+  <h1>ปั๊กปัก Connector</h1>
+  <div class="st" id="st"><span class="dot"></span><span id="txt">กำลังตรวจ…</span></div>
+  <button id="login" hidden>เปิด Shopee Affiliate เพื่อล็อกอิน</button>
+  <p>ปั๊กปักจะอ่านข้อมูลจากแท็บ Shopee Affiliate ที่คุณล็อกอินไว้ เพื่อดึงสินค้าและสร้างลิงก์ของคุณเอง ไม่เก็บรหัสผ่านหรือ cookie</p>
+</div>
+<script src="popup.js"></script>
+</body></html>

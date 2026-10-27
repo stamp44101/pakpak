@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "ปั๊กปัก Connector",
+  "version": "0.1.0",
+  "description": "เชื่อมปั๊กปักกับ Shopee Affiliate ที่คุณล็อกอินไว้ใน Chrome",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAjUdeIevv8WEEold903kU7ExitvQe8nVRw1AcTHg55v6d0kEDnKt/qMypL0GGbkaeevDTxq6WMHsXpBE30Ke6U/Dq6wnpuGAEe1KlTDAP6OGweCo+61ODRZCu01t899R2M6g2EzJt/ZUYayUw0dBvAE53Qa7d7AJgt9V0WIVm4EKAhBm2jyiojiSIUloLstxwSxA/P5/IhkbRQKxx6r6siayOUtQaoGEx/b7NPp2lTHLq9ytJSkkJBmC/7WBEVa7nMUxmOLKjGImaj9SsZD916hIx2rU64HEjcjzDGdmXzfPmmwDMuBKDPXvSC74D+vFbuemdbmb6G1PIB51YRDftgwIDAQAB",
+  "permissions": [
+    "scripting",
+    "tabs",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://affiliate.shopee.co.th/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "ปั๊กปัก Connector"
+  },
+  "externally_connectable": {
+    "matches": [
+      "http://localhost/*",
+      "https://*.vercel.app/*"
+    ]
+  }
+}
