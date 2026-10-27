@@ -55,6 +55,7 @@ export default function Home({ signedIn = false }) {
   const [extOk, setExtOk] = useState(null);
   const [account, setAccount] = useState(null); // live Shopee Affiliate session via Connector
   const [linked, setLinked] = useState(null); // Shopee account name saved on the member
+  const [remoteLive, setRemoteLive] = useState(null); // {live, at} last Shopee status reported from the computer
   const [products, setProducts] = useState({});
   const [ready, setReady] = useState(false);
   const [sync, setSync] = useState("");
@@ -123,6 +124,7 @@ export default function Home({ signedIn = false }) {
     const remote = await api("/api/state");
     if (remote.error) { setSync("ออฟไลน์"); setReady(true); return; }
     if (remote.account) setLinked(remote.account);
+    if (remote.shopeeSeenAt) setRemoteLive({ live: !!remote.shopeeLive, at: remote.shopeeSeenAt });
     const hasRemote = remote.products && Object.keys(remote.products).length > 0;
     // Pro without own data yet (no Connector / Shopee): show the shared catalog until the first scan
     if (!hasRemote && !hasLocal) return pullCatalog();
@@ -161,7 +163,15 @@ export default function Home({ signedIn = false }) {
     if (isOut()) { setAccount(null); return false; }
     const s = await ext({ type: "status" });
     setAccount(s.loggedIn ? s : null);
-    if (s.loggedIn && s.name !== linked) { setLinked(s.name); api("/api/state", "PUT", { account: s.name }); }
+    if (s.loggedIn) setLinked(s.name);
+    // tell the server so the phone shows the same status (on change, or every 10 min)
+    const real = s.loggedIn || (!s.error || s.error === "not_logged_in");
+    const key = (s.loggedIn ? "1:" + s.name : "0");
+    const last = ls.get(".shopeeReport") || "";
+    if (real && (last.split("|")[0] !== key || Date.now() - Number(last.split("|")[1] || 0) > 6e5)) {
+      ls.set(".shopeeReport", key + "|" + Date.now());
+      api("/api/state", "PUT", s.loggedIn ? { account: s.name, live: true } : { live: false });
+    }
     return !!s.loggedIn;
   }
   useEffect(() => { if (active) checkStatus(); }, [active]);
@@ -364,7 +374,7 @@ export default function Home({ signedIn = false }) {
             <span className="who">{member.name}</span>
             {active && <PlanBadge member={member} />}
             <a className="btn" href="/settings">บัญชีของฉัน</a>
-            {pro && advanced && <span className={"src" + (account ? " ok" : "")}><i />{account ? `Shopee: ${account.name}` : linked ? `Shopee: ${linked}` : "ยังไม่เชื่อม Shopee"}</span>}
+            {pro && advanced && <span className={"src" + (account || (extOk === false && remoteLive?.live) ? " ok" : "")} title={extOk === false && remoteLive ? "สถานะจากคอม · " + ago(remoteLive.at) : undefined}><i />{account ? `Shopee: ${account.name}` : linked ? `Shopee: ${linked}` : "ยังไม่เชื่อม Shopee"}</span>}
             {sync && <span className="hint">{sync}</span>}
             {member.admin && <a className="btn" href="/admin">จัดการสมาชิก</a>}
             {!confirmOut && <button className="btn" onClick={() => setConfirmOut(true)}>ออกจากระบบ</button>}

@@ -18,17 +18,20 @@ export async function PUT(req) {
   const { member, error } = await requireMember(req);
   if (error) return error;
   const body = await req.json().catch(() => null);
-  if (body && body.products === undefined && typeof body.account === "string") {
-    // Shopee Affiliate account name seen by the Connector
+  if (body && body.products === undefined && (typeof body.account === "string" || typeof body.live === "boolean")) {
+    // Shopee Affiliate session as seen by the Connector on the member's computer, so phones can show it too
     const cur = (await readJSON(path(member))) || { products: {}, updatedAt: 0 };
-    if (cur.account !== body.account) await writeJSON(path(member), { ...cur, account: body.account.slice(0, 80) });
+    const next = { ...cur, shopeeSeenAt: Date.now() };
+    if (typeof body.account === "string" && body.account) next.account = body.account.slice(0, 80);
+    if (typeof body.live === "boolean") next.shopeeLive = body.live;
+    await writeJSON(path(member), next);
     return Response.json({ ok: true, updatedAt: cur.updatedAt });
   }
   if (!body || typeof body.products !== "object") return Response.json({ error: "bad body" }, { status: 400 });
   if (!isPro(member)) return Response.json({ error: "บันทึกสินค้าที่สแกนเองได้ในแพ็ก Pro", upgrade: true }, { status: 403 });
   if (JSON.stringify(body.products).length > 3_000_000) return Response.json({ error: "too large" }, { status: 413 });
   const cur = (await readJSON(path(member))) || {};
-  const state = { products: body.products, account: body.account || cur.account || null, updatedAt: Date.now() };
+  const state = { ...cur, products: body.products, account: body.account || cur.account || null, updatedAt: Date.now() };
   await writeJSON(path(member), state);
   return Response.json({ ok: true, updatedAt: state.updatedAt });
 }

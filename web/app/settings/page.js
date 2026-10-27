@@ -59,11 +59,15 @@ export default function Settings() {
   const links = products.filter((p) => p.affLink).length;
   const newest = Math.max(0, ...products.map((p) => p.fetchedAt || 0));
   const linkedName = st?.account;
+  // status reported by the Connector on the computer — what this phone shows when it has no Connector itself
+  const seenAt = st?.shopeeSeenAt || 0;
+  const remoteLive = !extOk && st?.shopeeLive && Date.now() - seenAt < 7 * 864e5;
+  const agoTxt = (t) => { const mn = Math.round((Date.now() - t) / 6e4); return mn < 60 ? `${Math.max(1, mn)} นาทีก่อน` : mn < 1440 ? `${Math.round(mn / 60)} ชม.ก่อน` : `${Math.round(mn / 1440)} วันก่อน`; };
   const lim = m.limits || {};
 
   const appLinkDone = (m.onboarding?.done || []).includes("applink") || links > 0;
   const coreDone = 1 + (m.botSeenAt ? 1 : 0) + (appLinkDone ? 1 : 0);
-  const extraDone = [extOk || linkedName, linkedName, products.length > 0].filter(Boolean).length;
+  const extraDone = [extOk || linkedName, shopee || remoteLive, products.length > 0].filter(Boolean).length;
 
   return (
     <div className="wrap" style={{ maxWidth: 720 }}>
@@ -129,12 +133,12 @@ export default function Settings() {
         <p className="need"><b>ต้องใช้:</b> คอม + Chrome + ล็อกอิน Shopee Affiliate · ทำครั้งเดียวราว 3 นาที{pro ? "" : " · สำหรับแพ็ก Pro"}</p>
         {pro ? (
           <ol className="st-list">
-            <Item state={extOk ? "ok" : linkedName ? "info" : "off"} title="1. ติดตั้ง Connector ใน Chrome"
-              detail={extOk ? "ติดตั้งในเบราว์เซอร์นี้แล้ว" : mobile() ? "เปิดหน้านี้บนคอมเพื่อติดตั้ง" : linkedName ? "เคยใช้จากคอมเครื่องอื่นแล้ว เครื่องนี้ยังไม่ได้ติดตั้ง" : "ส่วนเสริม Chrome ที่อ่านข้อมูลจาก Shopee Affiliate ที่คุณล็อกอินไว้ ไม่เก็บรหัสผ่าน"}>
+            <Item state={extOk || linkedName ? "ok" : "off"} title="1. ติดตั้ง Connector ใน Chrome"
+              detail={extOk ? "ติดตั้งในเบราว์เซอร์นี้แล้ว" : linkedName ? (mobile() ? "ติดตั้งบนคอมแล้ว" : "ติดตั้งบนคอมเครื่องอื่นแล้ว เครื่องนี้ยังไม่ได้ติดตั้ง") : mobile() ? "เปิดหน้านี้บนคอมเพื่อติดตั้ง" : "ส่วนเสริม Chrome ที่อ่านข้อมูลจาก Shopee Affiliate ที่คุณล็อกอินไว้ ไม่เก็บรหัสผ่าน"}>
               {!extOk && !mobile() && <a className="btn primary" href="/connector" target="_blank" rel="noopener">วิธีติดตั้ง</a>}
             </Item>
-            <Item state={shopee ? "ok" : linkedName ? "info" : "off"} title="2. ล็อกอิน Shopee Affiliate"
-              detail={shopee ? `ล็อกอินอยู่: ${shopee}` : linkedName ? `บัญชีที่เคยเชื่อม: ${linkedName} · ตอนนี้ไม่ได้ล็อกอินในเบราว์เซอร์นี้ ลิงก์เดิมยังใช้ได้` : "ล็อกอินใน Chrome เครื่องเดียวกับที่ติดตั้ง Connector ระบบจะรู้เอง"}>
+            <Item state={shopee || remoteLive ? "ok" : linkedName ? "info" : "off"} title="2. ล็อกอิน Shopee Affiliate"
+              detail={shopee ? `ล็อกอินอยู่: ${shopee}` : remoteLive ? `ล็อกอินอยู่บนคอม: ${linkedName} · เช็กล่าสุด ${agoTxt(seenAt)}` : linkedName ? `บัญชีที่เคยเชื่อม: ${linkedName} · ${extOk ? "ตอนนี้ไม่ได้ล็อกอินในเบราว์เซอร์นี้" : seenAt ? "บนคอมหลุดจาก Shopee อยู่" : "เปิดปั๊กปักบนคอมสักครั้งเพื่ออัปเดตสถานะ"} · ลิงก์เดิมยังใช้ได้` : "ล็อกอินใน Chrome เครื่องเดียวกับที่ติดตั้ง Connector ระบบจะรู้เอง"}>
               {!shopee && extOk && <a className="btn" href="/">ไปเชื่อม Shopee</a>}
             </Item>
             <Item state={products.length ? "ok" : "off"} title="3. สแกนหมวดแรก"
