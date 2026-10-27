@@ -12,8 +12,8 @@ export default function Admin() {
   const load = () => fetch("/api/admin").then((r) => r.json()).then((j) => (j.error ? setErr(j.error) : setData(j))).catch(() => setErr("โหลดไม่สำเร็จ"));
   useEffect(() => { load(); }, []);
 
-  async function set(id, status) {
-    const r = await fetch("/api/admin", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id, status }) }).then((x) => x.json());
+  async function set(id, status, extra) {
+    const r = await fetch("/api/admin", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(status ? { id, status } : { id, ...extra }) }).then((x) => x.json());
     if (r.error) setErr(r.error); else load();
   }
 
@@ -36,13 +36,17 @@ export default function Admin() {
                 <div className="meta">
                   <span className={"tag" + (m.status === "active" ? " a" : m.status === "waitlist" ? " b" : "")}>{STATUS[m.status]}</span>
                   <span>สมัคร {new Date(m.joinedAt).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}</span>
-                  <span>AI วันนี้ <span className="num">{m.aiToday}</span></span>
+                  <span className={"plan " + m.plan}>{m.plan === "pro" ? "Pro" : "Free"}{m.earlyAccess && m.plan === "pro" && <em>Early Access</em>}{m.proUntil && <small>ถึง {new Date(m.proUntil).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" })}</small>}{m.plan === "pro" && !m.proUntil && <small>ไม่หมดอายุ</small>}</span>
+                  <span>AI วันนี้ <span className="num">{m.aiToday}</span>/{m.limits?.aiPerDay}</span>
                   {m.status === "active" && <span title={STEPS.map(([k, l]) => (m.onboarding.includes(k) ? "✓ " : "· ") + l).join("\n")}>เริ่มต้น <span className="num">{m.onboarding.length}/4</span>{m.onboarding.length < 4 ? ` · ติดที่: ${nextStep(m.onboarding)}` : ""}</span>}
                 </div>
               </div>
               {!m.admin && (
                 <div className="bar">
                   {m.status !== "active" && <button className="btn primary" onClick={() => set(m.id, "active")}>เปิดสิทธิ์</button>}
+                  {m.status === "active" && <button className="btn" onClick={() => set(m.id, null, { plan: "pro", days: 30 })}>Pro +30 วัน</button>}
+                  {m.status === "active" && <button className="btn" onClick={() => set(m.id, null, { plan: "pro", days: 365 })}>Pro +1 ปี</button>}
+                  {m.status === "active" && m.plan === "pro" && <button className="btn" onClick={() => set(m.id, null, { plan: "free" })}>เปลี่ยนเป็น Free</button>}
                   {m.status === "active" && <button className="btn" onClick={() => set(m.id, "waitlist")}>ย้ายไปคิว</button>}
                   {m.status !== "revoked" && <button className="btn" onClick={() => set(m.id, "revoked")}>ระงับ</button>}
                 </div>

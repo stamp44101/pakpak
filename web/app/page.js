@@ -71,6 +71,7 @@ export default function Home() {
   const say = (t) => { setToast(t); clearTimeout(say.t); say.t = setTimeout(() => setToast(""), 3000); };
   const member = me && me.member;
   const active = member && member.status === "active";
+  const pro = active && member.plan === "pro";
 
   // ---- who am I ----
   useEffect(() => {
@@ -94,7 +95,15 @@ export default function Home() {
       setMe(base);
     });
   }, []);
-  useEffect(() => { if (active) pullState(); }, [active]);
+  useEffect(() => { if (active) (pro ? pullState() : pullCatalog()); }, [active, pro]);
+
+  // Free: browse the shared catalog (top 5 per category), nothing to save
+  async function pullCatalog() {
+    const r = await api("/api/catalog");
+    skipSave.current = true;
+    setProducts(r.products || {});
+    setReady(true);
+  }
 
   // ---- load: server copy if newer, else upload what this device has ----
   async function pullState() {
@@ -116,7 +125,7 @@ export default function Home() {
 
   // ---- save: local now, server after a short pause ----
   useEffect(() => {
-    if (!ready || !active) return;
+    if (!ready || !active || !pro) return;
     if (skipSave.current) { skipSave.current = false; return; }
     ls.set("", JSON.stringify({ products, savedAt: Date.now() }));
     clearTimeout(saveT.current);
@@ -220,6 +229,7 @@ export default function Home() {
     setAiBusy(null);
     if (r.error) return say(r.error);
     patch(p.id, { ai: { ...r.score, cached: r.cached } });
+    if (!pro) api("/api/me").then((x) => !x.error && setMe(x));
     say(r.cached ? "ได้คะแนนจากคลัง ไม่เสียโควต้า AI" : "AI ให้คะแนนแล้ว");
   }
 
@@ -248,7 +258,7 @@ export default function Home() {
   const newestBy = useMemo(() => all.reduce((m, p) => ((m[p.category] = Math.max(m[p.category] || 0, p.fetchedAt || 0)), m), {}), [products]);
   const refreshed = useRef(false);
   useEffect(() => {
-    if (!account || !ready || refreshed.current) return;
+    if (!pro || !account || !ready || refreshed.current) return;
     refreshed.current = true;
     const stale = Object.entries(newestBy).filter(([c, t]) => c && t && Date.now() - t > STALE_MS).sort((a, b) => a[1] - b[1]).slice(0, 2);
     (async () => { for (const [c] of stale) await pull(keywordsFor(c), c, { silent: true }); })();
@@ -283,7 +293,7 @@ export default function Home() {
     if (!active || obKey === serverDone.slice().sort().join(",")) return;
     api("/api/me", "POST", { done: obDone });
   }, [obKey, active]);
-  const showOnboarding = active && !obHidden && obDone.length < 4;
+  const showOnboarding = pro && !obHidden && obDone.length < 4;
   const obNext = ["connector", "shopee", "scan", "ai"].find((k) => !obDone.includes(k));
   function startScan() {
     const el = document.getElementById("scan");
@@ -314,7 +324,8 @@ export default function Home() {
           <div className="bar">
             {member.picture && <img className="avatar" src={member.picture} alt="" referrerPolicy="no-referrer" />}
             <span className="who">{member.name}</span>
-            {active && <span className={"src" + (account ? " ok" : "")}><i />{account ? `Shopee: ${account.name}` : linked ? `Shopee: ${linked}` : "ยังไม่เชื่อม Shopee"}</span>}
+            {active && <PlanBadge member={member} />}
+            {pro && <span className={"src" + (account ? " ok" : "")}><i />{account ? `Shopee: ${account.name}` : linked ? `Shopee: ${linked}` : "ยังไม่เชื่อม Shopee"}</span>}
             {sync && <span className="hint">{sync}</span>}
             {member.admin && <a className="btn" href="/admin">จัดการสมาชิก</a>}
             {!confirmOut && <button className="btn" onClick={() => setConfirmOut(true)}>ออกจากระบบ</button>}
@@ -383,7 +394,7 @@ export default function Home() {
         </section>
       )}
 
-      {active && !showOnboarding && !account && extOk !== false && (
+      {pro && !showOnboarding && !account && extOk !== false && (
         <section className="panel">
           {linked && <p className="hint" style={{ margin: 0 }}>หลุดจาก Shopee Affiliate อยู่ ข้อมูลและลิงก์เดิมยังใช้ได้ครบ ล็อกอินอีกครั้งเพื่อสแกนหรือสร้างลิงก์ใหม่</p>}
           <h2>เชื่อม Shopee Affiliate ของคุณ</h2>
@@ -402,7 +413,8 @@ export default function Home() {
           </div>
         </section>
       )}
-      {viewOnly && (
+      {active && !pro && <Upgrade price={me.price} />}
+      {pro && viewOnly && (
         <section className="panel">
           <p className="hint" style={{ margin: 0 }}>เครื่องนี้ดูคะแนนและก๊อปลิงก์ได้ ส่วนการดึงสินค้าใหม่และสร้างลิงก์ ใช้คอมที่ติดตั้ง <a href="/connector" target="_blank" rel="noopener">ปั๊กปัก Connector</a> (Chrome)</p>
           <ShopeeOffInfo />
@@ -410,7 +422,7 @@ export default function Home() {
       )}
 
       {active && <>
-      {account && (
+      {account && pro && (
         <section className="panel" id="scan">
           <h2>ดึงสินค้าจาก Shopee Affiliate</h2>
           <div className="bar">
@@ -434,7 +446,7 @@ export default function Home() {
                 <button className={"chip" + (cat === c ? " on" : "")} onClick={() => (editCats ? setDelCat(c) : pickCat(c))}>{c} <span className="num">{countBy[c]}</span>{editCats && <span className="chip-x" aria-label={"ลบหมวด " + c}>×</span>}</button>
               </span>
             ))}
-            {cats.length > 0 && <button className="btn ghost" onClick={() => { setEditCats(!editCats); setDelCat(null); }}>{editCats ? "เสร็จ" : "จัดการหมวด"}</button>}
+            {pro && cats.length > 0 && <button className="btn ghost" onClick={() => { setEditCats(!editCats); setDelCat(null); }}>{editCats ? "เสร็จ" : "จัดการหมวด"}</button>}
           </div>
           {cat && newestBy[cat] > 0 && (
             <p className={"hint fresh" + (Date.now() - newestBy[cat] > STALE_MS ? " stale" : "")} style={{ margin: 0 }}>
@@ -499,7 +511,8 @@ export default function Home() {
                     {p.affLink && <div className="linkbox">{p.affLink} · Sub ID: pukpak{p.subId ? " / " + p.subId : ""}</div>}
                     <div className="bar">
                       {p.affLink && <button className="btn primary" onClick={() => copyLink(p)}>คัดลอกลิงก์</button>}
-                      {account && !p.affLink && <button className="btn primary" onClick={() => makeLink(p)}>สร้างลิงก์ affiliate</button>}
+                      {pro && account && !p.affLink && <button className="btn primary" onClick={() => makeLink(p)}>สร้างลิงก์ affiliate</button>}
+                      {!pro && p.url && <button className="btn primary" onClick={async () => { try { await navigator.clipboard.writeText(p.url); say("คัดลอกลิงก์สินค้าแล้ว นำไปสร้างลิงก์ในแอป Shopee"); } catch { say(p.url); } }}>คัดลอกลิงก์สินค้า</button>}
                       {p.url && <a className="btn" href={p.url} target="_blank" rel="noopener">หน้าสินค้า ↗</a>}
                     </div>
                   </div>
@@ -514,6 +527,41 @@ export default function Home() {
 
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
+  );
+}
+
+const UPGRADE_URL = "https://line.me/R/oaMessage/@979soyth/?" + encodeURIComponent("อัปเกรด Pro");
+const thDate = (t) => new Date(t).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
+
+function PlanBadge({ member }) {
+  if (member.plan === "pro") {
+    const soon = member.proUntil && member.proUntil - Date.now() < 7 * 864e5;
+    return (
+      <span className={"plan pro" + (soon ? " soon" : "")} title={member.proUntil ? `Pro ใช้ได้ถึง ${thDate(member.proUntil)}` : "Pro"}>
+        Pro{member.earlyAccess && <em>Early Access</em>}{member.proUntil && <small>ถึง {thDate(member.proUntil)}</small>}
+      </span>
+    );
+  }
+  return <a className="plan free" href={UPGRADE_URL} target="_blank" rel="noopener">Free <small>อัปเกรด</small></a>;
+}
+
+function Upgrade({ price }) {
+  return (
+    <section className="panel upgrade">
+      <div>
+        <h2>คุณใช้แพ็ก Free อยู่</h2>
+        <p className="hint">ดูท็อป 5 ของแต่ละหมวดจากคลังกลาง และให้ AI ดูได้วันละ 3 ตัว ลิงก์ให้กดคัดลอกลิงก์สินค้าไปสร้างในแอป Shopee</p>
+      </div>
+      <ul className="upgrade-list">
+        <li>สแกนหมวดและคำค้นของคุณเองไม่จำกัด ด้วย Connector</li>
+        <li>ลิงก์ affiliate Top 20 สร้างให้อัตโนมัติ ก๊อปในแชท LINE ได้ทันที</li>
+        <li>AI ไอเดียคลิปวันละ 30 ตัว</li>
+      </ul>
+      <div className="bar">
+        <a className="btn primary" href={UPGRADE_URL} target="_blank" rel="noopener">อัปเกรดเป็น Pro ฿{price?.month || 199}/เดือน</a>
+        <span className="hint">หรือ ฿{(price?.year || 1990).toLocaleString("en-US")}/ปี · ทักแอดมินใน LINE เพื่อชำระเงิน</span>
+      </div>
+    </section>
   );
 }
 

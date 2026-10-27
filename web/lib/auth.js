@@ -1,6 +1,7 @@
 // LINE Login session + Early Access members (stored in the private Blob store).
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { readJSON, writeJSON } from "./store";
+import { grantPro, TRIAL_DAYS } from "./plan";
 
 const COOKIE = "pp_session";
 const MAX_AGE = 60 * 60 * 24 * 30; // 30 days
@@ -31,7 +32,16 @@ export function readSession(req) {
 }
 
 export const memberPath = (sub) => `members/${sub}.json`;
-export const getMember = (sub) => readJSON(memberPath(sub));
+// Members from before plans existed: active ones become Early Access Pro (owner: no expiry).
+export async function getMember(sub) {
+  const m = await readJSON(memberPath(sub));
+  if (m && m.plan === undefined && m.status === "active") {
+    const r = await roster();
+    grantPro(m, r.admins.includes(m.id) ? null : TRIAL_DAYS, { early: true });
+    await writeJSON(memberPath(m.id), m);
+  }
+  return m;
+}
 export const saveMember = (m) => writeJSON(memberPath(m.id), m);
 
 // The member roster: who is in, who waits. Small enough to keep as one document.
@@ -51,6 +61,7 @@ export async function joinOrUpdate(profile) {
     m = { id: profile.sub, name: profile.name, picture: profile.picture || "", status, joinedAt: Date.now(), ai: { day: "", count: 0 } };
     if (status === "active") r.active.push(m.id); else r.waitlist.push(m.id);
     if (first) r.admins.push(m.id);
+    if (status === "active") grantPro(m, first ? null : TRIAL_DAYS, { early: true });
     await saveRoster(r);
   } else {
     m.name = profile.name; m.picture = profile.picture || m.picture;

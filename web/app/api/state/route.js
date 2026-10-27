@@ -1,6 +1,7 @@
 // Per-member saved state (products, scores, links), synced across devices.
 import { readJSON, writeJSON } from "../../../lib/store";
 import { requireMember } from "../../../lib/auth";
+import { isPro } from "../../../lib/plan";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,6 +25,7 @@ export async function PUT(req) {
     return Response.json({ ok: true, updatedAt: cur.updatedAt });
   }
   if (!body || typeof body.products !== "object") return Response.json({ error: "bad body" }, { status: 400 });
+  if (!isPro(member)) return Response.json({ error: "บันทึกสินค้าที่สแกนเองได้ในแพ็ก Pro", upgrade: true }, { status: 403 });
   if (JSON.stringify(body.products).length > 3_000_000) return Response.json({ error: "too large" }, { status: 413 });
   const cur = (await readJSON(path(member))) || {};
   const state = { products: body.products, account: body.account || cur.account || null, updatedAt: Date.now() };

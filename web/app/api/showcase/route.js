@@ -1,17 +1,13 @@
 // Public demo data for the landing page: the owner's real ranked products, top 5 per category.
 // No member data leaves here except product facts + the owner's own affiliate links.
-import { roster } from "../../../lib/auth";
-import { readJSON } from "../../../lib/store";
+import { ownerProducts } from "../../../lib/catalog";
 import { rank, effPrice } from "../../../lib/score";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const r = await roster();
-  const owner = r.admins[0];
-  const state = owner ? await readJSON(`users/m_${owner}.json`) : null;
-  const all = Object.values(state?.products || {});
+  const all = await ownerProducts();
   const cats = [...new Set(all.map((p) => p.category).filter(Boolean))];
   const out = cats.map((c) => {
     const list = all.filter((p) => p.category === c);

@@ -5,6 +5,8 @@ import { getMember, roster, seats } from "../../../../lib/auth";
 import { readJSON, writeJSON } from "../../../../lib/store";
 import { rank, effPrice } from "../../../../lib/score";
 import { scoreItem } from "../../../../lib/ai";
+import { isPro, PRICE } from "../../../../lib/plan";
+import { catalog, publicProduct } from "../../../../lib/catalog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,7 +37,14 @@ async function handle(e) {
   if (!m || m.status !== "active") return reply(e.replyToken, await gate(m, e.type === "follow"));
   if (e.type === "follow") return reply(e.replyToken, text(`ยินดีต้อนรับกลับ คุณ${m.name} 🐶\nพิมพ์ "ท็อป" เพื่อดูตะกร้าที่น่าทำคลิปที่สุด หรือกดปุ่มด้านล่าง`, HELP_QR()));
 
-  const state = (await readJSON(`users/m_${uid}.json`)) || { products: {} };
+  const pro = isPro(m);
+  let state = (await readJSON(`users/m_${uid}.json`)) || { products: {} };
+  if (!pro) {
+    // Free: the shared catalog (top 5 per category), product pages only
+    const products = {};
+    for (const list of Object.values(await catalog(5))) for (const p of list) products[p.id] = publicProduct(p);
+    state = { ...state, products, shared: true };
+  }
   const all = Object.values(state.products || {});
   const cats = [...new Set(all.map((p) => p.category).filter(Boolean))];
 
@@ -49,6 +58,8 @@ async function handle(e) {
   const t = e.message.text.trim();
 
   if (/^(วิธีใช้|ช่วยเหลือ|help)/i.test(t)) return reply(e.replyToken, howto());
+  if (/^(อัปเกรด|อัพเกรด|pro|แพ็ก|ราคา)/i.test(t)) return reply(e.replyToken, upgrade(m, pro));
+  if (!pro && /^(ลิงก์|ลิ้ง|link)/i.test(t)) return reply(e.replyToken, upgrade(m, pro, "ลิงก์ affiliate อัตโนมัติเป็นฟีเจอร์ Pro"));
   if (/^(ติดต่อแอดมิน|แอดมิน)/.test(t)) return reply(e.replyToken, text("รับเรื่องแล้วครับ พิมพ์รายละเอียดทิ้งไว้ได้เลย แอดมินจะตอบกลับในแชทนี้ 🙏"));
   if (!all.length) return reply(e.replyToken, { type: "flex", altText: "ยังไม่มีข้อมูลตะกร้า", contents: card("ยังไม่มีข้อมูลตะกร้า", "สแกนหมวดแรกบนคอมที่ติดตั้ง Connector ก่อน แล้วกลับมาพิมพ์ \"ท็อป\" ในแชทนี้ได้เลย", [openApp("ไปสแกนหมวดแรก")]) });
 
@@ -57,7 +68,7 @@ async function handle(e) {
   if (cats.includes(t)) return reply(e.replyToken, top(all, t, cats));
   if (/^หมวด/.test(t)) return reply(e.replyToken, text("เลือกหมวดที่อยากดูท็อป 5", cats.slice(0, 13).map((c) => qr(c, "ท็อป " + c))));
   if (/^(ลิงก์|ลิ้ง|link)/i.test(t)) return reply(e.replyToken, links(all));
-  if (/^สถานะ/.test(t)) return reply(e.replyToken, status(all, cats, state));
+  if (/^สถานะ/.test(t)) return reply(e.replyToken, status(all, cats, state, m, pro));
   return reply(e.replyToken, text(`พิมพ์ได้แบบนี้ครับ\n• ท็อป — 5 ตะกร้าน่าทำคลิปที่สุด\n• ท็อป ห้องครัว — เฉพาะหมวด\n• หมวด — เลือกหมวด\n• ลิงก์ — ลิงก์ affiliate ที่สร้างแล้ว\n• สถานะ — ข้อมูลอัปเดตล่าสุดเมื่อไร`, HELP_QR()));
 }
 
@@ -113,7 +124,7 @@ function top(all, want, cats) {
   const newest = Math.max(...all.filter((p) => p.category === c).map((p) => p.fetchedAt || 0));
   const others = cats.filter((x) => x !== c).slice(0, 12).map((x) => qr(x, "ท็อป " + x));
   return [
-    text(`ท็อป 5 หมวด "${c}" · ข้อมูล ${ago(newest)}`),
+    text(`ท็อป 5 หมวด "${c}" · ข้อมูล ${ago(newest)}${list.some((p) => p.affLink) ? "" : "\n(แพ็ก Free: กดคัดลอกลิงก์สินค้าไปสร้างลิงก์ในแอป Shopee · ลิงก์อัตโนมัติพิมพ์ \"อัปเกรด\")"}`),
     { type: "flex", altText: `ท็อป 5 ${c}`, contents: { type: "carousel", contents: list.map((p, i) => bubble(p, i + 1)) }, ...(others.length ? { quickReply: { items: others } } : {}) },
   ];
 }
@@ -123,6 +134,7 @@ function bubble(p, n) {
   const link = p.affLink || p.url;
   const buttons = [];
   if (p.affLink) buttons.push({ type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "clipboard", label: "คัดลอกลิงก์", clipboardText: p.affLink } });
+  else if (p.url) buttons.push({ type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "clipboard", label: "คัดลอกลิงก์สินค้า", clipboardText: p.url } });
   if (link) buttons.push({ type: "button", style: "secondary", height: "sm", action: { type: "uri", label: p.affLink ? "เปิดลิงก์" : "หน้าสินค้า", uri: link } });
   buttons.push({ type: "button", style: "link", height: "sm", action: { type: "postback", label: p.ai ? "ดูไอเดียคลิป" : "ให้ AI ดู", data: `a=ai&id=${p.id}`, displayText: `ไอเดียคลิป #${n}` } });
   return {
@@ -141,16 +153,23 @@ function bubble(p, n) {
   };
 }
 
+function upgrade(m, pro, why) {
+  if (pro) return text(`คุณใช้แพ็ก Pro อยู่แล้ว${m.proUntil ? ` ถึง ${new Date(m.proUntil).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}` : ""} 🎉\nต่ออายุหรือสอบถาม พิมพ์ "ติดต่อแอดมิน" ได้เลย`, HELP_QR());
+  return { type: "flex", altText: "อัปเกรดเป็น Pro", contents: card(why || "อัปเกรดเป็น Pro", `• สแกนหมวดและคำค้นเองไม่จำกัด\n• ลิงก์ affiliate Top 20 อัตโนมัติ ก๊อปในแชทได้ทันที\n• AI ไอเดียคลิปวันละ 30 ตัว (Free 3)\n\n฿${PRICE.month}/เดือน หรือ ฿${PRICE.year.toLocaleString("en-US")}/ปี\nพิมพ์ "ติดต่อแอดมิน" แล้วแอดมินจะส่งช่องทางชำระเงินให้`, [openApp("ดูในปั๊กปัก")]) };
+}
+
 function links(all) {
   const ls = all.filter((p) => p.affLink).sort((a, b) => (b.fetchedAt || 0) - (a.fetchedAt || 0)).slice(0, 15);
   if (!ls.length) return text("ยังไม่มีลิงก์ที่สร้างไว้ สแกนหมวดบนคอมแล้วระบบจะสร้างลิงก์ Top 20 ให้อัตโนมัติครับ", HELP_QR());
   return text(`ลิงก์ล่าสุด ${ls.length} อัน\n\n` + ls.map((p, i) => `${i + 1}. ${(p.name || "").slice(0, 40)}\n${p.affLink}`).join("\n\n"), HELP_QR());
 }
 
-function status(all, cats, state) {
+function status(all, cats, state, m, pro) {
+  const plan = pro ? `แพ็ก Pro${m.earlyAccess ? " (Early Access)" : ""}${m.proUntil ? ` ถึง ${new Date(m.proUntil).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}` : ""}` : "แพ็ก Free · ดูท็อป 5 จากคลังกลาง";
+  if (state.shared) return text(`${plan}\nหมวดในคลังกลาง: ${cats.join(", ")}\n\nพิมพ์ "อัปเกรด" เพื่อดูสิทธิ์ Pro`, HELP_QR());
   const newest = Math.max(0, ...all.map((p) => p.fetchedAt || 0));
   const lines = cats.map((c) => { const ps = all.filter((p) => p.category === c); return `• ${c}: ${ps.length} ตัว · ลิงก์ ${ps.filter((p) => p.affLink).length} · ${ago(Math.max(...ps.map((p) => p.fetchedAt || 0)))}`; });
-  return text(`บัญชี Shopee: ${state.account || "-"}\nอัปเดตล่าสุด ${newest ? ago(newest) : "-"}\n\n${lines.join("\n")}\n\nข้อมูลเกิน 3 วัน แนะนำเปิดคอมที่มี Connector แล้วกด "อัปเดตตอนนี้"`, HELP_QR());
+  return text(`${plan}\nบัญชี Shopee: ${state.account || "-"}\nอัปเดตล่าสุด ${newest ? ago(newest) : "-"}\n\n${lines.join("\n")}\n\nข้อมูลเกิน 3 วัน แนะนำเปิดคอมที่มี Connector แล้วกด "อัปเดตตอนนี้"`, HELP_QR());
 }
 
 async function aiIdea(e, m, state, id) {

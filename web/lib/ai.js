@@ -2,9 +2,9 @@
 // Results are cached per product for every user, so a product anyone scored before is free.
 import { readJSON, writeJSON } from "./store";
 import { saveMember } from "./auth";
+import { limits, planOf } from "./plan";
 
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-haiku-5-5";
-const DAILY = Number(process.env.AI_DAILY_LIMIT || 30); // new (uncached) scores per member per day
 
 // Returns { score, cached } or { error, status }.
 export async function scoreItem(member, item, refresh = false) {
@@ -18,7 +18,8 @@ export async function scoreItem(member, item, refresh = false) {
 
   const day = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10); // Bangkok date
   const used = member.ai?.day === day ? member.ai.count : 0;
-  if (used >= DAILY) return { error: `วันนี้ให้ AI ให้คะแนนครบ ${DAILY} ตัวแล้ว พรุ่งนี้ใช้ต่อได้`, status: 429 };
+  const DAILY = limits(member).aiPerDay; // new (uncached) scores per member per day
+  if (used >= DAILY) return { error: planOf(member) === "pro" ? `วันนี้ให้ AI ให้คะแนนครบ ${DAILY} ตัวแล้ว พรุ่งนี้ใช้ต่อได้` : `แพ็ก Free ให้ AI ได้วันละ ${DAILY} ตัว ครบแล้ว อัปเกรด Pro เพื่อใช้ได้วันละ 30 ตัว`, status: 429, upgrade: planOf(member) !== "pro" };
 
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return { error: "ยังไม่ได้ตั้ง ANTHROPIC_API_KEY บน server", status: 500 };
