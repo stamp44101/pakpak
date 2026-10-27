@@ -35,5 +35,13 @@ async function call(path, body) {
   return r.ok;
 }
 
+// Raw Messaging API call (data: true → api-data.line.me for image uploads).
+export async function botFetch(path, { data, headers, ...opt } = {}) {
+  return fetch(`https://${data ? "api-data" : "api"}.line.me/v2/bot/${path}`, {
+    ...opt,
+    headers: { authorization: "Bearer " + (await token()), "content-type": "application/json", ...headers },
+  });
+}
+
 export const reply = (replyToken, messages) => call("message/reply", { replyToken, messages: [].concat(messages).slice(0, 5) });
 export const loading = (chatId, seconds = 20) => call("chat/loading/start", { chatId, loadingSeconds: seconds });

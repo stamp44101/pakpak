@@ -48,6 +48,7 @@ async function handle(e) {
   if (e.type !== "message" || e.message.type !== "text") return;
   const t = e.message.text.trim();
 
+  if (/^(วิธีใช้|ช่วยเหลือ|help)/i.test(t)) return reply(e.replyToken, howto());
   if (/^(ติดต่อแอดมิน|แอดมิน)/.test(t)) return reply(e.replyToken, text("รับเรื่องแล้วครับ พิมพ์รายละเอียดทิ้งไว้ได้เลย แอดมินจะตอบกลับในแชทนี้ 🙏"));
   if (!all.length) return reply(e.replyToken, { type: "flex", altText: "ยังไม่มีข้อมูลตะกร้า", contents: card("ยังไม่มีข้อมูลตะกร้า", "สแกนหมวดแรกบนคอมที่ติดตั้ง Connector ก่อน แล้วกลับมาพิมพ์ \"ท็อป\" ในแชทนี้ได้เลย", [openApp("ไปสแกนหมวดแรก")]) });
 
@@ -58,6 +59,20 @@ async function handle(e) {
   if (/^(ลิงก์|ลิ้ง|link)/i.test(t)) return reply(e.replyToken, links(all));
   if (/^สถานะ/.test(t)) return reply(e.replyToken, status(all, cats, state));
   return reply(e.replyToken, text(`พิมพ์ได้แบบนี้ครับ\n• ท็อป — 5 ตะกร้าน่าทำคลิปที่สุด\n• ท็อป ห้องครัว — เฉพาะหมวด\n• หมวด — เลือกหมวด\n• ลิงก์ — ลิงก์ affiliate ที่สร้างแล้ว\n• สถานะ — ข้อมูลอัปเดตล่าสุดเมื่อไร`, HELP_QR()));
+}
+
+function howto() {
+  return { type: "flex", altText: "วิธีใช้ปั๊กปัก", contents: {
+    type: "bubble",
+    body: { type: "box", layout: "vertical", spacing: "md", contents: [
+      { type: "text", text: "วิธีใช้ปั๊กปัก 🐶", weight: "bold", size: "lg" },
+      { type: "text", wrap: true, size: "sm", color: "#555555", text: "1) บนคอม: ติดตั้ง Connector แล้วล็อกอิน Shopee Affiliate ใน Chrome\n2) เปิดปั๊กปัก กดหมวดเพื่อสแกน ระบบสร้างลิงก์ Top 20 ให้เอง\n3) บนมือถือ: กด \"ท็อป 5 วันนี้\" ในแชทนี้ ก๊อปลิงก์ไปปักตะกร้าได้เลย\n4) กด \"ให้ AI ดู\" เพื่อเอา hook 3 วิแรก + มุมเล่าคลิป" },
+    ] },
+    footer: { type: "box", layout: "vertical", spacing: "sm", contents: [
+      { type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "uri", label: "ติดตั้ง Connector (คอม)", uri: `${APP}/connector` } },
+      { type: "button", style: "secondary", height: "sm", action: { type: "uri", label: "เปิดปั๊กปัก", uri: LIFF_URL } },
+    ] },
+  } };
 }
 
 // Not a member yet, or waiting for a seat.
