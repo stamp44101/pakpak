@@ -67,7 +67,7 @@ export default function Admin() {
                     <button className="btn" onClick={() => set(m.id, "waitlist")}>ย้ายไปคิว</button>
                   </>}
                   {m.status !== "active" && <button className="btn primary" onClick={() => set(m.id, "active")}>เปิดสิทธิ์ (ได้ Pro 30 วัน)</button>}
-                  {m.status !== "revoked" && <button className="btn danger" onClick={() => set(m.id, "revoked")}>ระงับ</button>}
+                  {m.status !== "revoked" && <button className="btn danger-ghost" onClick={() => set(m.id, "revoked")}>ระงับ</button>}
                 </div>
               )}
             </div>
