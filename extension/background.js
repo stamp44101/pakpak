@@ -20,7 +20,8 @@ async function injected(op, arg) {
 
   if (op === "profile") {
     const r = await xhr("GET", "/api/v3/user/profile");
-    if (!r.ok || !r.json || r.json.code !== 0 || !r.json.data) return { loggedIn: false };
+    if (!r.ok || !r.json) return { loggedIn: false, transient: true };
+    if (r.json.code !== 0 || !r.json.data) return { loggedIn: false };
     return { loggedIn: true, name: r.json.data.name, affiliateId: r.json.data.affiliate_id };
   }
 
@@ -68,18 +69,31 @@ async function injected(op, arg) {
 }
 
 // ---------- tab plumbing ----------
+// The user never has to keep a Shopee Affiliate tab open: we open one in the
+// background when needed, keep Chrome from discarding it, recover it if it
+// goes stale, and close it again after a few idle minutes.
+const IDLE_CLOSE_MIN = 3;
+
+const getOwn = async () => (await chrome.storage.session.get("ownTab")).ownTab ?? null;
+const setOwn = (id) => chrome.storage.session.set({ ownTab: id });
+
 async function findTab() {
   const tabs = await chrome.tabs.query({ url: AFF + "/*" });
-  return tabs.find((t) => t.status === "complete") || tabs[0] || null;
+  const own = await getOwn();
+  // prefer a live user tab, then our own tab, then anything
+  return tabs.find((t) => t.id !== own && t.status === "complete" && !t.discarded)
+    || tabs.find((t) => t.id === own)
+    || tabs.find((t) => !t.discarded)
+    || tabs[0] || null;
 }
 
-function waitLoaded(tabId, ms = 20000) {
+function waitLoaded(tabId, ms = 25000) {
   return new Promise((resolve) => {
     const t0 = Date.now();
     const tick = async () => {
       try {
         const t = await chrome.tabs.get(tabId);
-        if (t.status === "complete") return setTimeout(() => resolve(t), 1500); // let Shopee's SDK boot
+        if (t.status === "complete" && !t.discarded) return setTimeout(() => resolve(t), 1500); // let Shopee's SDK boot
       } catch { return resolve(null); }
       if (Date.now() - t0 > ms) return resolve(null);
       setTimeout(tick, 400);
@@ -88,25 +102,78 @@ function waitLoaded(tabId, ms = 20000) {
   });
 }
 
-async function ensureTab({ create = true, focus = false } = {}) {
+async function reloadTab(tab) {
+  try { await chrome.tabs.reload(tab.id); } catch { return null; }
+  return waitLoaded(tab.id);
+}
+
+async function ensureTab({ focus = false } = {}) {
   let tab = await findTab();
-  if (!tab && create) {
+  if (!tab) {
     tab = await chrome.tabs.create({ url: AFF_HOME, active: focus });
+    await setOwn(tab.id);
     tab = await waitLoaded(tab.id);
-  } else if (tab && tab.status !== "complete") {
+  } else if (tab.discarded || tab.status === "unloaded" || !tab.url) {
+    tab = await reloadTab(tab);
+  } else if (tab.status !== "complete") {
     tab = await waitLoaded(tab.id);
   }
-  if (tab && focus) { await chrome.tabs.update(tab.id, { active: true }); await chrome.windows.update(tab.windowId, { focused: true }); }
+  if (!tab) return null;
+  chrome.tabs.update(tab.id, { autoDiscardable: false }).catch(() => {});
+  if (focus) {
+    await chrome.tabs.update(tab.id, { active: true });
+    await chrome.windows.update(tab.windowId, { focused: true });
+  }
   return tab;
 }
 
-async function runInTab(tab, op, arg) {
-  if (!tab || !tab.url || !tab.url.startsWith(AFF)) return { error: "not_logged_in" };
-  const [res] = await chrome.scripting.executeScript({
-    target: { tabId: tab.id }, world: "MAIN", func: injected, args: [op, arg ?? {}],
-  });
-  return res ? res.result : { error: "no_result" };
+async function exec(tab, op, arg) {
+  try {
+    const [res] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id }, world: "MAIN", func: injected, args: [op, arg ?? {}],
+    });
+    return res ? res.result : { error: "no_result" };
+  } catch (e) {
+    return { error: "exec_failed" };
+  }
 }
+
+// Not logged in = the tab ended up off affiliate.shopee.co.th (login redirect)
+// or the profile API says so. Anything else is treated as a stale tab: reload once and retry.
+const transient = (op, r) => !r || r.error === "exec_failed" || r.error === "no_result" || r.error === "list_failed" || r.error === "link_failed" || (op === "profile" && r.transient);
+
+async function runInTab(tab, op, arg) {
+  if (!tab) return { error: "tab_failed" };
+  if (!tab.url || !tab.url.startsWith(AFF)) return { error: "not_logged_in" };
+  let r = await exec(tab, op, arg);
+  if (transient(op, r)) {
+    const t2 = await reloadTab(tab);
+    if (!t2) return { error: "tab_failed" };
+    if (!t2.url || !t2.url.startsWith(AFF)) return { error: "not_logged_in" };
+    r = await exec(t2, op, arg);
+  }
+  return r;
+}
+
+async function run(op, arg) {
+  const tab = await ensureTab();
+  const r = await runInTab(tab, op, arg);
+  if (r && r.error === "not_logged_in") await chrome.storage.local.remove("account");
+  chrome.alarms.create("closeOwnTab", { delayInMinutes: IDLE_CLOSE_MIN });
+  return r;
+}
+
+chrome.alarms.onAlarm.addListener(async (a) => {
+  if (a.name !== "closeOwnTab") return;
+  const own = await getOwn();
+  if (own == null) return;
+  try {
+    const t = await chrome.tabs.get(own);
+    if (!t.active) await chrome.tabs.remove(own); // never close it while the user is looking at it
+  } catch {}
+  await setOwn(null);
+});
+chrome.tabs.onRemoved.addListener(async (id) => { if (id === (await getOwn())) await setOwn(null); });
 
 // ---------- message API (called by the ปั๊กปัก web app) ----------
 async function handle(msg) {
@@ -114,28 +181,22 @@ async function handle(msg) {
     case "ping":
       return { ok: true, version: chrome.runtime.getManifest().version };
     case "status": {
-      const tab = await findTab();
-      if (!tab) return { loggedIn: false, tab: false };
-      const t = tab.status === "complete" ? tab : await waitLoaded(tab.id);
-      const p = await runInTab(t, "profile");
-      if (p.loggedIn) await chrome.storage.local.set({ account: p });
-      return { ...p, tab: true };
+      const p = await run("profile");
+      if (p && p.loggedIn) { await chrome.storage.local.set({ account: p }); return { ...p, tab: true }; }
+      return { loggedIn: false, tab: true, error: p && p.error };
     }
     case "openLogin": {
-      const tab = await findTab();
-      if (tab) { await chrome.tabs.update(tab.id, { active: true }); await chrome.windows.update(tab.windowId, { focused: true }); }
-      else await chrome.tabs.create({ url: AFF_HOME, active: true });
+      const tab = await ensureTab({ focus: true });
+      await setOwn(null); // the user is using this tab now — don't auto-close it
+      if (tab && tab.url && !tab.url.startsWith(AFF)) await chrome.tabs.update(tab.id, { url: AFF_HOME });
       return { ok: true };
     }
-    case "search": {
-      const tab = await ensureTab();
-      return runInTab(tab, "search", msg.opts || {});
-    }
+    case "search":
+      return run("search", msg.opts || {});
     case "links": {
-      const tab = await ensureTab();
       const items = (msg.items || []).slice(0, 20);
       if (!items.length) return { links: [] };
-      return runInTab(tab, "links", { items, subIds: msg.subIds });
+      return run("links", { items, subIds: msg.subIds });
     }
     default:
       return { error: "unknown_type" };
