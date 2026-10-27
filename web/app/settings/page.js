@@ -60,14 +60,8 @@ export default function Settings() {
   const linkedName = st?.account;
   const lim = m.limits || {};
 
-  const steps = [
-    { done: true, key: "line" },
-    { done: !!m.botSeenAt, key: "bot" },
-    { done: !!(extOk || linkedName), key: "ext", proOnly: true },
-    { done: !!linkedName, key: "shopee", proOnly: true },
-    { done: products.length > 0, key: "scan", proOnly: true },
-  ].filter((x) => pro || !x.proOnly);
-  const doneN = steps.filter((x) => x.done).length;
+  const coreDone = 1 + (m.botSeenAt ? 1 : 0); // LINE sign-in + bot
+  const extraDone = [extOk || linkedName, linkedName, products.length > 0].filter(Boolean).length;
 
   return (
     <div className="wrap" style={{ maxWidth: 720 }}>
@@ -104,8 +98,8 @@ export default function Settings() {
 
       <section className="panel">
         <div className="bar" style={{ justifyContent: "space-between" }}>
-          <h2>การตั้งค่าของคุณ</h2>
-          <span className="hint">พร้อมแล้ว <b className="num">{doneN}/{steps.length}</b></span>
+          <h2>ใช้งานบนมือถือ</h2>
+          <span className="hint">พร้อมแล้ว <b className="num">{coreDone}/2</b></span>
         </div>
         <ol className="st-list">
           <Item state="ok" title="เข้าสู่ระบบด้วย LINE" detail={`บัญชี ${m.name}`} />
@@ -113,22 +107,31 @@ export default function Settings() {
             detail={m.botSeenAt ? "บอทพร้อมตอบ ลองกด “ท็อป 5 วันนี้” ที่เมนูด้านล่างแชท" : "เพิ่มเพื่อน LINE ปั๊กปัก แล้วกดเมนู “ท็อป 5 วันนี้” ใช้บนมือถือได้โดยไม่ต้องเปิดคอม"}>
             {!m.botSeenAt && <a className="btn primary" href={OA_ADD} target="_blank" rel="noopener">เพิ่มเพื่อน @979soyth</a>}
           </Item>
-          {pro ? <>
-            <Item state={extOk ? "ok" : linkedName ? "info" : "todo"} title="ติดตั้ง Connector (Chrome บนคอม)"
+          {!pro && <Item state="info" title="เอาลิงก์ของคุณเองผ่านแอป Shopee" detail="เปิดสินค้าในแอป Shopee → กดปุ่มแชร์ ↗ มุมขวาบน → คัดลอกลิงก์ = ลิงก์ affiliate ของคุณ (ล็อกอินแอปด้วยบัญชีที่สมัคร Shopee Affiliate)" />}
+        </ol>
+      </section>
+
+      {pro && (
+        <section className="panel">
+          <div className="bar" style={{ justifyContent: "space-between" }}>
+            <h2>สแกนเองบนคอม <span className="hint">(ไม่บังคับ)</span></h2>
+            <span className="hint">พร้อมแล้ว <b className="num">{extraDone}/3</b></span>
+          </div>
+          <p className="hint" style={{ margin: 0 }}>ถ้ายังไม่ทำส่วนนี้ ก็ใช้ท็อปจากคลังกลาง และเอาลิงก์ผ่านแอป Shopee ได้ตามปกติ</p>
+          <ol className="st-list">
+            <Item state={extOk ? "ok" : linkedName ? "info" : "off"} title="ติดตั้ง Connector (Chrome บนคอม)"
               detail={extOk ? "ติดตั้งในเบราว์เซอร์นี้แล้ว" : mobile() ? "ติดตั้งได้เฉพาะ Chrome บนคอม ไม่จำเป็นถ้าใช้แค่มือถือ" : linkedName ? "เคยใช้จากคอมเครื่องอื่นแล้ว เครื่องนี้ยังไม่ได้ติดตั้ง" : "ใช้สแกนหมวดของคุณเองและสร้างลิงก์อัตโนมัติ ใช้เวลาราว 1 นาที"}>
               {!extOk && !mobile() && <a className="btn" href="/connector" target="_blank" rel="noopener">วิธีติดตั้ง</a>}
             </Item>
-            <Item state={shopee ? "ok" : linkedName ? "info" : "todo"} title="เชื่อม Shopee Affiliate"
+            <Item state={shopee ? "ok" : linkedName ? "info" : "off"} title="เชื่อม Shopee Affiliate"
               detail={shopee ? `ล็อกอินอยู่: ${shopee}` : linkedName ? `บัญชีที่เคยเชื่อม: ${linkedName} · ตอนนี้ไม่ได้ล็อกอินในเบราว์เซอร์นี้ ลิงก์เดิมยังใช้ได้` : "ล็อกอิน Shopee Affiliate ใน Chrome ที่ติดตั้ง Connector แล้ว ระบบจะรู้เอง"}>
               {!shopee && extOk && <a className="btn" href="/">ไปเชื่อม Shopee</a>}
             </Item>
-            <Item state={products.length ? "ok" : "todo"} title="ข้อมูลตะกร้าของคุณ"
-              detail={products.length ? `${products.length} สินค้า · ${cats.length} หมวด · ลิงก์ ${links} อัน · อัปเดตล่าสุด ${thDate(newest)}` : "ยังไม่ได้สแกนเอง ตอนนี้ใช้ท็อปจากคลังกลางไปก่อนได้ เอาลิงก์ของคุณผ่านแอป Shopee (กดแชร์ → คัดลอก)"} />
-          </> : (
-            <Item state="info" title="เอาลิงก์ของคุณเองผ่านแอป Shopee" detail="เปิดสินค้าในแอป Shopee → กดปุ่มแชร์ ↗ มุมขวาบน → คัดลอกลิงก์ = ลิงก์ affiliate ของคุณ (ล็อกอินแอปด้วยบัญชีที่สมัคร Shopee Affiliate)" />
-          )}
-        </ol>
-      </section>
+            <Item state={products.length ? "ok" : "off"} title="ข้อมูลตะกร้าของคุณ"
+              detail={products.length ? `${products.length} สินค้า · ${cats.length} หมวด · ลิงก์ ${links} อัน · อัปเดตล่าสุด ${thDate(newest)}` : "ยังไม่ได้สแกนเอง ตอนนี้ใช้ท็อปจากคลังกลางไปก่อนได้"} />
+          </ol>
+        </section>
+      )}
 
       {m.payments?.length > 0 && (
         <section className="panel">
