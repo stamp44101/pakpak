@@ -73,6 +73,8 @@ export default function Home() {
   const member = me && me.member;
   const active = member && member.status === "active";
   const pro = active && member.plan === "pro";
+  const [catalogMode, setCatalogMode] = useState(false); // showing the shared catalog (no own data yet)
+  const shared = !pro || catalogMode;
 
   // ---- who am I ----
   useEffect(() => {
@@ -103,6 +105,7 @@ export default function Home() {
   async function pullCatalog() {
     const r = await api("/api/catalog");
     skipSave.current = true;
+    setCatalogMode(true);
     setProducts(r.products || {});
     setReady(true);
   }
@@ -114,6 +117,9 @@ export default function Home() {
     const remote = await api("/api/state");
     if (remote.error) { setSync("ออฟไลน์"); setReady(true); return; }
     if (remote.account) setLinked(remote.account);
+    const hasRemote = remote.products && Object.keys(remote.products).length > 0;
+    // Pro without own data yet (no Connector / Shopee): show the shared catalog until the first scan
+    if (!hasRemote && !hasLocal) return pullCatalog();
     if ((remote.updatedAt || 0) > (local.savedAt || 0) || !hasLocal) {
       skipSave.current = true;
       setProducts(remote.products || {});
@@ -127,7 +133,7 @@ export default function Home() {
 
   // ---- save: local now, server after a short pause ----
   useEffect(() => {
-    if (!ready || !active || !pro) return;
+    if (!ready || !active || !pro || catalogMode) return;
     if (skipSave.current) { skipSave.current = false; return; }
     ls.set("", JSON.stringify({ products, savedAt: Date.now() }));
     clearTimeout(saveT.current);
@@ -191,7 +197,7 @@ export default function Home() {
     if (!account) { if (!silent) say("เชื่อม Shopee Affiliate ก่อน"); return; }
     const tag = category || keywords[0];
     if (!silent) setBusy("กำลังดึงสินค้า…"); else setSync(`กำลังอัปเดต “${tag}”…`);
-    const next = { ...productsRef.current };
+    const next = catalogMode ? {} : { ...productsRef.current }; // first own scan replaces the shared catalog
     let added = 0;
     for (const k of keywords) {
       for (const offset of [0, 20]) {
@@ -215,7 +221,7 @@ export default function Home() {
         if (next[id] && l.link) next[id] = { ...next[id], affLink: l.link, linkAt: Date.now() };
       }
     }
-    setProducts(next); setBusy("");
+    setCatalogMode(false); setProducts(next); setBusy("");
     if (silent) { setSync(`อัปเดต “${tag}” แล้ว`); return; }
     setCat(tag); setKw("");
     say(`ได้สินค้าใหม่ ${added} ตัว ในหมวด “${tag}” พร้อมลิงก์ Top 20`);
@@ -287,15 +293,15 @@ export default function Home() {
     ...serverDone,
     ...(extOk || account || linked || serverDone.includes("shopee") ? ["connector"] : []),
     ...(account || linked ? ["shopee"] : []),
-    ...(all.length ? ["scan"] : []),
-    ...(all.some((p) => p.ai) ? ["ai"] : []),
+    ...(!catalogMode && all.length ? ["scan"] : []),
+    ...(!catalogMode && all.some((p) => p.ai) ? ["ai"] : []),
   ])];
   const obKey = obDone.slice().sort().join(",");
   useEffect(() => {
     if (!active || obKey === serverDone.slice().sort().join(",")) return;
     api("/api/me", "POST", { done: obDone });
   }, [obKey, active]);
-  const showOnboarding = pro && !obHidden && obDone.length < 4;
+  const showOnboarding = pro && !catalogMode && !obHidden && obDone.length < 4;
   const obNext = ["connector", "shopee", "scan", "ai"].find((k) => !obDone.includes(k));
   function startScan() {
     const el = document.getElementById("scan");
@@ -417,6 +423,14 @@ export default function Home() {
         </section>
       )}
       {active && !pro && <Upgrade price={me.price} />}
+      {pro && catalogMode && (
+        <section className="panel shared-note">
+          <h2>ใช้ได้เลยโดยไม่ต้องเชื่อม Shopee</h2>
+          <p className="hint">ตอนนี้คุณเห็นท็อปของแต่ละหมวดจากคลังกลางของปั๊กปัก ให้ AI ดูไอเดียคลิปได้ และเอาลิงก์ affiliate ของคุณเองผ่านแอป Shopee บนมือถือ (เปิดในแอป → กดแชร์ ↗ → คัดลอกลิงก์)</p>
+          <p className="hint">อยากสแกนหมวดหรือคำค้นของคุณเอง และให้ระบบสร้างลิงก์ Top 20 อัตโนมัติ ค่อยติดตั้ง Connector บนคอมทีหลังได้</p>
+          <div className="bar"><a className="btn" href="/connector" target="_blank" rel="noopener">วิธีติดตั้ง Connector (คอม)</a></div>
+        </section>
+      )}
       {pro && viewOnly && (
         <section className="panel">
           <p className="hint" style={{ margin: 0 }}>เครื่องนี้ดูคะแนนและก๊อปลิงก์ได้ ส่วนการดึงสินค้าใหม่และสร้างลิงก์ ใช้คอมที่ติดตั้ง <a href="/connector" target="_blank" rel="noopener">ปั๊กปัก Connector</a> (Chrome)</p>
@@ -514,10 +528,10 @@ export default function Home() {
                     {p.affLink && <div className="linkbox">{p.affLink} · Sub ID: pukpak{p.subId ? " / " + p.subId : ""}</div>}
                     <div className="bar">
                       {p.affLink && <button className="btn primary" onClick={() => copyLink(p)}>คัดลอกลิงก์</button>}
-                      {pro && account && !p.affLink && <button className="btn primary" onClick={() => makeLink(p)}>สร้างลิงก์ affiliate</button>}
-                      {!pro && p.url && <a className="btn primary" href={p.url} target="_blank" rel="noopener">เปิดในแอป Shopee</a>}
-                      {!pro && p.url && <button className="btn" onClick={async () => { try { await navigator.clipboard.writeText(p.url); say("คัดลอกลิงก์สินค้าแล้ว"); } catch { say(p.url); } }}>คัดลอกลิงก์สินค้า</button>}
-                      {!pro && p.url && <span className="hint">ในแอป Shopee กดปุ่มแชร์ ↗ มุมขวาบน แล้วคัดลอกลิงก์ = ลิงก์ affiliate ของคุณเอง</span>}
+                      {pro && !catalogMode && account && !p.affLink && <button className="btn primary" onClick={() => makeLink(p)}>สร้างลิงก์ affiliate</button>}
+                      {shared && !p.affLink && p.url && <a className="btn primary" href={p.url} target="_blank" rel="noopener">เปิดในแอป Shopee</a>}
+                      {shared && !p.affLink && p.url && <button className="btn" onClick={async () => { try { await navigator.clipboard.writeText(p.url); say("คัดลอกลิงก์สินค้าแล้ว"); } catch { say(p.url); } }}>คัดลอกลิงก์สินค้า</button>}
+                      {shared && !p.affLink && p.url && <span className="hint">ในแอป Shopee กดปุ่มแชร์ ↗ มุมขวาบน แล้วคัดลอกลิงก์ = ลิงก์ affiliate ของคุณเอง</span>}
                       {p.url && <a className="btn" href={p.url} target="_blank" rel="noopener">หน้าสินค้า ↗</a>}
                     </div>
                   </div>

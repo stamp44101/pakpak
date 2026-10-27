@@ -68,10 +68,10 @@ async function handle(e) {
   }
   const pro = isPro(m) && !(admin && m.viewAsFree);
   let state = (await readJSON(`users/m_${uid}.json`)) || { products: {} };
-  if (!pro) {
-    // Free: the shared catalog (top 5 per category), product pages only
+  if (!pro || !Object.keys(state.products || {}).length) {
+    // Free, or Pro without own scans yet: the shared catalog, product pages only
     const products = {};
-    for (const list of Object.values(await catalog(5))) for (const p of list) products[p.id] = publicProduct(p);
+    for (const list of Object.values(await catalog(pro ? 20 : 5))) for (const p of list) products[p.id] = publicProduct(p);
     state = { ...state, products, shared: true };
   }
   const all = Object.values(state.products || {});
@@ -238,7 +238,7 @@ function links(all) {
 
 function status(all, cats, state, m, pro) {
   const plan = pro ? `แพ็ก Pro${m.earlyAccess ? " (Early Access)" : ""}${m.proUntil ? ` ถึง ${new Date(m.proUntil).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}` : ""}` : "แพ็ก Free · ดูท็อป 5 จากคลังกลาง";
-  if (state.shared) return text(`${plan}\nหมวดในคลังกลาง: ${cats.join(", ")}\n\nพิมพ์ "อัปเกรด" เพื่อดูสิทธิ์ Pro`, HELP_QR());
+  if (state.shared) return text(`${plan}\nหมวดในคลังกลาง: ${cats.join(", ")}\n\n${pro ? "ติดตั้ง Connector บนคอม (กด \"วิธีใช้\") เพื่อสแกนหมวดของคุณเองและได้ลิงก์อัตโนมัติ" : "พิมพ์ \"อัปเกรด\" เพื่อดูสิทธิ์ Pro"}`, HELP_QR());
   const newest = Math.max(0, ...all.map((p) => p.fetchedAt || 0));
   const lines = cats.map((c) => { const ps = all.filter((p) => p.category === c); return `• ${c}: ${ps.length} ตัว · ลิงก์ ${ps.filter((p) => p.affLink).length} · ${ago(Math.max(...ps.map((p) => p.fetchedAt || 0)))}`; });
   return text(`${plan}\nบัญชี Shopee: ${state.account || "-"}\nอัปเดตล่าสุด ${newest ? ago(newest) : "-"}\n\n${lines.join("\n")}\n\nข้อมูลเกิน 3 วัน แนะนำเปิดคอมที่มี Connector แล้วกด "อัปเดตตอนนี้"`, HELP_QR());
