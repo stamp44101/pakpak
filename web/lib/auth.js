@@ -1,6 +1,7 @@
 // LINE Login session + Early Access members (stored in the private Blob store).
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { readJSON, writeJSON, updateJSON, listPaths } from "./store";
+import { notifyDiscord } from "./discord";
 import { grantPro, TRIAL_DAYS } from "./plan";
 
 const COOKIE = "pp_session";
@@ -103,6 +104,7 @@ export async function ensureMember(sub, profile = {}) {
     plan: "free", proUntil: null, freeSince: Date.now(), returning: true };
   await restoreLegacy(m);
   await saveMember(m);
+  await announceSignup(m, profile.name ? "เริ่มจากแชทบอท" : "เริ่มจากเว็บ").catch(() => {});
   return m;
 }
 // Whole-document write: only for callers that already hold a fresh copy and accept last-write-wins.
@@ -133,11 +135,14 @@ export async function joinOrUpdate(profile) {
     m = { id: profile.sub, name: profile.name, picture: profile.picture || "", status: "active", joinedAt: Date.now(), ai: { day: "", count: 0 } };
     if (early) grantPro(m, TRIAL_DAYS, { early: true });
     else { m.plan = "free"; m.proUntil = null; m.freeSince = Date.now(); m.welcomeFree = true; }
+    m.isNew = true;
   } else {
     m.name = profile.name; m.picture = profile.picture || m.picture;
   }
   await restoreLegacy(m);
+  const isNew = m.isNew; delete m.isNew;
   await saveMember(m);
+  if (isNew) await announceSignup(m, "สมัครผ่านเว็บ/LINE Login").catch(() => {});
   return m;
 }
 
@@ -157,3 +162,9 @@ export async function isAdmin(sub) {
 }
 
 export const newState = () => randomBytes(16).toString("hex");
+
+// Real-time signup feed for the team (Discord).
+async function announceSignup(m, via) {
+  const total = (await listPaths("members/")).length;
+  await notifyDiscord("signup", { title: `👋 สมาชิกใหม่ #${total.toLocaleString("en-US")}`, lines: [`**${m.name || "สมาชิก"}** · ${via} · ${m.plan === "pro" ? "Pro (EA)" : "Free"}`] });
+}
