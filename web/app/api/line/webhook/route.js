@@ -119,7 +119,7 @@ async function handle(e) {
 
 // "เอาลิงก์ของตัวเอง" in 4 steps, from a real screen recording (images in /public/howto)
 const LINK_STEPS = [
-  ["กด \"เอาลิงก์ของฉัน\"", "ที่การ์ดสินค้าที่ปั๊กปักเลือกให้ กดปุ่มส้ม ระบบจะเปิดสินค้าในแอป Shopee"],
+  ["กด \"เปิดลิงก์\"", "ที่การ์ดสินค้าที่ปั๊กปักเลือกให้ กด \"เปิดลิงก์\" ระบบจะเปิดสินค้าในแอป Shopee"],
   ["กด Allow", "ถ้ามีกล่องถามว่าจะเปิดแอปไหม กด Allow"],
   ["กดปุ่มแชร์", "ในหน้าสินค้าของแอป Shopee กดปุ่มแชร์ ↗ มุมขวาบน"],
   ["กดคัดลอกลิงก์", "ได้ลิงก์ affiliate ของคุณแล้ว เอาไปปักตะกร้าได้เลย ไม่ต้องส่งกลับมาที่บอท"],
@@ -252,7 +252,7 @@ function bubble(p, n) {
     buttons.push({ type: "button", style: "secondary", height: "sm", action: { type: "uri", label: "เปิดลิงก์", uri: p.affLink } });
   } else if (p.url) {
     // Free: get your OWN affiliate link from the Shopee app (product page → share → copy)
-    buttons.push({ type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "uri", label: "เอาลิงก์ของฉัน (แอป Shopee)", uri: external(p.url) } });
+    buttons.push({ type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "uri", label: "เปิดลิงก์", uri: external(p.url) } });
     buttons.push({ type: "button", style: "secondary", height: "sm", action: { type: "message", label: "ดูวิธีเอาลิงก์ 4 ขั้น", text: "วิธีเอาลิงก์" } });
   }
   buttons.push({ type: "button", style: "link", height: "sm", action: { type: "postback", label: p.ai ? "ดูไอเดียคลิป" : "ให้ AI ดู", data: `a=ai&id=${p.id}`, displayText: `ไอเดียคลิป #${n}` } });
