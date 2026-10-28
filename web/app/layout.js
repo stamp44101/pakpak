@@ -4,6 +4,7 @@ const SITE = process.env.APP_URL || "https://pakpak-two.vercel.app";
 const TITLE = "ปั๊กปัก — รู้ก่อนถ่าย ว่าตะกร้าไหนขายได้";
 const DESC = "เครื่องมือเลือกตะกร้า Shopee Affiliate สำหรับคนทำคลิปปักตะกร้า จัดอันดับจากยอดขาย ค่าคอม รีวิว ให้ AI บอก hook 3 วิแรก และก๊อปลิงก์ได้ในแชท LINE";
 
+export const fetchCache = "force-no-store";
 export const metadata = {
   metadataBase: new URL(SITE),
   title: { default: TITLE, template: "%s · ปั๊กปัก" },

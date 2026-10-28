@@ -5,7 +5,8 @@ import { neon } from "@neondatabase/serverless";
 
 let sql, ready;
 function db() {
-  if (!sql) sql = neon(process.env.DATABASE_URL);
+  // no-store: Next.js would otherwise cache these fetches inside route handlers and serve stale rows
+  if (!sql) sql = neon(process.env.DATABASE_URL, { fetchOptions: { cache: "no-store" } });
   if (!ready) ready = sql`CREATE TABLE IF NOT EXISTS kv (path text PRIMARY KEY, data jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now())`
     .then(() => sql`ALTER TABLE kv ADD COLUMN IF NOT EXISTS ver integer NOT NULL DEFAULT 0`);
   return ready.then(() => sql);
