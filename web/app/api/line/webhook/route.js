@@ -99,6 +99,8 @@ async function handle(e) {
   if (/^(ติดต่อแอดมิน|แอดมิน)/.test(t)) return reply(e.replyToken, text("รับเรื่องแล้วครับ พิมพ์รายละเอียดทิ้งไว้ได้เลย แอดมินจะตอบกลับในแชทนี้ 🙏"));
   if (!all.length) return reply(e.replyToken, { type: "flex", altText: "ยังไม่มีข้อมูลตะกร้า", contents: card("ยังไม่มีข้อมูลตะกร้า", "คลังกลางกำลังอัปเดต ลองใหม่อีกสักครู่ หรือพิมพ์ \"ติดต่อแอดมิน\"", [openApp("เปิดปั๊กปัก")]) });
 
+  const pasted = pastedLink(t);
+  if (pasted) return reply(e.replyToken, pasted);
   const cm = t.match(/^(?:ท็อป|top|ท๊อป)\s*\d*\s*(.*)$/i);
   if (cm) return reply(e.replyToken, await top(all, cm[1].trim(), cats, { m, pro, state }));
   if (cats.includes(t)) return reply(e.replyToken, await top(all, t, cats, { m, pro, state }));
@@ -107,16 +109,30 @@ async function handle(e) {
   if (/^หมวด/.test(t)) return reply(e.replyToken, text("เลือกหมวดที่อยากดูท็อป 5", cats.slice(0, 13).map((c) => qr(c, "ท็อป " + c))));
   if (/^(ลิงก์|ลิ้ง|link)/i.test(t)) return reply(e.replyToken, links(all));
   if (/^สถานะ/.test(t)) return reply(e.replyToken, status(all, cats, state, m, pro));
+  if (t.length >= 12) {
+    const head = t.toLowerCase().slice(0, 18);
+    const hit = all.find((p) => (p.name || "").toLowerCase().startsWith(head) || (p.name || "").toLowerCase().includes(head));
+    if (hit) return reply(e.replyToken, [text(`ตัวนี้เลือกมาดีแล้วครับ 👍\n\nแบ่งหน้าที่กันแบบนี้นะ\n• ปั๊กปัก = เลือกตะกร้าที่น่าทำคลิปให้\n• ลิงก์ = คุณกดเองในแอป Shopee (ค่าคอมถึงจะเข้าบัญชีคุณ)\n\nวางชื่อสินค้าในแชทนี้ บอทสร้างลิงก์ให้ไม่ได้ ทำตาม 4 ขั้นนี้ได้เลย 👇`), linkHowto()]);
+  }
   return reply(e.replyToken, text(`พิมพ์ได้แบบนี้ครับ\n• ท็อป — 5 ตะกร้าน่าทำคลิปที่สุด\n• ท็อป ห้องครัว — เฉพาะหมวด\n• หมวด — เลือกหมวด\n• หา สายนาฬิกา — ค้นสินค้าที่อยากทำ\n• ลิงก์ — ลิงก์ affiliate ที่สร้างแล้ว\n• สถานะ — ข้อมูลอัปเดตล่าสุดเมื่อไร`, HELP_QR()));
 }
 
 // "เอาลิงก์ของตัวเอง" in 4 steps, from a real screen recording (images in /public/howto)
 const LINK_STEPS = [
-  ["กดเปิดในแอป Shopee", "ที่การ์ดสินค้า กด \"เปิดในแอป Shopee\" (หรือ \"เปิดลิงก์\")"],
+  ["กด \"เอาลิงก์ของฉัน\"", "ที่การ์ดสินค้าที่ปั๊กปักเลือกให้ กดปุ่มส้ม ระบบจะเปิดสินค้าในแอป Shopee"],
   ["กด Allow", "ถ้ามีกล่องถามว่าจะเปิดแอปไหม กด Allow"],
   ["กดปุ่มแชร์", "ในหน้าสินค้าของแอป Shopee กดปุ่มแชร์ ↗ มุมขวาบน"],
-  ["กดคัดลอกลิงก์", "ได้ลิงก์ affiliate ของคุณ พร้อมเห็นค่าคอมที่จะได้ เอาไปปักตะกร้าได้เลย"],
+  ["กดคัดลอกลิงก์", "ได้ลิงก์ affiliate ของคุณแล้ว เอาไปปักตะกร้าได้เลย ไม่ต้องส่งกลับมาที่บอท"],
 ];
+// Someone pasted a Shopee link into the chat: tell them what it is and what to do next.
+function pastedLink(t) {
+  const u = (t.match(/https?:\/\/\S+/) || [])[0];
+  if (!u || !/(shopee\.co\.th|shp\.ee)/i.test(u)) return null;
+  if (/s\.shopee\.co\.th|shp\.ee/i.test(u))
+    return text(`✅ นี่คือลิงก์ที่คุณกดแชร์จากแอป Shopee แล้ว ใช้ได้เลยครับ\n\nเอาไปปักตะกร้า / ใส่ในคลิปหรือแคปชันได้ทันที ถ้าแอป Shopee ล็อกอินบัญชีที่สมัคร Shopee Affiliate ไว้ ค่าคอมจะเข้าบัญชีคุณ\n\nไม่ต้องส่งลิงก์ให้บอทนะครับ ปั๊กปักมีหน้าที่เลือกตะกร้าให้ ส่วนลิงก์คุณเก็บไว้ใช้เอง`, HELP_QR());
+  return [text(`ลิงก์นี้เป็นลิงก์หน้าสินค้าธรรมดา ยังไม่ใช่ลิงก์ affiliate ของคุณครับ (กดซื้อผ่านลิงก์นี้ค่าคอมไม่เข้า)\n\nเอาลิงก์ของคุณ: เปิดสินค้าในแอป Shopee → กดแชร์ ↗ → คัดลอกลิงก์ ดูภาพ 4 ขั้นได้เลย 👇`), linkHowto()];
+}
+
 function linkHowto() {
   return { type: "flex", altText: "วิธีเอาลิงก์ของคุณ 4 ขั้น", contents: { type: "carousel", contents: LINK_STEPS.map(([title, body], i) => ({
     type: "bubble", size: "kilo",
@@ -236,8 +252,8 @@ function bubble(p, n) {
     buttons.push({ type: "button", style: "secondary", height: "sm", action: { type: "uri", label: "เปิดลิงก์", uri: p.affLink } });
   } else if (p.url) {
     // Free: get your OWN affiliate link from the Shopee app (product page → share → copy)
-    buttons.push({ type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "uri", label: "เปิดในแอป Shopee", uri: external(p.url) } });
-    buttons.push({ type: "button", style: "secondary", height: "sm", action: { type: "clipboard", label: "คัดลอกลิงก์สินค้า", clipboardText: p.url } });
+    buttons.push({ type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "uri", label: "เอาลิงก์ของฉัน (แอป Shopee)", uri: external(p.url) } });
+    buttons.push({ type: "button", style: "secondary", height: "sm", action: { type: "message", label: "ดูวิธีเอาลิงก์ 4 ขั้น", text: "วิธีเอาลิงก์" } });
   }
   buttons.push({ type: "button", style: "link", height: "sm", action: { type: "postback", label: p.ai ? "ดูไอเดียคลิป" : "ให้ AI ดู", data: `a=ai&id=${p.id}`, displayText: `ไอเดียคลิป #${n}` } });
   return {
@@ -251,7 +267,10 @@ function bubble(p, n) {
       { type: "text", text: p.name || "-", weight: "bold", size: "sm", wrap: true, maxLines: 2 },
       { type: "text", text: `${baht(effPrice(p))} · คอม ${(+p.commission || 0).toFixed(0)}% · ได้ ~${baht(p._perOrder)}/ออเดอร์`, size: "xs", color: "#555555", wrap: true },
       { type: "text", text: `ขายแล้ว ${(+p.sold || 0).toLocaleString("en-US")} · ⭐ ${(+p.rating || 0).toFixed(1)}${p.affLink ? " · มีลิงก์" : ""}`, size: "xs", color: "#888888", wrap: true },
-      ...(!p.affLink && p.url ? [{ type: "text", text: "เปิดในแอป → กดแชร์ ↗ → คัดลอกลิงก์ = ลิงก์ของคุณเอง", size: "xxs", color: "#E5480A", wrap: true }] : []),
+      ...(!p.affLink && p.url ? [{ type: "box", layout: "vertical", margin: "sm", paddingAll: "8px", cornerRadius: "8px", backgroundColor: "#FFF1E7", contents: [
+        { type: "text", text: "✓ ปั๊กปักเลือกตะกร้าให้แล้ว", size: "xxs", color: "#333333", weight: "bold", wrap: true },
+        { type: "text", text: "ลิงก์ = คุณกดเองในแอป Shopee: แชร์ ↗ → คัดลอกลิงก์", size: "xxs", color: "#E5480A", wrap: true },
+      ] }] : []),
     ] },
     footer: { type: "box", layout: "vertical", spacing: "xs", contents: buttons },
   };
