@@ -10,7 +10,7 @@ import { rank, effPrice } from "../../../../lib/score";
 import { scoreItem } from "../../../../lib/ai";
 import { isPro, PRICE, ORDER_TTL_H } from "../../../../lib/plan";
 import { catalog, freeCatalog, publicProduct, ownerProducts } from "../../../../lib/catalog";
-import { flags, setFlag, lockTop5For, lockLabel } from "../../../../lib/flags";
+import { flags, setFlag, lockTop5For, lockLabel, bucket } from "../../../../lib/flags";
 import { parseAffId, affLink, cleanProductUrl, isShortLink, resolveShortLink, AFF_ID_HOW, SHORT_NOTE } from "../../../../lib/afflink";
 
 export const runtime = "nodejs";
@@ -259,7 +259,7 @@ const cleanWant = (w) => {
   return /^\d+\s*ตะกร้า/.test(x) ? "" : x;
 };
 
-function pickCat(all, want, cats) {
+function pickCat(all, want, cats, uid) {
   want = cleanWant(want);
   if (want) {
     const syn = SYNONYMS[want.toLowerCase()];
@@ -268,12 +268,15 @@ function pickCat(all, want, cats) {
       // a scanned keyword inside a category, e.g. "พัดลมพกพา" → แก็ดเจ็ต
       || all.find((p) => p.keyword && (p.keyword === want || p.keyword.includes(want) || want.includes(p.keyword)))?.category;
   }
-  // default: the category updated most recently
-  return all.reduce((b, p) => ((p.fetchedAt || 0) > (b?.fetchedAt || 0) ? p : b), null)?.category;
+  // default: a different category per member, changing every day (Bangkok time), so not everyone films the same basket
+  const list = [...cats].sort();
+  if (!list.length) return undefined;
+  const day = Math.floor((Date.now() + 7 * 36e5) / 864e5);
+  return list[(bucket(uid) + day) % list.length];
 }
 
 async function top(all, want, cats, ctx = {}) {
-  const c = pickCat(all, want, cats);
+  const c = pickCat(all, want, cats, ctx.m?.id);
   if (!c) return notInCatalog(want, cats, ctx);
   const list = byRank(rank(all.filter((p) => p.category === c))).slice(0, 5);
   addViews(list.length).catch(() => {});
