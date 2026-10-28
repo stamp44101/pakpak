@@ -139,9 +139,7 @@ function Cta({ me, onLogin, big }) {
           {left > 0 ? <>Early Access เหลือ <b>{left}</b> จาก {me.seats} ที่ สมัครแล้วใช้ได้ทันที</> : <>สมัครแล้วใช้ฟรีได้ทันที · ท็อป 5/หมวด · AI 3 ครั้ง/วัน</>}
         </p>
       )}
-      {me?.users > 0 && (
-        <p className="lp-live"><i className="lp-dot" />ผู้ใช้แล้ว <b>{me.users.toLocaleString("en-US")}</b> คน{me.activeToday > 0 && <> · วันนี้ใช้งาน <b>{me.activeToday}</b> คน</>}</p>
-      )}
+
     </div>
   );
 }
@@ -157,6 +155,13 @@ export default function Landing({ me, onLogin }) {
 
       <section className="lp-hero">
         <div className="lp-hero-text">
+          {me?.users > 0 && (
+            <div className="lp-counter" aria-live="polite">
+              <i className="lp-dot" />
+              <span><b>{me.users.toLocaleString("en-US")}</b> ครีเอเตอร์ใช้ปั๊กปักแล้ว</span>
+              {me.activeToday > 0 && <span className="lp-counter-today">วันนี้ <b>{me.activeToday}</b> คน</span>}
+            </div>
+          )}
           <h1>รู้ก่อนถ่าย<br />ว่าตะกร้าไหน<br />ขายได้</h1>
           <p className="lp-lead">ปั๊กปักจัดอันดับสินค้า Shopee จากยอดขาย ค่าคอม และรีวิว แล้วให้ AI บอกว่าตัวไหนทำคลิปง่าย พร้อม hook 3 วินาทีแรก ใช้บนมือถือในแชท LINE ได้เลย ไม่ต้องเปิดคอม</p>
           <Cta me={me} onLogin={onLogin} />
