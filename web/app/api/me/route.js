@@ -23,7 +23,7 @@ export async function GET(req) {
     member: { name: m.name, picture: m.picture, status: m.status, admin: r.admins.includes(m.id), waitlistPosition: pos, onboarding: m.onboarding || { done: [] }, ...planInfo(m),
       freeSince: m.freeSince || null, joinedAt: m.joinedAt, botSeenAt: m.botSeenAt || null, pendingOrder: m.pendingOrder || null, payments: m.payments || [],
       aiToday: m.ai?.day === new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10) ? m.ai.count : 0 },
-    seats: seats(), left, loginReady: true, price: PRICE,
+    seats: seats(), left, users: r.active.length, activeToday: await activeToday(), loginReady: true, price: PRICE,
   });
 }
 

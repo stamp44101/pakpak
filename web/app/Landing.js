@@ -238,7 +238,7 @@ export default function Landing({ me, onLogin }) {
             <a className="lp-plan-btn pro" href={LOGIN} onClick={onLogin}><LineIcon size={22} /><span className="line-sep" />{(me?.left ?? 1) > 0 ? "ลอง Pro ฟรี 30 วัน" : "สมัครด้วย LINE"}</a>
           </div>
         </div>
-        {me && <p className="lp-price-seats">{me.left > 0 ? <>Early Access เหลือ <b>{me.left}</b> จาก {me.seats} ที่</> : <>ผู้ใช้แล้ว <b>{me.users}</b> คน · สมัครแล้วใช้ฟรีได้ทันที</>}</p>}
+        {me && <p className="lp-price-seats">{me.left > 0 ? <>Early Access เหลือ <b>{me.left}</b> จาก {me.seats} ที่</> : <>{me.users > 0 && <>ผู้ใช้แล้ว <b>{me.users.toLocaleString("en-US")}</b> คน · </>}สมัครแล้วใช้ฟรีได้ทันที</>}</p>}
       </section>
 
       <section className="lp-faq">
