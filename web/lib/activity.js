@@ -17,3 +17,16 @@ export async function activeToday() {
   const a = (await readJSON("meta/activity.json")) || {};
   return a.day === today() ? (a.ids || []).length : 0;
 }
+
+// Product cards people have looked at (bot carousels + web catalog). Seeded with what the OA chat log
+// showed before counting started (~80 "ท็อป 5" replies on 28 Oct 2026).
+const SEED_VIEWS = 400;
+export async function addViews(n) {
+  if (!n) return;
+  const s = (await readJSON("meta/stats.json")) || { views: SEED_VIEWS };
+  s.views = (s.views || 0) + n;
+  await writeJSON("meta/stats.json", s);
+}
+export async function views() {
+  return ((await readJSON("meta/stats.json")) || { views: SEED_VIEWS }).views || 0;
+}

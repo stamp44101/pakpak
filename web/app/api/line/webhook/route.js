@@ -3,7 +3,7 @@
 import { verifySignature, reply, push, loading, LIFF_URL } from "../../../../lib/line";
 import { getMember, saveMember, roster, seats, seatsLeft, isAdmin } from "../../../../lib/auth";
 import { freeWelcome } from "../../../../lib/welcome";
-import { touch } from "../../../../lib/activity";
+import { touch, addViews } from "../../../../lib/activity";
 import { readJSON, writeJSON } from "../../../../lib/store";
 import { rank, effPrice } from "../../../../lib/score";
 import { scoreItem } from "../../../../lib/ai";
@@ -202,6 +202,7 @@ async function top(all, want, cats, ctx = {}) {
   const c = pickCat(all, want, cats);
   if (!c) return notInCatalog(want, cats, ctx);
   const list = rank(all.filter((p) => p.category === c)).slice(0, 5);
+  addViews(list.length).catch(() => {});
   const newest = Math.max(...all.filter((p) => p.category === c).map((p) => p.fetchedAt || 0));
   const others = cats.filter((x) => x !== c).slice(0, 12).map((x) => qr(x, "ท็อป " + x));
   return [

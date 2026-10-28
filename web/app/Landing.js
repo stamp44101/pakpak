@@ -127,6 +127,9 @@ function Demo({ cats }) {
   );
 }
 
+// "กว่า X": round down so the claim stays true (430 → 400, 1,280 → 1,200).
+const roundDown = (n) => (n < 1000 ? Math.floor(n / 100) * 100 : Math.floor(n / 100) * 100);
+
 function Cta({ me, onLogin, big }) {
   const left = me?.left ?? null;
   return (
@@ -159,7 +162,7 @@ export default function Landing({ me, onLogin }) {
             <div className="lp-counter" aria-live="polite">
               <i className="lp-dot" />
               <span><b>{me.users.toLocaleString("en-US")}</b> ครีเอเตอร์ใช้ปั๊กปักแล้ว</span>
-              {me.activeToday > 0 && <span className="lp-counter-today">วันนี้ <b>{me.activeToday}</b> คน</span>}
+              {me.views >= 100 && <span className="lp-counter-today">ดูข้อมูลไปแล้วกว่า <b>{roundDown(me.views).toLocaleString("en-US")}</b> ตะกร้า</span>}
             </div>
           )}
           <h1>รู้ก่อนถ่าย<br />ว่าตะกร้าไหน<br />ขายได้</h1>

@@ -377,5 +377,5 @@ td input{width:84px;padding:5px 7px}
 .lp-counter{align-self:flex-start;display:inline-flex;align-items:center;flex-wrap:wrap;gap:10px;background:#fff;color:var(--brown);border-radius:999px;padding:10px 18px 10px 14px;font-size:16px;font-weight:500;box-shadow:0 8px 24px rgba(43,30,22,.18)}
 .lp-counter b{font-family:"Mitr",var(--display);font-size:24px;font-weight:600;color:var(--o2);margin-right:4px;font-variant-numeric:tabular-nums}
 .lp-counter-today{padding-left:10px;border-left:1px solid rgba(43,30,22,.15);color:var(--soft);font-size:14px}
-.lp-counter-today b{font-size:18px;color:#16a34a}
+.lp-counter-today b{font-size:18px;color:var(--o2)}
 @media (max-width:520px){.lp-counter{font-size:14px;padding:8px 14px 8px 12px}.lp-counter b{font-size:20px}}
