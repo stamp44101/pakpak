@@ -1,6 +1,6 @@
 // LINE Login session + Early Access members (stored in the private Blob store).
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
-import { readJSON, writeJSON } from "./store";
+import { readJSON, writeJSON, updateJSON } from "./store";
 import { grantPro, TRIAL_DAYS } from "./plan";
 
 const COOKIE = "pp_session";
@@ -54,9 +54,13 @@ export const saveMember = (m) => writeJSON(memberPath(m.id), m);
 // The member roster: who is in, who waits. Small enough to keep as one document.
 // The new database started empty on 28 Oct 2026 (old Blob store suspended): the 10 Early Access seats
 // were already taken, so the roster starts with them marked as used.
+const freshRoster = () => ({ active: [], waitlist: [], admins: [], early: Array(10).fill("legacy") });
 export async function roster() {
-  return (await readJSON("meta/roster.json")) || { active: [], waitlist: [], admins: [], early: Array(10).fill("legacy") };
+  return (await readJSON("meta/roster.json")) || freshRoster();
 }
+// All roster changes go through here so concurrent requests never overwrite each other. fn may run more than once.
+export const mutateRoster = (fn) => updateJSON("meta/roster.json", async (r) => { r.active ||= []; r.waitlist ||= []; r.admins ||= []; await fn(r); return r; }, freshRoster);
+const addTo = (arr, id) => { if (!arr.includes(id)) arr.push(id); };
 
 // Early Access members from before the move get their Pro back when they show up again (matched by LINE name).
 const LEGACY_EA = ["Ainz", "M", "Bas", "Ettt", "Jutharat✨", "🌟Dreammy🌟", "ªňňª ❸🐐❺🐷", "poupae", "1ST"];
@@ -64,10 +68,9 @@ async function restoreLegacy(m) {
   if (m.legacyChecked || !m.name || m.name === "สมาชิก") return false;
   m.legacyChecked = true;
   if (!LEGACY_EA.includes(m.name)) return true;
-  const r = await roster();
-  r.restored = r.restored || [];
-  if (r.restored.includes(m.name)) return true;
-  r.restored.push(m.name); await saveRoster(r);
+  let taken = false;
+  await mutateRoster((r) => { r.restored ||= []; taken = r.restored.includes(m.name); if (!taken) r.restored.push(m.name); });
+  if (taken) return true;
   m.welcomeFree = false; m.freeSince = null; m.plan = undefined; m.proUntil = undefined;
   grantPro(m, TRIAL_DAYS, { early: true });
   return true;
@@ -87,11 +90,12 @@ export async function ensureMember(sub, profile = {}) {
   if (!r.admins.length) return null; // before the owner has claimed the new database nobody is auto-created
   m = { id: sub, name: profile.name || "สมาชิก", picture: profile.picture || "", status: "active", joinedAt: Date.now(), ai: { day: "", count: 0 },
     plan: "free", proUntil: null, freeSince: Date.now(), returning: true };
-  r.active.push(sub); await saveRoster(r);
+  await mutateRoster((x) => addTo(x.active, sub));
   await restoreLegacy(m);
   await saveMember(m);
   return m;
 }
+// Whole-document write: only for callers that already hold a fresh copy and accept last-write-wins.
 export const saveRoster = (r) => writeJSON("meta/roster.json", r);
 
 // Early Access seats taken. Before this list existed every active member held one.
@@ -100,31 +104,32 @@ export const seatsLeft = (r) => Math.max(0, seats() - earlyTaken(r));
 
 // Move a waiting member onto the Free plan and mark them to be welcomed (web banner + bot card).
 export async function openFree(m, r) {
-  r = r || (await roster());
-  r.early = r.early || [...r.active];
-  for (const k of ["active", "waitlist", "revoked"]) r[k] = (r[k] || []).filter((x) => x !== m.id);
-  r.active.push(m.id);
+  await mutateRoster((x) => {
+    x.early ||= [...x.active];
+    for (const k of ["active", "waitlist", "revoked"]) x[k] = (x[k] || []).filter((y) => y !== m.id);
+    x.active.push(m.id);
+  });
   m.status = "active"; m.plan = "free"; m.proUntil = null;
   m.freeSince = Date.now(); m.welcomeFree = true;
-  await saveRoster(r); await saveMember(m);
+  await saveMember(m);
   return m;
 }
 
 // First login: take an Early Access seat (Pro 30 days) if one is left, else start on Free right away.
 // The very first member becomes the admin (that is the owner, who signs in first).
 export async function joinOrUpdate(profile) {
-  const r = await roster();
   let m = await getMember(profile.sub);
   if (!m) {
-    const first = false; // the owner claims admin explicitly via /api/admin/claim
-    const early = seatsLeft(r) > 0;
-    r.early = r.early || [...r.active];
+    let early = false; // the owner claims admin explicitly via /api/admin/claim
+    await mutateRoster((x) => {
+      x.early ||= [...x.active];
+      early = !x.early.includes(profile.sub) && seatsLeft(x) > 0;
+      addTo(x.active, profile.sub);
+      if (early) x.early.push(profile.sub);
+    });
     m = { id: profile.sub, name: profile.name, picture: profile.picture || "", status: "active", joinedAt: Date.now(), ai: { day: "", count: 0 } };
-    r.active.push(m.id);
-    if (first) r.admins.push(m.id);
-    if (early) { r.early.push(m.id); grantPro(m, first ? null : TRIAL_DAYS, { early: true }); }
+    if (early) grantPro(m, TRIAL_DAYS, { early: true });
     else { m.plan = "free"; m.proUntil = null; m.freeSince = Date.now(); m.welcomeFree = true; }
-    await saveRoster(r);
   } else {
     m.name = profile.name; m.picture = profile.picture || m.picture;
   }

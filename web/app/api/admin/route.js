@@ -1,5 +1,5 @@
 // Admin: list members, activate / move to waitlist / revoke.
-import { requireMember, isAdmin, roster, saveRoster, getMember, saveMember, seats, earlyTaken, openFree } from "../../../lib/auth";
+import { requireMember, isAdmin, roster, mutateRoster, getMember, saveMember, seats, earlyTaken, openFree } from "../../../lib/auth";
 import { planInfo, grantPro, TRIAL_DAYS, PRICE } from "../../../lib/plan";
 import { push } from "../../../lib/line";
 import { readJSON } from "../../../lib/store";
@@ -57,10 +57,8 @@ export async function POST(req) {
       grantPro(m, order.plan === "year" ? 365 : 30);
       m.payments = [...(m.payments || []), { plan: order.plan, amount: order.plan === "year" ? PRICE.year : PRICE.month, at: Date.now() }];
       if (m.status !== "active") {
-        const r = await roster();
-        for (const k of ["active", "waitlist", "revoked"]) r[k] = (r[k] || []).filter((x) => x !== m.id);
-        r.active.push(m.id); m.status = "active";
-        await saveRoster(r);
+        await mutateRoster((r) => { for (const k of ["active", "waitlist", "revoked"]) r[k] = (r[k] || []).filter((x) => x !== m.id); r.active.push(m.id); });
+        m.status = "active";
       }
     }
     await saveMember(m);
@@ -71,13 +69,12 @@ export async function POST(req) {
   }
   // Co-admins: same /admin access and Pro without expiry. The owner (first admin) can't be removed.
   if (admin !== undefined) {
-    const r = await roster();
-    if (r.admins[0] === m.id) return Response.json({ error: "เปลี่ยนสิทธิ์เจ้าของไม่ได้" }, { status: 400 });
+    if ((await roster()).admins[0] === m.id) return Response.json({ error: "เปลี่ยนสิทธิ์เจ้าของไม่ได้" }, { status: 400 });
     if (m.status !== "active") return Response.json({ error: "ต้องเป็นสมาชิกที่ใช้งานอยู่" }, { status: 400 });
-    r.admins = r.admins.filter((x) => x !== m.id);
-    if (admin) { r.admins.push(m.id); m.plan = "pro"; m.proUntil = null; m.pendingOrder = null; }
+    await mutateRoster((r) => { r.admins = r.admins.filter((x, i) => i === 0 || x !== m.id); if (admin) r.admins.push(m.id); });
+    if (admin) { m.plan = "pro"; m.proUntil = null; m.pendingOrder = null; }
     else { m.plan = "pro"; m.proUntil = Date.now() + 30 * 864e5; } // was Pro forever as admin: back to 30 days
-    await saveRoster(r); await saveMember(m);
+    await saveMember(m);
     return Response.json({ ok: true });
   }
   if (plan) {
@@ -88,13 +85,10 @@ export async function POST(req) {
     return Response.json({ ok: true });
   }
   if (!["active", "waitlist", "revoked"].includes(status)) return Response.json({ error: "สถานะไม่ถูกต้อง" }, { status: 400 });
-  const r = await roster();
-  r.revoked = r.revoked || [];
-  for (const k of ["active", "waitlist", "revoked"]) r[k] = r[k].filter((x) => x !== m.id);
-  r[status].push(m.id);
+  await mutateRoster((r) => { r.revoked ||= []; for (const k of ["active", "waitlist", "revoked"]) r[k] = r[k].filter((x) => x !== m.id); r[status].push(m.id); });
   m.status = status;
   if (status === "active" && m.plan === undefined) grantPro(m, TRIAL_DAYS, { early: true });
-  await saveRoster(r); await saveMember(m);
+  await saveMember(m);
   return Response.json({ ok: true });
 }
 
