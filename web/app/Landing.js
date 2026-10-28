@@ -136,8 +136,11 @@ function Cta({ me, onLogin, big }) {
       </a>
       {left !== null && (
         <p className="lp-seats">
-          {left > 0 ? <>Early Access เหลือ <b>{left}</b> จาก {me.seats} ที่ สมัครแล้วใช้ได้ทันที</> : <>Early Access เต็มแล้ว สมัครไว้เพื่อเข้าคิว เราจะเปิดสิทธิ์ให้ตามลำดับ</>}
+          {left > 0 ? <>Early Access เหลือ <b>{left}</b> จาก {me.seats} ที่ สมัครแล้วใช้ได้ทันที</> : <>สมัครแล้วใช้ฟรีได้ทันที · ท็อป 5/หมวด · AI 3 ครั้ง/วัน</>}
         </p>
+      )}
+      {me?.users > 0 && (
+        <p className="lp-live"><i className="lp-dot" />ผู้ใช้แล้ว <b>{me.users.toLocaleString("en-US")}</b> คน{me.activeToday > 0 && <> · วันนี้ใช้งาน <b>{me.activeToday}</b> คน</>}</p>
       )}
     </div>
   );
@@ -235,7 +238,7 @@ export default function Landing({ me, onLogin }) {
             <a className="lp-plan-btn pro" href={LOGIN} onClick={onLogin}><LineIcon size={22} /><span className="line-sep" />{(me?.left ?? 1) > 0 ? "ลอง Pro ฟรี 30 วัน" : "สมัครด้วย LINE"}</a>
           </div>
         </div>
-        {me && <p className="lp-price-seats">{me.left > 0 ? <>Early Access เหลือ <b>{me.left}</b> จาก {me.seats} ที่</> : "Early Access เต็มแล้ว สมัครไว้เพื่อเข้าคิวได้"}</p>}
+        {me && <p className="lp-price-seats">{me.left > 0 ? <>Early Access เหลือ <b>{me.left}</b> จาก {me.seats} ที่</> : <>ผู้ใช้แล้ว <b>{me.users}</b> คน · สมัครแล้วใช้ฟรีได้ทันที</>}</p>}
       </section>
 
       <section className="lp-faq">
@@ -243,7 +246,7 @@ export default function Landing({ me, onLogin }) {
         <details><summary>ต้องให้รหัส Shopee ไหม</summary><p>ไม่ต้อง ใช้งานปกติไม่ต้องเชื่อม Shopee เลย ถ้าเปิดขั้นสูง คุณล็อกอิน Shopee Affiliate เองใน Chrome ตามปกติ Connector แค่อ่านรายการสินค้าและสร้างลิงก์จากแท็บนั้น ไม่เก็บรหัสผ่านหรือ cookie</p></details>
         <details><summary>ใช้แต่มือถือได้ไหม</summary><p>ได้ครับ ดูท็อปสินค้า ขอไอเดียคลิปจาก AI และเอาลิงก์ของคุณผ่านแอป Shopee ได้ครบบนมือถือ คอมใช้เฉพาะ “ขั้นสูง” ถ้าอยากได้ลิงก์อัตโนมัติหรือสแกนหมวดเอง</p></details>
         <details><summary>ลิงก์ที่ได้เป็นลิงก์ของใคร</summary><p>เป็นลิงก์ affiliate ของบัญชีคุณเอง ค่าคอมเข้าบัญชีคุณตามปกติ</p></details>
-        <details><summary>Early Access คืออะไร</summary><p>รอบแรกเปิดให้ {me?.seats || 10} คนใช้ Pro ฟรี 30 วัน ครบแล้วจะเป็นแพ็ก Free อัตโนมัติ ไม่มีการตัดเงิน ถ้าอยากใช้ Pro ต่อค่อยทักแอดมินใน LINE ใครสมัครหลังที่เต็มจะได้คิวไว้</p></details>
+        <details><summary>Early Access คืออะไร</summary><p>รอบแรกเปิดให้ {me?.seats || 10} คนใช้ Pro ฟรี 30 วัน ครบแล้วจะเป็นแพ็ก Free อัตโนมัติ ไม่มีการตัดเงิน ถ้าอยากใช้ Pro ต่อค่อยทักแอดมินใน LINE ใครสมัครหลังที่เต็มจะได้แพ็ก Free ใช้ได้ทันที</p></details>
         <details><summary>จ่ายเงินยังไง</summary><p>ทักแอดมินในแชท LINE ของปั๊กปัก แล้วโอนผ่านพร้อมเพย์ แอดมินเปิดสิทธิ์ Pro ให้ทันที</p></details>
       </section>
 

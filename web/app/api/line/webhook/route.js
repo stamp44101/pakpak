@@ -3,6 +3,7 @@
 import { verifySignature, reply, push, loading, LIFF_URL } from "../../../../lib/line";
 import { getMember, saveMember, roster, seats, seatsLeft, isAdmin } from "../../../../lib/auth";
 import { freeWelcome } from "../../../../lib/welcome";
+import { touch } from "../../../../lib/activity";
 import { readJSON, writeJSON } from "../../../../lib/store";
 import { rank, effPrice } from "../../../../lib/score";
 import { scoreItem } from "../../../../lib/ai";
@@ -37,6 +38,7 @@ async function handle(e) {
   const uid = e.source.userId;
   const m = await getMember(uid);
   if (m && (!m.botSeenAt || Date.now() - m.botSeenAt > 864e5)) { m.botSeenAt = Date.now(); await saveMember(m); }
+  if (m) touch(m.id).catch(() => {});
 
   // ---- buying Pro: choose plan → send slip → admin approves in /admin ----
   if (m && m.status !== "revoked") {
