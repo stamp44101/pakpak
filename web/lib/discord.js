@@ -8,7 +8,9 @@ export async function notifyDiscord(kind, { title, lines = [], image } = {}) {
   if (!url) return false;
   const embed = { title, description: lines.join("\n"), color: COLORS[kind] || 0x888888, timestamp: new Date().toISOString(),
     ...(image ? { image: { url: "attachment://slip.jpg" } } : {}) };
-  const payload = { username: "ปั๊กปัก", embeds: [embed] };
+  // Slips ping the people who check money: DISCORD_SLIP_MENTIONS = comma-separated Discord user IDs (not usernames)
+  const ids = kind === "slip" ? (process.env.DISCORD_SLIP_MENTIONS || "").split(",").map((x) => x.trim()).filter((x) => /^\d{15,21}$/.test(x)) : [];
+  const payload = { username: "ปั๊กปัก", embeds: [embed], ...(ids.length ? { content: ids.map((id) => `<@${id}>`).join(" ") + " มีสลิปใหม่ 💰", allowed_mentions: { users: ids } } : {}) };
   let res;
   if (image) {
     const form = new FormData();
