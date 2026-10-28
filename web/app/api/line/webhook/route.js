@@ -93,7 +93,7 @@ async function handle(e) {
   if (e.type !== "message" || e.message.type !== "text") return;
   const t = e.message.text.trim();
 
-  if (/^(วิธีเอาลิงก์|เอาลิงก์ยังไง)/.test(t)) return reply(e.replyToken, linkHowto());
+  if (/^(วิธีเอาลิงก์|เอาลิงก์ยังไง)/.test(t)) return reply(e.replyToken, [text(LINK_INTRO), linkHowto()]);
   if (/^(วิธีใช้|ช่วยเหลือ|help)/i.test(t)) return reply(e.replyToken, howto());
   if (state.shared && /^(ลิงก์|ลิ้ง|link)/i.test(t)) return reply(e.replyToken, [text(`เอาลิงก์ของคุณเองได้จากมือถือ 4 ขั้น เลื่อนดูได้เลย 👉\nอยากได้ลิงก์อัตโนมัติทุกตัว ${pro ? "เปิดขั้นสูงบนคอม (กด \"วิธีใช้\")" : "เป็นขั้นสูงของแพ็ก Pro (พิมพ์ \"อัปเกรด\")"}`), linkHowto()]);
   if (/^(ติดต่อแอดมิน|แอดมิน)/.test(t)) return reply(e.replyToken, text("รับเรื่องแล้วครับ พิมพ์รายละเอียดทิ้งไว้ได้เลย แอดมินจะตอบกลับในแชทนี้ 🙏"));
@@ -119,11 +119,12 @@ async function handle(e) {
 
 // "เอาลิงก์ของตัวเอง" in 4 steps, from a real screen recording (images in /public/howto)
 const LINK_STEPS = [
-  ["กด \"เปิดลิงก์\"", "ที่การ์ดสินค้าที่ปั๊กปักเลือกให้ กด \"เปิดลิงก์\" ระบบจะเปิดสินค้าในแอป Shopee"],
-  ["กด Allow", "ถ้ามีกล่องถามว่าจะเปิดแอปไหม กด Allow"],
-  ["กดปุ่มแชร์", "ในหน้าสินค้าของแอป Shopee กดปุ่มแชร์ ↗ มุมขวาบน"],
-  ["กดคัดลอกลิงก์", "ได้ลิงก์ affiliate ของคุณแล้ว เอาไปปักตะกร้าได้เลย ไม่ต้องส่งกลับมาที่บอท"],
+  ["กด \"เปิดลิงก์\"", "แอป Shopee จะเปิดขึ้นมา"],
+  ["กด “Allow”", "(ถ้ามีกล่องเด้งขึ้นมา)"],
+  ["กดปุ่มแชร์ ↗", "อยู่มุมขวาบน"],
+  ["กด \"คัดลอกลิงก์\"", "เสร็จแล้ว! เอาไปปักตะกร้าได้เลย"],
 ];
+const LINK_INTRO = "วิธีการใช้ ปั๊กปัก\nสร้างลิงก์ง่ายๆ ใน 4 ขั้นตอน\n\nเราเลือกสินค้าให้ คุณแค่กดลิงก์ในหน้า Shopee คุณเอง 👇";
 // Someone pasted a Shopee link into the chat: tell them what it is and what to do next.
 function pastedLink(t) {
   const u = (t.match(/https?:\/\/\S+/) || [])[0];
