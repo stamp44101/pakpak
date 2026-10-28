@@ -64,7 +64,7 @@ export async function POST(req) {
     await saveMember(m);
     await push(m.id, { type: "text", text: approve
       ? `เปิดสิทธิ์ Pro ให้แล้ว 🎉 ใช้ได้ถึง ${thDate(m.proUntil)}\nกด "ท็อป 5 วันนี้" ที่เมนูด้านล่างเพื่อเริ่มได้เลย`
-      : "สลิปยังตรวจสอบไม่ผ่าน รบกวนส่งสลิปใหม่ หรือพิมพ์รายละเอียดในแชทนี้ แอดมินจะช่วยดูให้ครับ" }).catch(() => {});
+      : "สลิปยังตรวจสอบไม่ผ่าน รบกวนส่งสลิปใหม่ หรือพิมพ์รายละเอียดในแชทนี้ แอดมินจะช่วยดูให้ค่ะ" }).catch(() => {});
     return Response.json({ ok: true });
   }
   // Co-admins: same /admin access and Pro without expiry. The owner (first admin) can't be removed.

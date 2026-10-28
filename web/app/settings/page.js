@@ -49,7 +49,7 @@ export default function Settings() {
   }, []);
 
   const m = me?.member;
-  if (me && !m) return <div className="wrap" style={{ maxWidth: 680 }}><h1>บัญชีของฉัน</h1><p className="hint">เข้าสู่ระบบก่อนนะครับ</p><a className="btn primary" href="/api/auth/line">เข้าสู่ระบบด้วย LINE</a></div>;
+  if (me && !m) return <div className="wrap" style={{ maxWidth: 680 }}><h1>บัญชีของฉัน</h1><p className="hint">เข้าสู่ระบบก่อนนะคะ</p><a className="btn primary" href="/api/auth/line">เข้าสู่ระบบด้วย LINE</a></div>;
   if (!m) return <div className="wrap" style={{ maxWidth: 680 }}><p className="hint">กำลังโหลด…</p></div>;
 
   const pro = m.plan === "pro";

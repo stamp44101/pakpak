@@ -61,7 +61,7 @@ async function handle(e) {
       m.pendingOrder.slipAt = Date.now();
       await saveMember(m);
       notifyAdmins(m).catch(() => {});
-      return reply(e.replyToken, text(`ได้รับสลิปแล้ว ขอบคุณครับ 🙏
+      return reply(e.replyToken, text(`ได้รับสลิปแล้ว ขอบคุณค่ะ 🙏
 แอดมินกำลังตรวจสอบ เปิดสิทธิ์ Pro ${m.pendingOrder.plan === "year" ? "1 ปี" : "1 เดือน"} แล้วจะแจ้งในแชทนี้ทันที`));
     }
     if (e.type === "message" && e.message.type === "text" && /^(อัปเกรด|อัพเกรด|ซื้อ|สมัคร pro|ต่ออายุ|pro$|แพ็ก|ราคา)/i.test(e.message.text.trim())) return reply(e.replyToken, buyCard(m));
@@ -108,7 +108,7 @@ async function handle(e) {
   // Waiting for this member's Affiliate ID (after "เอาลิงก์ของฉัน" or a pasted product link)
   if (m.awaitAff && Date.now() - m.awaitAff.at < 30 * 60e3 && !COMMAND.test(t) && !/https?:\/\//.test(t)) {
     const id = parseAffId(t);
-    if (!id) return reply(e.replyToken, text(`ถ้าอยากได้ลิงก์แอฟของตัวเอง ต้องทราบ Affiliate ID ของตัวเองก่อนครับ\n\n${AFF_ID_HOW}\n\nพิมพ์เฉพาะตัวเลขส่งมาได้เลย`, idQR(m)));
+    if (!id) return reply(e.replyToken, text(`ถ้าอยากได้ลิงก์แอฟของตัวเอง ต้องทราบ Affiliate ID ของตัวเองก่อนค่ะ\n\n${AFF_ID_HOW}\n\nพิมพ์เฉพาะตัวเลขส่งมาได้เลย`, idQR(m)));
     const { url, name } = m.awaitAff;
     m.affId = id; m.awaitAff = null; await saveMember(m);
     return reply(e.replyToken, affResult(url, name, id));
@@ -118,7 +118,7 @@ async function handle(e) {
   if (/^(วิธีเอาลิงก์|เอาลิงก์ยังไง)/.test(t)) return reply(e.replyToken, text(NEED_ID, HELP_QR()));
   if (/^(วิธีใช้|ช่วยเหลือ|help)/i.test(t)) return reply(e.replyToken, howto());
   if (state.shared && /^(ลิงก์|ลิ้ง|link)/i.test(t)) return reply(e.replyToken, text(NEED_ID, HELP_QR()));
-  if (/^(ติดต่อแอดมิน|แอดมิน)/.test(t)) return reply(e.replyToken, text("รับเรื่องแล้วครับ พิมพ์รายละเอียดทิ้งไว้ได้เลย แอดมินจะตอบกลับในแชทนี้ 🙏"));
+  if (/^(ติดต่อแอดมิน|แอดมิน)/.test(t)) return reply(e.replyToken, text("รับเรื่องแล้วค่ะ พิมพ์รายละเอียดทิ้งไว้ได้เลย แอดมินจะตอบกลับในแชทนี้ 🙏"));
   if (!all.length) return reply(e.replyToken, { type: "flex", altText: "ยังไม่มีข้อมูลตะกร้า", contents: card("ยังไม่มีข้อมูลตะกร้า", "คลังกลางกำลังอัปเดต ลองใหม่อีกสักครู่ หรือพิมพ์ \"ติดต่อแอดมิน\"", [openApp("เปิดปั๊กปัก")]) });
 
   const pasted = await pastedLink(t, m);
@@ -136,19 +136,19 @@ async function handle(e) {
     const hit = all.find((p) => (p.name || "").toLowerCase().startsWith(head) || (p.name || "").toLowerCase().includes(head));
     if (hit?.url && !hit.affLink) return reply(e.replyToken, await askAffId(m, hit.url, hit.name));
   }
-  return reply(e.replyToken, text(`พิมพ์ได้แบบนี้ครับ\n• ท็อป — 5 ตะกร้าน่าทำคลิปที่สุด\n• ท็อป ห้องครัว — เฉพาะหมวด\n• หมวด — เลือกหมวด\n• หา สายนาฬิกา — ค้นสินค้าที่อยากทำ\n• ลิงก์ — ลิงก์ affiliate ที่สร้างแล้ว\n• สถานะ — ข้อมูลอัปเดตล่าสุดเมื่อไร`, HELP_QR()));
+  return reply(e.replyToken, text(`พิมพ์ได้แบบนี้ค่ะ\n• ท็อป — 5 ตะกร้าน่าทำคลิปที่สุด\n• ท็อป ห้องครัว — เฉพาะหมวด\n• หมวด — เลือกหมวด\n• หา สายนาฬิกา — ค้นสินค้าที่อยากทำ\n• ลิงก์ — ลิงก์ affiliate ที่สร้างแล้ว\n• สถานะ — ข้อมูลอัปเดตล่าสุดเมื่อไร`, HELP_QR()));
 }
 
 const COMMAND = /^(ท็อป|top|ท๊อป|หมวด|หา|ค้น|search|ลิงก์|ลิ้ง|link|สถานะ|วิธี|ช่วยเหลือ|help|ติดต่อ|แอดมิน|อัปเกรด|อัพเกรด|ซื้อ|สมัคร|ต่ออายุ|ราคา|แพ็ก|ดูแบบ)/i;
-const NEED_ID = `อยากได้ลิงก์ affiliate ของตัวเอง ต้องมี Affiliate ID เท่านั้นครับ\n\nกด "เอาลิงก์ของฉัน" ใต้สินค้าที่อยากได้ หรือวางลิงก์สินค้า Shopee ในแชทนี้ แล้วส่ง Affiliate ID มา บอทแปลงเป็นลิงก์ของคุณให้ทันที\n\n${AFF_ID_HOW}`;
+const NEED_ID = `อยากได้ลิงก์ affiliate ของตัวเอง ต้องมี Affiliate ID เท่านั้นค่ะ\n\nกด "เอาลิงก์ของฉัน" ใต้สินค้าที่อยากได้ หรือวางลิงก์สินค้า Shopee ในแชทนี้ แล้วส่ง Affiliate ID มา บอทแปลงเป็นลิงก์ของคุณให้ทันที\n\n${AFF_ID_HOW}`;
 const idQR = (m) => [...(m.affId ? [qr(`ใช้ ${m.affId}`, m.affId)] : []), qr("ท็อป 5", "ท็อป")];
 
 // Ask for the member's Affiliate ID, then the next message is their answer (see handle()).
 async function askAffId(m, url, name) {
-  if (!url || !cleanProductUrl(url)) return text("ขอโทษครับ สินค้านี้ไม่มีลิงก์ให้แปลง ลองตัวอื่นได้เลย", HELP_QR());
+  if (!url || !cleanProductUrl(url)) return text("ขอโทษค่ะ สินค้านี้ไม่มีลิงก์ให้แปลง ลองตัวอื่นได้เลย", HELP_QR());
   m.awaitAff = { url, name: name || "", at: Date.now() };
   await saveMember(m);
-  return text(`${name ? `🛒 ${name.slice(0, 60)}\n\n` : ""}ส่ง Affiliate ID ของคุณมาได้เลยครับ บอทจะแปลงเป็นลิงก์แอฟของคุณให้\n\n${AFF_ID_HOW}`, idQR(m));
+  return text(`${name ? `🛒 ${name.slice(0, 60)}\n\n` : ""}ส่ง Affiliate ID ของคุณมาได้เลยค่ะ บอทจะแปลงเป็นลิงก์แอฟของคุณให้\n\n${AFF_ID_HOW}`, idQR(m));
 }
 
 function affResult(url, name, id) {
@@ -169,7 +169,7 @@ async function pastedLink(t, m) {
   // short link (ของตัวเองหรือคนอื่น) / an_redir: follow it to the product, then make it the member's own link
   if (isShortLink(u)) {
     const real = await resolveShortLink(u);
-    if (!real) return text("เปิดลิงก์สั้นนี้ไม่เจอหน้าสินค้าครับ ลองส่งลิงก์หน้าสินค้าเต็ม (shopee.co.th/...) มาแทน", HELP_QR());
+    if (!real) return text("เปิดลิงก์สั้นนี้ไม่เจอหน้าสินค้าค่ะ ลองส่งลิงก์หน้าสินค้าเต็ม (shopee.co.th/...) มาแทน", HELP_QR());
     return askAffId(m, real);
   }
   return askAffId(m, u);
@@ -199,7 +199,7 @@ async function gate(m, isFollow) {
     const pos = r.waitlist.indexOf(m.id) + 1;
     return { type: "flex", altText: "อยู่ในคิว Early Access", contents: card("คุณอยู่ในคิว Early Access", `ลำดับที่ ${pos || "-"} · เมื่อมีที่ว่าง ปั๊กปักจะเปิดสิทธิ์ให้ หรือสมัคร Pro เพื่อใช้ได้ทันทีไม่ต้องรอคิว`, [{ type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "message", label: "สมัคร Pro ใช้ได้ทันที", text: "อัปเกรด Pro" } }, openApp("ดูสถานะ")]) };
   }
-  if (m?.status === "revoked") return text("บัญชีนี้ถูกระงับการใช้งาน หากคิดว่าผิดพลาด พิมพ์ \"ติดต่อแอดมิน\" ได้เลยครับ");
+  if (m?.status === "revoked") return text("บัญชีนี้ถูกระงับการใช้งาน หากคิดว่าผิดพลาด พิมพ์ \"ติดต่อแอดมิน\" ได้เลยค่ะ");
   const r = await roster();
   const left = seatsLeft(r);
   const body = left > 0 ? `Early Access เหลือ ${left} ที่ สมัครด้วย LINE แล้วใช้งานได้ทันที` : "สมัครด้วย LINE แล้วใช้ฟรีได้ทันที (ท็อป 5/หมวด · AI 3 ครั้ง/วัน)";
@@ -350,7 +350,7 @@ async function notifyAdmins(m) {
 
 function links(all) {
   const ls = all.filter((p) => p.affLink).sort((a, b) => (b.fetchedAt || 0) - (a.fetchedAt || 0)).slice(0, 15);
-  if (!ls.length) return text("ยังไม่มีลิงก์ที่สร้างไว้ สแกนหมวดบนคอมแล้วระบบจะสร้างลิงก์ Top 20 ให้อัตโนมัติครับ", HELP_QR());
+  if (!ls.length) return text("ยังไม่มีลิงก์ที่สร้างไว้ สแกนหมวดบนคอมแล้วระบบจะสร้างลิงก์ Top 20 ให้อัตโนมัติค่ะ", HELP_QR());
   return text(`ลิงก์ล่าสุด ${ls.length} อัน\n\n` + ls.map((p, i) => `${i + 1}. ${(p.name || "").slice(0, 40)}\n${p.affLink}`).join("\n\n"), HELP_QR());
 }
 
@@ -364,7 +364,7 @@ function status(all, cats, state, m, pro) {
 
 async function aiIdea(e, m, state, id) {
   const p = state.products?.[id];
-  if (!p) return reply(e.replyToken, text("ไม่พบสินค้านี้แล้ว ลองพิมพ์ \"ท็อป\" ใหม่ครับ"));
+  if (!p) return reply(e.replyToken, text("ไม่พบสินค้านี้แล้ว ลองพิมพ์ \"ท็อป\" ใหม่ค่ะ"));
   let s = p.ai;
   if (!s) {
     loading(e.source.userId, 20).catch(() => {});
