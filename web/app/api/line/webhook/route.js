@@ -29,7 +29,11 @@ export async function POST(req) {
   const raw = await req.text();
   if (!verifySignature(raw, req.headers.get("x-line-signature"))) return new Response("bad signature", { status: 401 });
   const { events = [] } = JSON.parse(raw || "{}");
-  await Promise.all(events.map((e) => handle(e).catch((err) => console.error("event", err))));
+  await Promise.all(events.map((e) => handle(e).catch(async (err) => {
+    console.error("event", err);
+    // Storage down (e.g. Blob suspended): still answer, replies cost no quota.
+    if (e.replyToken && /blob/i.test(String(err?.message))) await reply(e.replyToken, text("🛠️ ปั๊กปักกำลังปรับปรุงระบบชั่วคราวครับ\nข้อมูลของคุณยังอยู่ครบ ไม่หายแน่นอน\nกลับมาใช้ได้เร็ว ๆ นี้ ลองใหม่อีกครั้งในภายหลังนะครับ 🙏")).catch(() => {});
+  })));
   return Response.json({ ok: true });
 }
 
