@@ -1,7 +1,6 @@
 "use client";
 // "บัญชีของฉัน": what this member has set up, what is missing, and what their plan includes.
 import { useEffect, useState } from "react";
-import LinkHowto from "../LinkHowto";
 
 const EXT_ID = process.env.NEXT_PUBLIC_EXT_ID || "oemnhmceapililgkfdfjamhbdpkkjbbm";
 const OA_ADD = "https://line.me/R/ti/p/@979soyth";
@@ -113,12 +112,11 @@ export default function Settings() {
             detail={m.botSeenAt ? "บอทพร้อมตอบ กด “ท็อป 5 วันนี้” ที่เมนูด้านล่างแชทได้เลย" : "ในแชทกด “ท็อป 5 วันนี้” ที่เมนูด้านล่าง ได้ตะกร้าน่าทำคลิปทันที ไม่ต้องเปิดคอม"}>
             {!m.botSeenAt && <a className="btn primary" href={OA_ADD} target="_blank" rel="noopener">เพิ่มเพื่อน @979soyth</a>}
           </Item>
-          <Item state={appLinkDone ? "ok" : "todo"} title="เอาลิงก์ของคุณเอง 1 ตัว"
-            detail="เปิดสินค้าในแอป Shopee → กดปุ่มแชร์ ↗ มุมขวาบน → คัดลอกลิงก์ = ลิงก์ affiliate ของคุณ (ล็อกอินแอปด้วยบัญชีที่สมัคร Shopee Affiliate)">
+          <Item state={appLinkDone ? "ok" : "todo"} title="เอาลิงก์แอฟของคุณเอง 1 ตัว"
+            detail="กด “เอาลิงก์ของฉัน” ใต้สินค้า แล้วใส่ Affiliate ID ของคุณ (ต้องมี Affiliate ID เท่านั้น ดูได้ที่ affiliate.shopee.co.th)">
             {!appLinkDone && <a className="btn" href="/">ไปเลือกสินค้า</a>}
           </Item>
         </ol>
-        <div id="howto"><p className="hint" style={{ margin: "4px 0 8px" }}>วิธีเอาลิงก์ของคุณเอง 4 ขั้น (จากหน้าจอจริง)</p><LinkHowto /></div>
       </section>
 
       <section className="panel" id="advanced">

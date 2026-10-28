@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { effPrice, rank } from "../lib/score";
 import Landing from "./Landing";
-import LinkHowto from "./LinkHowto";
+import AffLinkBox from "./AffLinkBox";
 
 const LIFF_ID = process.env.NEXT_PUBLIC_LIFF_ID || "2012241865-bvKNVlJR";
 const inLine = () => typeof navigator !== "undefined" && /\bLine\//i.test(navigator.userAgent);
@@ -306,7 +306,6 @@ export default function Home({ signedIn = false }) {
   // ---- onboarding: mobile-first. 3 simple steps for everyone; PC scanning is "ขั้นสูง" (opt-in) ----
   const [obHidden, setObHidden] = useState(false);
   const [nudge, setNudge] = useState(null); // "links" | "cats"
-  const [showHowto, setShowHowto] = useState(false);
   useEffect(() => { setObHidden(ls.get(".obHide2") === "1"); }, []);
   const serverDone = (member && member.onboarding && member.onboarding.done) || [];
   const advanced = !!(extOk || account || !catalogMode && all.length);
@@ -340,7 +339,7 @@ export default function Home({ signedIn = false }) {
     if (!top) return;
     setOpen(top.id);
     setTimeout(() => document.getElementById("row-" + top.id)?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
-    say("กด “เปิดในแอป Shopee” แล้วกดปุ่มแชร์ ↗ ในแอป");
+    say("กด “เอาลิงก์ของฉัน” แล้วใส่ Affiliate ID ของคุณ");
   }
   // user got a link the simple way (open in Shopee app / copy product link)
   function usedAppLink() {
@@ -440,11 +439,9 @@ export default function Home({ signedIn = false }) {
             <Step done={obDone.includes("bot")} current={obNext === "bot"} title="เพิ่มเพื่อน LINE ปั๊กปัก" hint="ในแชทกด “ท็อป 5 วันนี้” ที่เมนูด้านล่าง ได้ตะกร้าน่าทำคลิปทันที ไม่ต้องเปิดคอม">
               <a className="btn primary" href={OA_ADD} target="_blank" rel="noopener">เพิ่มเพื่อน @979soyth</a>
             </Step>
-            <Step done={obDone.includes("applink")} current={obNext === "applink"} title="เอาลิงก์ของคุณเอง 1 ตัว" hint="เปิดสินค้าในแอป Shopee → กดปุ่มแชร์ ↗ มุมขวาบน → คัดลอกลิงก์ = ลิงก์ affiliate ของคุณ">
+            <Step done={obDone.includes("applink")} current={obNext === "applink"} title="เอาลิงก์แอฟของคุณเอง 1 ตัว" hint="กด “เอาลิงก์ของฉัน” ใต้สินค้า แล้วใส่ Affiliate ID ของคุณ (ต้องมี Affiliate ID เท่านั้น)">
               <button className="btn primary" disabled={!ranked.length} onClick={openTop}>เปิดสินค้าอันดับ 1</button>
-              <button className="btn" aria-expanded={showHowto} onClick={() => setShowHowto(!showHowto)}>{showHowto ? "ซ่อนวิธี" : "ดูวิธี 4 ขั้น"}</button>
             </Step>
-            {showHowto && obNext === "applink" && <li className="howto-wrap"><LinkHowto /></li>}
           </ol>
         </section>
       )}
@@ -570,9 +567,7 @@ export default function Home({ signedIn = false }) {
                     <div className="bar">
                       {p.affLink && <button className="btn primary" onClick={() => copyLink(p)}>คัดลอกลิงก์</button>}
                       {pro && !catalogMode && account && !p.affLink && <button className="btn primary" onClick={() => makeLink(p)}>สร้างลิงก์ affiliate</button>}
-                      {shared && !p.affLink && p.url && <a className="btn primary" href={p.url} target="_blank" rel="noopener" onClick={usedAppLink}>เปิดในแอป Shopee</a>}
-                      {shared && !p.affLink && p.url && <button className="btn" onClick={async () => { try { await navigator.clipboard.writeText(p.url); usedAppLink(); say("คัดลอกลิงก์สินค้าแล้ว"); } catch { say(p.url); } }}>คัดลอกลิงก์สินค้า</button>}
-                      {shared && !p.affLink && p.url && <span className="hint">ในแอป Shopee กดปุ่มแชร์ ↗ มุมขวาบน แล้วคัดลอกลิงก์ = ลิงก์ affiliate ของคุณเอง · <a href="/settings#howto">ดูภาพ 4 ขั้น</a></span>}
+                      {shared && !p.affLink && p.url && <AffLinkBox key={p.id} url={p.url} onDone={usedAppLink} say={say} />}
                       {p.url && <a className="btn" href={p.url} target="_blank" rel="noopener">หน้าสินค้า ↗</a>}
                     </div>
                   </div>
@@ -614,13 +609,12 @@ function Upgrade({ price }) {
         <p className="hint">ดูท็อป 5 ของแต่ละหมวดจากคลังกลาง และให้ AI ดูได้วันละ 3 ตัว ใช้บนมือถืออย่างเดียวได้ ไม่ต้องยุ่งกับคอม</p>
       </div>
       <div className="howlink">
-        <b>เอาลิงก์ของคุณเองจากแอป Shopee</b>
+        <b>อยากได้ลิงก์แอฟของตัวเอง ต้องมี Affiliate ID เท่านั้น</b>
         <ol>
-          <li>เปิดสินค้าแล้วกด “เปิดในแอป Shopee”</li>
-          <li>ในหน้าสินค้า กดปุ่มแชร์ ↗ มุมขวาบน</li>
-          <li>คัดลอกลิงก์ ได้ลิงก์ affiliate ของคุณทันที</li>
+          <li>เปิดสินค้าแล้วกด “เอาลิงก์ของฉัน”</li>
+          <li>ใส่ Affiliate ID ของคุณ (ตัวเลข ดูได้ที่ affiliate.shopee.co.th)</li>
+          <li>คัดลอกลิงก์แอฟของคุณไปปักตะกร้าได้เลย</li>
         </ol>
-        <p className="hint">ต้องล็อกอินแอป Shopee ด้วยบัญชีที่สมัคร Shopee Affiliate ไว้</p>
       </div>
       <ul className="upgrade-list">
         <li>ดูได้ทุกตัว ไม่ใช่แค่ท็อป 5</li>
