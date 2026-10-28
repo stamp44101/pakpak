@@ -9,7 +9,7 @@ import { rank, effPrice } from "../../../../lib/score";
 import { scoreItem } from "../../../../lib/ai";
 import { isPro, PRICE } from "../../../../lib/plan";
 import { catalog, publicProduct, ownerProducts } from "../../../../lib/catalog";
-import { parseAffId, affLink, cleanProductUrl, AFF_ID_HOW, SHORT_NOTE } from "../../../../lib/afflink";
+import { parseAffId, affLink, cleanProductUrl, isShortLink, resolveShortLink, AFF_ID_HOW, SHORT_NOTE } from "../../../../lib/afflink";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -165,10 +165,13 @@ function affResult(url, name, id) {
 // Someone pasted a Shopee link into the chat.
 async function pastedLink(t, m) {
   const u = (t.match(/https?:\/\/\S+/) || [])[0];
-  if (!u || !/(shopee\.co\.th|shp\.ee)/i.test(u)) return null;
-  if (/an_redir|affiliate_id=/i.test(u)) return text("✅ ลิงก์นี้เป็นลิงก์แอฟแล้ว ใช้ได้เลยครับ", HELP_QR());
-  if (/s\.shopee\.co\.th|shp\.ee/i.test(u))
-    return text(`ลิงก์สั้นนี้บอทแปลงไม่ได้ครับ ส่งลิงก์หน้าสินค้าเต็ม (shopee.co.th/...) มาแทน แล้วบอทจะขอ Affiliate ID ของคุณเพื่อทำลิงก์แอฟให้`, HELP_QR());
+  if (!u || !/(shopee\.co\.th|shp\.ee|shope\.ee)/i.test(u)) return null;
+  // short link (ของตัวเองหรือคนอื่น) / an_redir: follow it to the product, then make it the member's own link
+  if (isShortLink(u)) {
+    const real = await resolveShortLink(u);
+    if (!real) return text("เปิดลิงก์สั้นนี้ไม่เจอหน้าสินค้าครับ ลองส่งลิงก์หน้าสินค้าเต็ม (shopee.co.th/...) มาแทน", HELP_QR());
+    return askAffId(m, real);
+  }
   return askAffId(m, u);
 }
 
