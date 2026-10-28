@@ -3,6 +3,7 @@
 import { verifySignature, reply, push, loading, LIFF_URL, botFetch } from "../../../../lib/line";
 import { getMember, ensureMember, saveMember, roster, seats, seatsLeft, isAdmin } from "../../../../lib/auth";
 import { freeWelcome } from "../../../../lib/welcome";
+import { notifyDiscord } from "../../../../lib/discord";
 import { addViews } from "../../../../lib/activity";
 import { readJSON, writeJSON } from "../../../../lib/store";
 import { rank, effPrice } from "../../../../lib/score";
@@ -55,14 +56,25 @@ async function handle(e) {
       const plan = new URLSearchParams(e.postback.data).get("p") === "year" ? "year" : "month";
       m.pendingOrder = { plan, at: Date.now() };
       await saveMember(m);
-      return reply(e.replyToken, payInfo(plan));
+      const price = plan === "year" ? PRICE.year : PRICE.month;
+      await Promise.all([
+        reply(e.replyToken, payInfo(plan)),
+        notifyDiscord("interest", { title: `🛒 เลือกแพ็ก Pro ${plan === "year" ? "รายปี" : "รายเดือน"} ฿${price.toLocaleString("en-US")}`, lines: [`**${m.name}** กำลังจะโอน`, `${APP}/admin`] }).catch(() => {}),
+      ]);
+      return;
     }
     if (e.type === "message" && e.message.type === "image" && m.pendingOrder && !m.pendingOrder.slipAt) {
       m.pendingOrder.slipAt = Date.now();
       await saveMember(m);
-      notifyAdmins(m).catch(() => {});
-      return reply(e.replyToken, text(`ได้รับสลิปแล้ว ขอบคุณค่ะ 🙏
-แอดมินกำลังตรวจสอบ เปิดสิทธิ์ Pro ${m.pendingOrder.plan === "year" ? "1 ปี" : "1 เดือน"} แล้วจะแจ้งในแชทนี้ทันที`));
+      const plan = m.pendingOrder.plan, price = plan === "year" ? PRICE.year : PRICE.month;
+      const slip = await botFetch(`message/${e.message.id}/content`, { data: true, method: "GET" }).then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null);
+      await Promise.all([
+        reply(e.replyToken, text(`ได้รับสลิปแล้ว ขอบคุณค่ะ 🙏
+แอดมินกำลังตรวจสอบ เปิดสิทธิ์ Pro ${plan === "year" ? "1 ปี" : "1 เดือน"} แล้วจะแจ้งในแชทนี้ทันที`)),
+        notifyAdmins(m).catch(() => {}),
+        notifyDiscord("slip", { title: `💰 สลิปใหม่ ฿${price.toLocaleString("en-US")} · Pro ${plan === "year" ? "รายปี" : "รายเดือน"}`, lines: [`**${m.name}** ส่งสลิปแล้ว ตรวจยอดแล้วกดอนุมัติ`, `${APP}/admin`], image: slip }).catch(() => {}),
+      ]);
+      return;
     }
     if (e.type === "message" && e.message.type === "text" && /^(อัปเกรด|อัพเกรด|ซื้อ|สมัคร pro|ต่ออายุ|pro$|แพ็ก|ราคา)/i.test(e.message.text.trim())) return reply(e.replyToken, buyCard(m));
   }

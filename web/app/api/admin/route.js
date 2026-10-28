@@ -4,6 +4,7 @@ import { planInfo, grantPro, TRIAL_DAYS, PRICE } from "../../../lib/plan";
 import { push } from "../../../lib/line";
 import { readJSON } from "../../../lib/store";
 import { freeWelcome } from "../../../lib/welcome";
+import { notifyDiscord } from "../../../lib/discord";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -62,6 +63,7 @@ export async function POST(req) {
       }
     }
     await saveMember(m);
+    notifyDiscord(approve ? "approved" : "rejected", { title: approve ? `✅ อนุมัติ Pro ${order.plan === "year" ? "รายปี" : "รายเดือน"}` : "❌ สลิปไม่ผ่าน", lines: [`**${m.name}** · โดย ${g.member.name}`] }).catch(() => {});
     await push(m.id, { type: "text", text: approve
       ? `เปิดสิทธิ์ Pro ให้แล้ว 🎉 ใช้ได้ถึง ${thDate(m.proUntil)}\nกด "ท็อป 5 วันนี้" ที่เมนูด้านล่างเพื่อเริ่มได้เลย`
       : "สลิปยังตรวจสอบไม่ผ่าน รบกวนส่งสลิปใหม่ หรือพิมพ์รายละเอียดในแชทนี้ แอดมินจะช่วยดูให้ค่ะ" }).catch(() => {});
