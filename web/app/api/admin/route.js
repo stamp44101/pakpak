@@ -76,7 +76,7 @@ export async function POST(req) {
     if (m.status !== "active") return Response.json({ error: "ต้องเป็นสมาชิกที่ใช้งานอยู่" }, { status: 400 });
     r.admins = r.admins.filter((x) => x !== m.id);
     if (admin) { r.admins.push(m.id); m.plan = "pro"; m.proUntil = null; m.pendingOrder = null; }
-    else grantPro(m, 30);
+    else { m.plan = "pro"; m.proUntil = Date.now() + 30 * 864e5; } // was Pro forever as admin: back to 30 days
     await saveRoster(r); await saveMember(m);
     return Response.json({ ok: true });
   }
