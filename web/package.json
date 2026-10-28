@@ -7,6 +7,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.2.0",
     "@vercel/blob": "^2.8.2",
     "next": "14.2.15",
     "qrcode": "^1.5.4",

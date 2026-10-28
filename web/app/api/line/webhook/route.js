@@ -1,7 +1,7 @@
 // LINE bot webhook: members use ปั๊กปัก from the chat (top products, links, AI ideas).
 // The LINE userId equals the member id because Login and Messaging API share the ปั๊กปัก provider.
-import { verifySignature, reply, push, loading, LIFF_URL } from "../../../../lib/line";
-import { getMember, saveMember, roster, seats, seatsLeft, isAdmin } from "../../../../lib/auth";
+import { verifySignature, reply, push, loading, LIFF_URL, botFetch } from "../../../../lib/line";
+import { getMember, ensureMember, saveMember, roster, seats, seatsLeft, isAdmin } from "../../../../lib/auth";
 import { freeWelcome } from "../../../../lib/welcome";
 import { addViews } from "../../../../lib/activity";
 import { readJSON, writeJSON } from "../../../../lib/store";
@@ -40,7 +40,12 @@ export async function POST(req) {
 async function handle(e) {
   if (!e.replyToken || e.source?.type !== "user") return;
   const uid = e.source.userId;
-  const m = await getMember(uid);
+  let m = await getMember(uid);
+  if (!m) {
+    // Returning member after the database move (or a friend who never signed up): recreate from the LINE profile.
+    const prof = await botFetch(`profile/${uid}`, { method: "GET" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    if (prof) m = await ensureMember(uid, { name: prof.displayName, picture: prof.pictureUrl });
+  }
   if (m && (!m.botSeenAt || Date.now() - m.botSeenAt > 864e5)) { m.botSeenAt = Date.now(); await saveMember(m); }
 
   // ---- buying Pro: choose plan → send slip → admin approves in /admin ----

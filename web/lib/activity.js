@@ -20,7 +20,7 @@ export async function activeToday() {
 
 // Product cards people have looked at (bot carousels + web catalog). Seeded with what the OA chat log
 // showed before counting started (~80 "ท็อป 5" replies on 28 Oct 2026).
-const SEED_VIEWS = 400;
+const SEED_VIEWS = 1200; // carried over from the old store on 28 Oct 2026
 // Buffered per server instance and written at most every 10 minutes: Blob writes are the scarce resource.
 let pending = 0, lastFlush = 0;
 export async function addViews(n) {

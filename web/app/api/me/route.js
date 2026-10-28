@@ -1,17 +1,18 @@
 // Who am I + how many Early Access seats are left.
-import { readSession, getMember, saveMember, roster, seats, seatsLeft } from "../../../lib/auth";
+import { readSession, getMember, ensureMember, saveMember, roster, seats, seatsLeft } from "../../../lib/auth";
 import { planInfo, PRICE, grantPro } from "../../../lib/plan";
 import { views } from "../../../lib/activity";
 
 export const runtime = "nodejs";
+const LEGACY_USERS = 185; // members counted before the 28 Oct database move, until the old data is merged back
 export const dynamic = "force-dynamic";
 
 export async function GET(req) {
   const s = readSession(req);
-  const m = s ? await getMember(s.sub) : null;
+  const m = s ? await ensureMember(s.sub) : null;
   const r = await roster();
   const left = seatsLeft(r);
-  if (!m) return Response.json({ member: null, seats: seats(), left, users: r.active.length, views: await views(), loginReady: !!(process.env.LINE_CHANNEL_ID && process.env.LINE_CHANNEL_SECRET) });
+  if (!m) return Response.json({ member: null, seats: seats(), left, users: Math.max(LEGACY_USERS, r.active.length), views: await views(), loginReady: !!(process.env.LINE_CHANNEL_ID && process.env.LINE_CHANNEL_SECRET) });
   // owners are Pro for life
   if (r.admins.includes(m.id) && (m.plan !== "pro" || m.proUntil || m.pendingOrder)) {
     m.plan = "pro"; m.proUntil = null; m.pendingOrder = null;
@@ -22,7 +23,7 @@ export async function GET(req) {
     member: { name: m.name, picture: m.picture, status: m.status, admin: r.admins.includes(m.id), waitlistPosition: pos, onboarding: m.onboarding || { done: [] }, ...planInfo(m),
       freeSince: m.freeSince || null, joinedAt: m.joinedAt, botSeenAt: m.botSeenAt || null, pendingOrder: m.pendingOrder || null, payments: m.payments || [],
       aiToday: m.ai?.day === new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10) ? m.ai.count : 0 },
-    seats: seats(), left, users: r.active.length, views: await views(), loginReady: true, price: PRICE,
+    seats: seats(), left, users: Math.max(LEGACY_USERS, r.active.length), views: await views(), loginReady: true, price: PRICE,
   });
 }
 

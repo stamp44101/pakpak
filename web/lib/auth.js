@@ -52,8 +52,45 @@ export async function getMember(sub) {
 export const saveMember = (m) => writeJSON(memberPath(m.id), m);
 
 // The member roster: who is in, who waits. Small enough to keep as one document.
+// The new database started empty on 28 Oct 2026 (old Blob store suspended): the 10 Early Access seats
+// were already taken, so the roster starts with them marked as used.
 export async function roster() {
-  return (await readJSON("meta/roster.json")) || { active: [], waitlist: [], admins: [] };
+  return (await readJSON("meta/roster.json")) || { active: [], waitlist: [], admins: [], early: Array(10).fill("legacy") };
+}
+
+// Early Access members from before the move get their Pro back when they show up again (matched by LINE name).
+const LEGACY_EA = ["Ainz", "M", "Bas", "Ettt", "Jutharat✨", "🌟Dreammy🌟", "ªňňª ❸🐐❺🐷", "poupae", "1ST"];
+async function restoreLegacy(m) {
+  if (m.legacyChecked || !m.name || m.name === "สมาชิก") return false;
+  m.legacyChecked = true;
+  if (!LEGACY_EA.includes(m.name)) return true;
+  const r = await roster();
+  r.restored = r.restored || [];
+  if (r.restored.includes(m.name)) return true;
+  r.restored.push(m.name); await saveRoster(r);
+  m.welcomeFree = false; m.freeSince = null; m.plan = undefined; m.proUntil = undefined;
+  grantPro(m, TRIAL_DAYS, { early: true });
+  return true;
+}
+
+// Returning members after the move: recreate them on the spot (Free, or EA Pro restored) so nobody has to sign up again.
+export async function ensureMember(sub, profile = {}) {
+  let m = await getMember(sub);
+  if (m) {
+    if (profile.name && (m.name === "สมาชิก" || !m.legacyChecked)) {
+      m.name = profile.name; m.picture = profile.picture || m.picture;
+      if (await restoreLegacy(m)) await saveMember(m);
+    }
+    return m;
+  }
+  const r = await roster();
+  if (!r.admins.length) return null; // before the owner has claimed the new database nobody is auto-created
+  m = { id: sub, name: profile.name || "สมาชิก", picture: profile.picture || "", status: "active", joinedAt: Date.now(), ai: { day: "", count: 0 },
+    plan: "free", proUntil: null, freeSince: Date.now(), returning: true };
+  r.active.push(sub); await saveRoster(r);
+  await restoreLegacy(m);
+  await saveMember(m);
+  return m;
 }
 export const saveRoster = (r) => writeJSON("meta/roster.json", r);
 
@@ -79,7 +116,7 @@ export async function joinOrUpdate(profile) {
   const r = await roster();
   let m = await getMember(profile.sub);
   if (!m) {
-    const first = r.active.length === 0 && r.admins.length === 0;
+    const first = false; // the owner claims admin explicitly via /api/admin/claim
     const early = seatsLeft(r) > 0;
     r.early = r.early || [...r.active];
     m = { id: profile.sub, name: profile.name, picture: profile.picture || "", status: "active", joinedAt: Date.now(), ai: { day: "", count: 0 } };
@@ -91,6 +128,7 @@ export async function joinOrUpdate(profile) {
   } else {
     m.name = profile.name; m.picture = profile.picture || m.picture;
   }
+  await restoreLegacy(m);
   await saveMember(m);
   return m;
 }
@@ -99,7 +137,7 @@ export async function joinOrUpdate(profile) {
 export async function requireMember(req, { active = true } = {}) {
   const s = readSession(req);
   if (!s) return { error: Response.json({ error: "กรุณาเข้าสู่ระบบด้วย LINE" }, { status: 401 }) };
-  const m = await getMember(s.sub);
+  const m = await ensureMember(s.sub);
   if (!m) return { error: Response.json({ error: "ไม่พบสมาชิก" }, { status: 401 }) };
   if (active && m.status !== "active") return { error: Response.json({ error: "บัญชียังไม่ได้เปิดใช้งาน" }, { status: 403 }) };
   return { member: m };
