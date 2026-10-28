@@ -41,6 +41,7 @@ export const memberPath = (sub) => `members/${sub}.json`;
 // Members from before plans existed: active ones become Early Access Pro (owner: no expiry).
 export async function getMember(sub) {
   const m = await readJSON(memberPath(sub));
+  if (m && m.status === "waitlist") await openFree(m); // the old waitlist now gets Free right away
   if (m && m.plan === undefined && m.status === "active") {
     const r = await roster();
     grantPro(m, r.admins.includes(m.id) ? null : TRIAL_DAYS, { early: true });
@@ -56,18 +57,36 @@ export async function roster() {
 }
 export const saveRoster = (r) => writeJSON("meta/roster.json", r);
 
-// First login: take an Early Access seat if one is left, else join the waitlist.
+// Early Access seats taken. Before this list existed every active member held one.
+export const earlyTaken = (r) => (r.early || r.active).length;
+export const seatsLeft = (r) => Math.max(0, seats() - earlyTaken(r));
+
+// Move a waiting member onto the Free plan and mark them to be welcomed (web banner + bot card).
+export async function openFree(m, r) {
+  r = r || (await roster());
+  r.early = r.early || [...r.active];
+  for (const k of ["active", "waitlist", "revoked"]) r[k] = (r[k] || []).filter((x) => x !== m.id);
+  r.active.push(m.id);
+  m.status = "active"; m.plan = "free"; m.proUntil = null;
+  m.freeSince = Date.now(); m.welcomeFree = true;
+  await saveRoster(r); await saveMember(m);
+  return m;
+}
+
+// First login: take an Early Access seat (Pro 30 days) if one is left, else start on Free right away.
 // The very first member becomes the admin (that is the owner, who signs in first).
 export async function joinOrUpdate(profile) {
   const r = await roster();
   let m = await getMember(profile.sub);
   if (!m) {
     const first = r.active.length === 0 && r.admins.length === 0;
-    const status = r.active.length < seats() ? "active" : "waitlist";
-    m = { id: profile.sub, name: profile.name, picture: profile.picture || "", status, joinedAt: Date.now(), ai: { day: "", count: 0 } };
-    if (status === "active") r.active.push(m.id); else r.waitlist.push(m.id);
+    const early = seatsLeft(r) > 0;
+    r.early = r.early || [...r.active];
+    m = { id: profile.sub, name: profile.name, picture: profile.picture || "", status: "active", joinedAt: Date.now(), ai: { day: "", count: 0 } };
+    r.active.push(m.id);
     if (first) r.admins.push(m.id);
-    if (status === "active") grantPro(m, first ? null : TRIAL_DAYS, { early: true });
+    if (early) { r.early.push(m.id); grantPro(m, first ? null : TRIAL_DAYS, { early: true }); }
+    else { m.plan = "free"; m.proUntil = null; m.freeSince = Date.now(); m.welcomeFree = true; }
     await saveRoster(r);
   } else {
     m.name = profile.name; m.picture = profile.picture || m.picture;

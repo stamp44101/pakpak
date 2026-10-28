@@ -1,15 +1,15 @@
 // Who am I + how many Early Access seats are left.
-import { readSession, getMember, saveMember, roster, seats } from "../../../lib/auth";
+import { readSession, getMember, saveMember, roster, seats, seatsLeft } from "../../../lib/auth";
 import { planInfo, PRICE, grantPro } from "../../../lib/plan";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req) {
-  const r = await roster();
-  const left = Math.max(0, seats() - r.active.length);
   const s = readSession(req);
   const m = s ? await getMember(s.sub) : null;
+  const r = await roster();
+  const left = seatsLeft(r);
   if (!m) return Response.json({ member: null, seats: seats(), left, loginReady: !!(process.env.LINE_CHANNEL_ID && process.env.LINE_CHANNEL_SECRET) });
   // owners are Pro for life
   if (r.admins.includes(m.id) && (m.plan !== "pro" || m.proUntil || m.pendingOrder)) {
@@ -19,7 +19,7 @@ export async function GET(req) {
   const pos = m.status === "waitlist" ? r.waitlist.indexOf(m.id) + 1 : 0;
   return Response.json({
     member: { name: m.name, picture: m.picture, status: m.status, admin: r.admins.includes(m.id), waitlistPosition: pos, onboarding: m.onboarding || { done: [] }, ...planInfo(m),
-      joinedAt: m.joinedAt, botSeenAt: m.botSeenAt || null, pendingOrder: m.pendingOrder || null, payments: m.payments || [],
+      freeSince: m.freeSince || null, joinedAt: m.joinedAt, botSeenAt: m.botSeenAt || null, pendingOrder: m.pendingOrder || null, payments: m.payments || [],
       aiToday: m.ai?.day === new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10) ? m.ai.count : 0 },
     seats: seats(), left, loginReady: true, price: PRICE,
   });

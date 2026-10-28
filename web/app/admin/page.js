@@ -10,6 +10,7 @@ export default function Admin() {
   const [err, setErr] = useState("");
   const [openId, setOpenId] = useState(null);
   const [menuMsg, setMenuMsg] = useState("");
+  const [welcomeMsg, setWelcomeMsg] = useState("");
 
   const load = () => fetch("/api/admin").then((r) => r.json()).then((j) => (j.error ? setErr(j.error) : setData(j))).catch(() => setErr("โหลดไม่สำเร็จ"));
   useEffect(() => { load(); }, []);
@@ -73,7 +74,6 @@ export default function Admin() {
                     <button className="btn primary" onClick={() => set(m.id, null, { plan: "pro", days: 30 })}>Pro +30 วัน</button>
                     <button className="btn" onClick={() => set(m.id, null, { plan: "pro", days: 365 })}>Pro +1 ปี</button>
                     {m.plan === "pro" && <button className="btn" onClick={() => set(m.id, null, { plan: "free" })}>เปลี่ยนเป็น Free</button>}
-                    <button className="btn" onClick={() => set(m.id, "waitlist")}>ย้ายไปคิว</button>
                   </>}
                   {m.status !== "active" && <button className="btn primary" onClick={() => set(m.id, "active")}>เปิดสิทธิ์ (ได้ Pro 30 วัน)</button>}
                   {m.status !== "revoked" && <button className="btn danger-ghost" onClick={() => set(m.id, "revoked")}>ระงับ</button>}
@@ -82,6 +82,17 @@ export default function Admin() {
             </div>
           ))}
         </div>
+        {(data.toWelcome > 0 || stats.wait > 0 || welcomeMsg) && (
+          <div className="bar">
+            <button className="btn primary" disabled={welcomeMsg === "กำลังส่ง…"} onClick={async () => {
+              setWelcomeMsg("กำลังส่ง…");
+              const r = await fetch("/api/admin", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ welcomeFree: true }) }).then((x) => x.json()).catch(() => ({ error: "เชื่อมต่อไม่ได้" }));
+              setWelcomeMsg(r.ok ? `ส่งแจ้ง "ใช้ฟรีได้แล้ว" ทาง LINE ${r.sent} คน` : "ไม่สำเร็จ: " + (r.error || ""));
+              load();
+            }}>แจ้งคน Free ใหม่ทาง LINE ({data.toWelcome + stats.wait} คน)</button>
+            {welcomeMsg && <span className="hint">{welcomeMsg}</span>}
+          </div>
+        )}
         <div className="bar">
           <button className="btn" disabled={menuMsg === "กำลังติดตั้ง…"} onClick={async () => {
             setMenuMsg("กำลังติดตั้ง…");

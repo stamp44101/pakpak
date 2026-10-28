@@ -1,7 +1,8 @@
 // LINE bot webhook: members use ปั๊กปัก from the chat (top products, links, AI ideas).
 // The LINE userId equals the member id because Login and Messaging API share the ปั๊กปัก provider.
 import { verifySignature, reply, push, loading, LIFF_URL } from "../../../../lib/line";
-import { getMember, saveMember, roster, seats, isAdmin } from "../../../../lib/auth";
+import { getMember, saveMember, roster, seats, seatsLeft, isAdmin } from "../../../../lib/auth";
+import { freeWelcome } from "../../../../lib/welcome";
 import { readJSON, writeJSON } from "../../../../lib/store";
 import { rank, effPrice } from "../../../../lib/score";
 import { scoreItem } from "../../../../lib/ai";
@@ -56,6 +57,11 @@ async function handle(e) {
   }
 
   if (!m || m.status !== "active") return reply(e.replyToken, await gate(m, e.type === "follow"));
+  // First contact after moving from the waitlist to Free: say so once, with the limits.
+  if (m.welcomeFree && !isPro(m)) {
+    m.welcomeFree = false; await saveMember(m);
+    return reply(e.replyToken, freeWelcome(m));
+  }
   if (e.type === "follow") return reply(e.replyToken, text(`ยินดีต้อนรับ คุณ${m.name} 🐶\nกด "ท็อป 5 วันนี้" ที่เมนูด้านล่าง ได้ตะกร้าน่าทำคลิปทันที ใช้บนมือถือได้เลยไม่ต้องเปิดคอม`, HELP_QR()));
 
   // admin can preview the Free experience: "ดูแบบ free" / "ดูแบบ pro"
@@ -149,9 +155,9 @@ async function gate(m, isFollow) {
   }
   if (m?.status === "revoked") return text("บัญชีนี้ถูกระงับการใช้งาน หากคิดว่าผิดพลาด พิมพ์ \"ติดต่อแอดมิน\" ได้เลยครับ");
   const r = await roster();
-  const left = Math.max(0, seats() - r.active.length);
-  const body = left > 0 ? `Early Access เหลือ ${left} ที่ สมัครด้วย LINE แล้วใช้งานได้ทันที` : "Early Access เต็มแล้ว สมัครไว้เพื่อเข้าคิวได้ครับ";
-  return { type: "flex", altText: "สมัครใช้ปั๊กปัก", contents: card(isFollow ? "ยินดีต้อนรับสู่ปั๊กปัก 🐶" : "ใช้งานได้หลังสมัครสมาชิก", `ปักตะกร้าให้ปัง ต้องเริ่มจากเลือกตะกร้าให้เป็น\n${body}`, [openApp(left > 0 ? "สมัคร Early Access" : "สมัครเข้าคิว")]) };
+  const left = seatsLeft(r);
+  const body = left > 0 ? `Early Access เหลือ ${left} ที่ สมัครด้วย LINE แล้วใช้งานได้ทันที` : "สมัครด้วย LINE แล้วใช้ฟรีได้ทันที (ท็อป 5/หมวด · AI 3 ครั้ง/วัน)";
+  return { type: "flex", altText: "สมัครใช้ปั๊กปัก", contents: card(isFollow ? "ยินดีต้อนรับสู่ปั๊กปัก 🐶" : "ใช้งานได้หลังสมัครสมาชิก", `ปักตะกร้าให้ปัง ต้องเริ่มจากเลือกตะกร้าให้เป็น\n${body}`, [openApp(left > 0 ? "สมัคร Early Access" : "สมัครใช้ฟรี")]) };
 }
 
 function card(title, body, buttons) {

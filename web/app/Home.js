@@ -66,6 +66,8 @@ export default function Home({ signedIn = false }) {
   const [open, setOpen] = useState(null);
   const [toast, setToast] = useState("");
   const [confirmOut, setConfirmOut] = useState(false);
+  const [freeSeen, setFreeSeen] = useState(true);
+  useEffect(() => { setFreeSeen(!!ls.get(".freeWelcome")); }, []);
   const poll = useRef(null);
   const saveT = useRef(null);
   const skipSave = useRef(true);
@@ -401,16 +403,25 @@ export default function Home({ signedIn = false }) {
           <p className="hint">ปั๊กปักดึงสินค้าจาก Shopee Affiliate ของคุณ ให้คะแนนจากยอดขาย ค่าคอม รีวิว และให้ AI ประเมินว่าทำคลิปง่ายแค่ไหน พร้อม hook 3 วินาทีแรก</p>
           <div className="bar">
             <a className={"btn line" + (me.loginReady ? "" : " disabled")} href={me.loginReady ? "/api/auth/line" : undefined} onClick={() => ls.set(".lineOut", null)}>เข้าสู่ระบบด้วย LINE</a>
-            <span className="seats">{me.left > 0 ? <>เหลือ <b className="num">{me.left}</b> จาก {me.seats} ที่</> : "Early Access เต็มแล้ว สมัครเพื่อเข้าคิวได้"}</span>
+            <span className="seats">{me.left > 0 ? <>เหลือ <b className="num">{me.left}</b> จาก {me.seats} ที่</> : "สมัครแล้วใช้ฟรีได้ทันที · ท็อป 5/หมวด · AI 3 ครั้ง/วัน"}</span>
           </div>
           {!me.loginReady && <p className="hint">ระบบเข้าสู่ระบบยังตั้งค่าไม่เสร็จ</p>}
         </section>
       )}
 
-      {member && member.status === "waitlist" && (
-        <section className="panel">
-          <h2>คุณอยู่ในคิว Early Access</h2>
-          <p className="hint">ที่นั่ง {me.seats} ที่แรกเต็มแล้ว ตอนนี้คุณอยู่คิวที่ <b className="num">{member.waitlistPosition}</b> เราจะเปิดสิทธิ์ให้เมื่อมีที่ว่าง</p>
+      {member && member.status === "active" && member.plan !== "pro" && member.freeSince && !freeSeen && (
+        <section className="panel hero-panel">
+          <span className="eyebrow">Free</span>
+          <h2>เปิดให้ใช้ฟรีแล้ว ไม่ต้องรอคิว 🎉</h2>
+          <ul className="hint" style={{ margin: "6px 0 10px", paddingLeft: 18 }}>
+            <li>ท็อป 5 ตะกร้า/หมวด จากยอดขายจริง</li>
+            <li>ให้ AI คิด hook คลิป 3 ครั้ง/วัน</li>
+            <li>เอาลิงก์ของตัวเองผ่านแอป Shopee</li>
+          </ul>
+          <div className="bar">
+            <button className="btn primary" onClick={() => { ls.set(".freeWelcome", "1"); setFreeSeen(true); }}>เริ่มใช้เลย</button>
+            <span className="hint">อยากเห็นทุกตัว + AI 30 ครั้ง/วัน → Pro ฿{me.price?.month || 199}/เดือน</span>
+          </div>
         </section>
       )}
       {member && member.status === "revoked" && (

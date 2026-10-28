@@ -1,7 +1,8 @@
 // Admin: list members, activate / move to waitlist / revoke.
-import { requireMember, isAdmin, roster, saveRoster, getMember, saveMember, seats } from "../../../lib/auth";
+import { requireMember, isAdmin, roster, saveRoster, getMember, saveMember, seats, earlyTaken, openFree } from "../../../lib/auth";
 import { planInfo, grantPro, TRIAL_DAYS, PRICE } from "../../../lib/plan";
 import { push } from "../../../lib/line";
+import { freeWelcome } from "../../../lib/welcome";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,15 +20,29 @@ export async function GET(req) {
   const r = await roster();
   const ids = [...r.active, ...r.waitlist, ...(r.revoked || [])];
   const members = (await Promise.all(ids.map(getMember))).filter(Boolean).map((m) => ({
-    id: m.id, name: m.name, picture: m.picture, status: m.status, joinedAt: m.joinedAt, admin: r.admins.includes(m.id), aiToday: m.ai?.count || 0, aiDay: m.ai?.day || "", onboarding: m.onboarding?.done || [], ...planInfo(m), pendingOrder: m.pendingOrder || null,
+    id: m.id, name: m.name, picture: m.picture, status: m.status, joinedAt: m.joinedAt, admin: r.admins.includes(m.id), aiToday: m.ai?.count || 0, aiDay: m.ai?.day || "", onboarding: m.onboarding?.done || [], ...planInfo(m), pendingOrder: m.pendingOrder || null, freeSince: m.freeSince || null, welcomeFree: !!m.welcomeFree, welcomePushedAt: m.welcomePushedAt || null,
   }));
-  return Response.json({ members, seats: seats(), active: r.active.length });
+  const toWelcome = members.filter((m) => m.status === "active" && m.plan !== "pro" && m.welcomeFree && !m.welcomePushedAt).length;
+  return Response.json({ members, seats: seats(), active: earlyTaken(r), toWelcome });
 }
 
 export async function POST(req) {
   const g = await guard(req);
   if (g.error) return g.error;
-  const { id, status, plan, days, approve, reject } = (await req.json().catch(() => ({}))) || {};
+  const { id, status, plan, days, approve, reject, welcomeFree } = (await req.json().catch(() => ({}))) || {};
+  // One-time LINE push to everyone moved from the waitlist to Free who hasn't been told yet.
+  if (welcomeFree) {
+    const r = await roster();
+    for (const wid of [...r.waitlist]) { const w = await getMember(wid); if (w && w.status === "waitlist") await openFree(w); }
+    const ids = (await roster()).active;
+    let sent = 0;
+    for (const mid of ids) {
+      const w = await getMember(mid);
+      if (!w || !w.welcomeFree || w.welcomePushedAt || w.plan === "pro") continue;
+      try { await push(w.id, freeWelcome(w)); w.welcomePushedAt = Date.now(); await saveMember(w); sent++; } catch {}
+    }
+    return Response.json({ ok: true, sent });
+  }
   const m = await getMember(String(id || ""));
   if (!m) return Response.json({ error: "ไม่พบสมาชิก" }, { status: 404 });
   const thDate = (t) => new Date(t).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
@@ -68,3 +83,4 @@ export async function POST(req) {
   await saveRoster(r); await saveMember(m);
   return Response.json({ ok: true });
 }
+
