@@ -151,10 +151,6 @@ function CountUp({ value, ms = 1400 }) {
 function useLiveCounts(me) {
   const [c, setC] = useState(null);
   useEffect(() => { if (me?.users) setC((x) => x || { users: me.users, views: me.views }); }, [me?.users, me?.views]);
-  useEffect(() => {
-    const id = setInterval(() => fetch("/api/me").then((r) => r.json()).then((j) => j.users && setC({ users: j.users, views: j.views })).catch(() => {}), 30000);
-    return () => clearInterval(id);
-  }, []);
   return c;
 }
 
