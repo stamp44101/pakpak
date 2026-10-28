@@ -1,7 +1,7 @@
 "use client";
 // Public landing page for people who are not signed in (also previewable at /landing).
 // Demo products are real: the owner's latest ranked Shopee data from /api/showcase.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const LOGIN = "/api/auth/line";
 // Official LINE mark (white bubble, letters show the button green through)
@@ -127,6 +127,37 @@ function Demo({ cats }) {
   );
 }
 
+// Number that rolls up to its value (and from the old value when it changes).
+function CountUp({ value, ms = 1400 }) {
+  const [n, setN] = useState(0);
+  const from = useRef(0);
+  useEffect(() => {
+    const start = from.current, end = value || 0;
+    if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) { setN(end); from.current = end; return; }
+    let raf, t0;
+    const step = (t) => {
+      t0 = t0 || t;
+      const k = Math.min(1, (t - t0) / ms), e = 1 - Math.pow(1 - k, 3);
+      setN(Math.round(start + (end - start) * e));
+      if (k < 1) raf = requestAnimationFrame(step); else from.current = end;
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [value, ms]);
+  return <>{n.toLocaleString("en-US")}</>;
+}
+
+// Live counts for the hero badge: start from what the page already has, refresh every 30s.
+function useLiveCounts(me) {
+  const [c, setC] = useState(null);
+  useEffect(() => { if (me?.users) setC((x) => x || { users: me.users, views: me.views }); }, [me?.users, me?.views]);
+  useEffect(() => {
+    const id = setInterval(() => fetch("/api/me").then((r) => r.json()).then((j) => j.users && setC({ users: j.users, views: j.views })).catch(() => {}), 30000);
+    return () => clearInterval(id);
+  }, []);
+  return c;
+}
+
 // "กว่า X": round down so the claim stays true (430 → 400, 1,280 → 1,200).
 const roundDown = (n) => (n < 1000 ? Math.floor(n / 100) * 100 : Math.floor(n / 100) * 100);
 
@@ -149,6 +180,7 @@ function Cta({ me, onLogin, big }) {
 
 export default function Landing({ me, onLogin }) {
   const cats = useShowcase();
+  const live = useLiveCounts(me);
   return (
     <div className="lp">
       <header className="lp-nav">
@@ -158,11 +190,11 @@ export default function Landing({ me, onLogin }) {
 
       <section className="lp-hero">
         <div className="lp-hero-text">
-          {me?.users > 0 && (
-            <div className="lp-counter" aria-live="polite">
+          {live?.users > 0 && (
+            <div className="lp-counter">
               <i className="lp-dot" />
-              <span><b>{me.users.toLocaleString("en-US")}</b> ครีเอเตอร์ใช้ปั๊กปักแล้ว</span>
-              {me.views >= 100 && <span className="lp-counter-today">ดูข้อมูลไปแล้วกว่า <b>{roundDown(me.views).toLocaleString("en-US")}</b> ตะกร้า</span>}
+              <span><b><CountUp value={live.users} /></b> ครีเอเตอร์ใช้ปั๊กปักแล้ว</span>
+              {live.views >= 100 && <span className="lp-counter-today">ดูข้อมูลไปแล้วกว่า <b><CountUp value={roundDown(live.views)} ms={1800} /></b> ตะกร้า</span>}
             </div>
           )}
           <h1>รู้ก่อนถ่าย<br />ว่าตะกร้าไหน<br />ขายได้</h1>
