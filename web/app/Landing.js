@@ -188,13 +188,12 @@ export default function Landing({ me, onLogin }) {
         <div className="lp-hero-text">
           {live?.users > 0 && (
             <div className="lp-counter">
-              <i className="lp-dot" />
-              <span><b><CountUp value={live.users} /></b> ครีเอเตอร์ใช้ปั๊กปักแล้ว</span>
-              {live.views >= 100 && <span className="lp-counter-today">ดูข้อมูลไปแล้วกว่า <b><CountUp value={roundDown(live.views)} ms={1800} /></b> ตะกร้า</span>}
+              <span className="lp-stat"><i className="lp-dot" /><b><CountUp value={live.users} /></b>ครีเอเตอร์ใช้แล้ว</span>
+              {live.views >= 100 && <span className="lp-stat"><b><CountUp value={roundDown(live.views)} ms={1800} />+</b>ตะกร้าที่ดูแล้ว</span>}
             </div>
           )}
-          <h1>รู้ก่อนถ่าย<br />ว่าตะกร้าไหน<br />ขายได้</h1>
-          <p className="lp-lead">ปั๊กปักจัดอันดับสินค้า Shopee จากยอดขาย ค่าคอม และรีวิว แล้วให้ AI บอกว่าตัวไหนทำคลิปง่าย พร้อม hook 3 วินาทีแรก ใช้บนมือถือในแชท LINE ได้เลย ไม่ต้องเปิดคอม</p>
+          <h1>รู้ก่อนถ่าย<br />ว่าตะกร้าไหน<span className="lp-br"><br /></span>ขายได้</h1>
+          <p className="lp-lead">จัดอันดับสินค้า Shopee จากยอดขาย ค่าคอม และรีวิว แล้วให้ AI บอกว่าตัวไหนทำคลิปง่าย พร้อม hook 3 วิแรก ใช้ในแชท LINE บนมือถือได้เลย</p>
           <Cta me={me} onLogin={onLogin} />
         </div>
         <Phone cats={cats} />
