@@ -7,7 +7,7 @@ import { readJSON, writeJSON } from "../../../../lib/store";
 import { rank, effPrice } from "../../../../lib/score";
 import { scoreItem } from "../../../../lib/ai";
 import { isPro, PRICE } from "../../../../lib/plan";
-import { catalog, publicProduct } from "../../../../lib/catalog";
+import { catalog, publicProduct, ownerProducts } from "../../../../lib/catalog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -87,7 +87,7 @@ async function handle(e) {
   if (e.type === "postback") {
     const q = new URLSearchParams(e.postback.data);
     if (q.get("a") === "ai") return aiIdea(e, m, state, q.get("id"));
-    if (q.get("a") === "top") return reply(e.replyToken, top(all, q.get("c"), cats));
+    if (q.get("a") === "top") return reply(e.replyToken, await top(all, q.get("c"), cats, { m, pro, state }));
     return;
   }
   if (e.type !== "message" || e.message.type !== "text") return;
@@ -100,12 +100,14 @@ async function handle(e) {
   if (!all.length) return reply(e.replyToken, { type: "flex", altText: "ยังไม่มีข้อมูลตะกร้า", contents: card("ยังไม่มีข้อมูลตะกร้า", "คลังกลางกำลังอัปเดต ลองใหม่อีกสักครู่ หรือพิมพ์ \"ติดต่อแอดมิน\"", [openApp("เปิดปั๊กปัก")]) });
 
   const cm = t.match(/^(?:ท็อป|top|ท๊อป)\s*\d*\s*(.*)$/i);
-  if (cm) return reply(e.replyToken, top(all, cm[1].trim(), cats));
-  if (cats.includes(t)) return reply(e.replyToken, top(all, t, cats));
+  if (cm) return reply(e.replyToken, await top(all, cm[1].trim(), cats, { m, pro, state }));
+  if (cats.includes(t)) return reply(e.replyToken, await top(all, t, cats, { m, pro, state }));
+  const sm = t.match(/^(?:หา|ค้นหา|ค้น|search)\s+(.+)$/i);
+  if (sm) return reply(e.replyToken, await top(all, sm[1].trim(), cats, { m, pro, state }));
   if (/^หมวด/.test(t)) return reply(e.replyToken, text("เลือกหมวดที่อยากดูท็อป 5", cats.slice(0, 13).map((c) => qr(c, "ท็อป " + c))));
   if (/^(ลิงก์|ลิ้ง|link)/i.test(t)) return reply(e.replyToken, links(all));
   if (/^สถานะ/.test(t)) return reply(e.replyToken, status(all, cats, state, m, pro));
-  return reply(e.replyToken, text(`พิมพ์ได้แบบนี้ครับ\n• ท็อป — 5 ตะกร้าน่าทำคลิปที่สุด\n• ท็อป ห้องครัว — เฉพาะหมวด\n• หมวด — เลือกหมวด\n• ลิงก์ — ลิงก์ affiliate ที่สร้างแล้ว\n• สถานะ — ข้อมูลอัปเดตล่าสุดเมื่อไร`, HELP_QR()));
+  return reply(e.replyToken, text(`พิมพ์ได้แบบนี้ครับ\n• ท็อป — 5 ตะกร้าน่าทำคลิปที่สุด\n• ท็อป ห้องครัว — เฉพาะหมวด\n• หมวด — เลือกหมวด\n• หา สายนาฬิกา — ค้นสินค้าที่อยากทำ\n• ลิงก์ — ลิงก์ affiliate ที่สร้างแล้ว\n• สถานะ — ข้อมูลอัปเดตล่าสุดเมื่อไร`, HELP_QR()));
 }
 
 // "เอาลิงก์ของตัวเอง" in 4 steps, from a real screen recording (images in /public/howto)
@@ -177,9 +179,9 @@ function pickCat(all, want, cats) {
   return all.reduce((b, p) => ((p.fetchedAt || 0) > (b?.fetchedAt || 0) ? p : b), null)?.category;
 }
 
-function top(all, want, cats) {
+async function top(all, want, cats, ctx = {}) {
   const c = pickCat(all, want, cats);
-  if (!c) return text(`ไม่พบหมวด "${want}" ลองเลือกจากนี้ครับ`, cats.slice(0, 13).map((x) => qr(x, "ท็อป " + x)));
+  if (!c) return notInCatalog(want, cats, ctx);
   const list = rank(all.filter((p) => p.category === c)).slice(0, 5);
   const newest = Math.max(...all.filter((p) => p.category === c).map((p) => p.fetchedAt || 0));
   const others = cats.filter((x) => x !== c).slice(0, 12).map((x) => qr(x, "ท็อป " + x));
@@ -187,6 +189,42 @@ function top(all, want, cats) {
     text(`ท็อป 5 หมวด "${c}" · ข้อมูล ${ago(newest)}${list.some((p) => p.affLink) ? "" : "\nเอาลิงก์ของคุณ: กด \"เปิดในแอป Shopee\" → แชร์ ↗ → คัดลอกลิงก์ (พิมพ์ \"วิธีเอาลิงก์\" ดูภาพ 4 ขั้น)"}`),
     { type: "flex", altText: `ท็อป 5 ${c}`, contents: { type: "carousel", contents: list.map((p, i) => bubble(p, i + 1)) }, ...(others.length ? { quickReply: { items: others } } : {}) },
   ];
+}
+
+// Asked for a category the catalog doesn't have (e.g. "ท็อป สายนาฬิกา"):
+// log the demand for the admin, show any matching products we do have, and point to Pro's own search.
+async function notInCatalog(want, cats, { m, pro, state } = {}) {
+  const kw = want.toLowerCase().replace(/\s+/g, " ").trim().slice(0, 40);
+  logRequest(kw, m?.id).catch(() => {});
+  const pool = state?.shared ? (await ownerProducts()).map(publicProduct) : Object.values(state?.products || {});
+  const words = kw.split(" ").filter((w) => w.length > 1);
+  const hits = rank(pool.filter((p) => { const n = (p.name || "").toLowerCase(); return words.length && words.every((w) => n.includes(w)); })).slice(0, pro ? 5 : 3);
+  const pick = cats.slice(0, 13).map((x) => qr(x, "ท็อป " + x));
+  const out = [];
+  if (hits.length) {
+    out.push(text(`ยังไม่มีหมวด "${want}" แต่เจอ ${hits.length} ตัวที่ตรงคำนี้ในคลังกลาง 👇`));
+    out.push({ type: "flex", altText: `สินค้า ${want}`, contents: { type: "carousel", contents: hits.map((p, i) => bubble(p, i + 1)) } });
+  }
+  if (pro) {
+    out.push({ type: "flex", altText: `ค้นหา "${want}" เอง`, contents: card(hits.length ? `อยากได้ "${want}" ครบทุกตัว?` : `ยังไม่มีหมวด "${want}"`,
+      `แพ็ก Pro ของคุณค้นคำนี้จาก Shopee ได้เอง เปิดปั๊กปักบนคอมที่ติดตั้ง Connector แล้วพิมพ์ "${want}" ในช่องค้นหา ระบบจัดอันดับและสร้างลิงก์ให้`,
+      [{ type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "uri", label: "วิธีตั้งค่าบนคอม", uri: `${APP}/connector` } }]), quickReply: { items: pick } });
+  } else {
+    out.push({ ...buyCard(m, `ค้นหา "${want}" เองได้ใน Pro`), quickReply: { items: pick } });
+    out.splice(out.length - 1, 0, text(`${hits.length ? "" : `ตอนนี้คลังกลางยังไม่มี "${want}" `}แพ็ก Free ดูได้เฉพาะท็อป 5 ของหมวดที่มีอยู่ ส่วน Pro ค้นสินค้าเฉพาะตัวที่คุณทำเองได้ จัดอันดับ + สร้างลิงก์ให้ทุกตัว\nแจ้งทีมไว้แล้วว่ามีคนอยากได้หมวดนี้ 🙏`));
+  }
+  return out.slice(0, 5);
+}
+
+// Count what people search for that isn't in the catalog (shown in /admin).
+async function logRequest(kw, uid) {
+  if (!kw) return;
+  const r = (await readJSON("meta/requests.json")) || {};
+  const x = r[kw] || { count: 0, users: [], first: Date.now() };
+  x.count++; x.last = Date.now();
+  if (uid && !x.users.includes(uid)) x.users.push(uid);
+  r[kw] = x;
+  await writeJSON("meta/requests.json", r);
 }
 
 function bubble(p, n) {

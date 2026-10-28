@@ -93,6 +93,13 @@ export default function Admin() {
             {welcomeMsg && <span className="hint">{welcomeMsg}</span>}
           </div>
         )}
+        {data.requests?.length > 0 && (
+          <div className="panel" style={{ margin: "12px 0" }}>
+            <h2 style={{ marginTop: 0 }}>คนค้นหาแต่ไม่มีในคลังกลาง</h2>
+            <p className="hint">เพิ่มเป็นหมวดในคลังกลางได้ เรียงตามจำนวนคน</p>
+            {data.requests.map((x) => <div key={x.kw} className="bar" style={{ justifyContent: "space-between" }}><span>{x.kw}</span><span className="hint"><b className="num">{x.people}</b> คน · {x.count} ครั้ง · {short(x.last)}</span></div>)}
+          </div>
+        )}
         <div className="bar">
           <button className="btn" disabled={menuMsg === "กำลังติดตั้ง…"} onClick={async () => {
             setMenuMsg("กำลังติดตั้ง…");

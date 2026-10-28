@@ -2,6 +2,7 @@
 import { requireMember, isAdmin, roster, saveRoster, getMember, saveMember, seats, earlyTaken, openFree } from "../../../lib/auth";
 import { planInfo, grantPro, TRIAL_DAYS, PRICE } from "../../../lib/plan";
 import { push } from "../../../lib/line";
+import { readJSON } from "../../../lib/store";
 import { freeWelcome } from "../../../lib/welcome";
 
 export const runtime = "nodejs";
@@ -23,7 +24,9 @@ export async function GET(req) {
     id: m.id, name: m.name, picture: m.picture, status: m.status, joinedAt: m.joinedAt, admin: r.admins.includes(m.id), aiToday: m.ai?.count || 0, aiDay: m.ai?.day || "", onboarding: m.onboarding?.done || [], ...planInfo(m), pendingOrder: m.pendingOrder || null, freeSince: m.freeSince || null, welcomeFree: !!m.welcomeFree, welcomePushedAt: m.welcomePushedAt || null,
   }));
   const toWelcome = members.filter((m) => m.status === "active" && m.plan !== "pro" && m.welcomeFree && !m.welcomePushedAt).length;
-  return Response.json({ members, seats: seats(), active: earlyTaken(r), toWelcome });
+  const req0 = (await readJSON("meta/requests.json")) || {};
+  const requests = Object.entries(req0).map(([kw, x]) => ({ kw, count: x.count, people: x.users?.length || 0, last: x.last })).sort((a, b) => b.people - a.people || b.count - a.count).slice(0, 20);
+  return Response.json({ members, seats: seats(), active: earlyTaken(r), toWelcome, requests });
 }
 
 export async function POST(req) {
