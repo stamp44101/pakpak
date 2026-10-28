@@ -229,8 +229,23 @@ function card(title, body, buttons) {
   };
 }
 
+// Words people type for a category we already have under another name.
+const SYNONYMS = { "ของกิน": "ขนม", "อาหาร": "ขนม", "ขนมขบเคี้ยว": "ขนม", "นาฬิกา": "สมาร์ทวอทช์", "smartwatch": "สมาร์ทวอทช์", "เครื่องมือ": "เครื่องมือช่าง", "อุปกรณ์ช่าง": "เครื่องมือช่าง", "ไฟฟ้า": "เครื่องใช้ไฟฟ้า", "เสื้อผ้า": "เสื้อผ้าผู้หญิง", "แฟชั่น": "เสื้อผ้าผู้หญิง" };
+// "ท็อป หมวด พัดลม", "ท็อป — 5 ตะกร้า…" (help text pasted back) → the real keyword, or "" for the default top.
+const cleanWant = (w) => {
+  const x = (w || "").replace(/^[\s—–\-:•]+/, "").replace(/^หมวด\s*/, "").trim();
+  return /^\d+\s*ตะกร้า/.test(x) ? "" : x;
+};
+
 function pickCat(all, want, cats) {
-  if (want) return cats.find((c) => c === want) || cats.find((c) => c.includes(want) || want.includes(c));
+  want = cleanWant(want);
+  if (want) {
+    const syn = SYNONYMS[want.toLowerCase()];
+    if (syn && cats.includes(syn)) return syn;
+    return cats.find((c) => c === want) || cats.find((c) => c.includes(want) || want.includes(c))
+      // a scanned keyword inside a category, e.g. "พัดลมพกพา" → แก็ดเจ็ต
+      || all.find((p) => p.keyword && (p.keyword === want || p.keyword.includes(want) || want.includes(p.keyword)))?.category;
+  }
   // default: the category updated most recently
   return all.reduce((b, p) => ((p.fetchedAt || 0) > (b?.fetchedAt || 0) ? p : b), null)?.category;
 }
@@ -251,6 +266,7 @@ async function top(all, want, cats, ctx = {}) {
 // Asked for a category the catalog doesn't have (e.g. "ท็อป สายนาฬิกา"):
 // log the demand for the admin, show any matching products we do have, and point to Pro's own search.
 async function notInCatalog(want, cats, { m, pro, state } = {}) {
+  want = cleanWant(want);
   const kw = want.toLowerCase().replace(/\s+/g, " ").trim().slice(0, 40);
   logRequest(kw, m?.id).catch(() => {});
   const pool = state?.shared ? (await ownerProducts()).map(publicProduct) : Object.values(state?.products || {});
