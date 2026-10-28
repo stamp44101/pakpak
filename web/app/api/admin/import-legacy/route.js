@@ -7,7 +7,7 @@ import { readJSON, writeJSON, updateJSON } from "../../../../lib/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 async function readBlob(pathname) {
   const r = await get(pathname, { access: "private", useCache: false });
@@ -20,14 +20,21 @@ export async function POST(req) {
   if (error) return error;
   if ((await roster()).admins[0] !== member.id) return Response.json({ error: "เจ้าของเท่านั้น" }, { status: 403 });
   const out = { members: 0, states: 0, other: 0, skipped: 0, failed: [] };
+  const prefix = new URL(req.url).searchParams.get("prefix") || undefined;
   let cursor;
   do {
-    const page = await list({ cursor, limit: 1000 });
-    for (const b of page.blobs) {
-      const p = b.pathname;
+    const page = await list({ cursor, limit: 1000, prefix });
+    const work = page.blobs.map((b) => b.pathname);
+    // 8 at a time: fast enough for a few hundred files, gentle on both stores
+    await Promise.all(Array.from({ length: 8 }, async () => { for (let p; (p = work.shift()); ) await one(p); }));
+    cursor = page.cursor;
+  } while (cursor);
+  return Response.json(out);
+
+  async function one(p) {
       try {
         const old = await readBlob(p);
-        if (old == null) { out.skipped++; continue; }
+        if (old == null) { out.skipped++; return; }
         if (p === "meta/roster.json") {
           await updateJSON(p, (cur) => ({
             admins: [...new Set([...(old.admins || []), ...(cur.admins || [])])],
@@ -51,8 +58,5 @@ export async function POST(req) {
           out.other++;
         }
       } catch (e) { out.failed.push(p + ": " + String(e?.message || e).slice(0, 80)); }
-    }
-    cursor = page.cursor;
-  } while (cursor);
-  return Response.json(out);
+  }
 }
