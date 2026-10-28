@@ -4,6 +4,18 @@ import { useEffect, useState } from "react";
 const STATUS = { active: "ใช้งานได้", waitlist: "รอคิว", revoked: "ระงับ" };
 const STEPS = [["line", "เข้าสู่ระบบ"], ["bot", "เพิ่มเพื่อนบอท"], ["applink", "เอาลิงก์จากแอป"]];
 const nextStep = (done) => (STEPS.find(([k]) => !done.includes(k)) || [null, "ครบแล้ว"])[1];
+const today = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
+// Filters: who needs attention first (slip to check → chose a plan → hit the Free AI limit today).
+const FILTERS = [
+  ["all", "ทั้งหมด", () => true],
+  ["slip", "ส่งสลิป", (m) => !!m.pendingOrder?.slipAt],
+  ["interest", "สนใจ Pro", (m) => !!m.pendingOrder && !m.pendingOrder.slipAt],
+  ["heavy", "ใช้ AI ครบโควตาวันนี้", (m) => m.plan !== "pro" && m.aiDay === today() && m.aiToday >= (m.limits?.aiPerDay || 3)],
+  ["pro", "Pro", (m) => m.plan === "pro" && !m.admin],
+  ["free", "Free", (m) => m.plan !== "pro"],
+  ["admin", "ผู้ดูแล", (m) => m.admin],
+];
+const rankOf = (m) => (m.pendingOrder?.slipAt ? 0 : m.pendingOrder ? 1 : 2);
 
 export default function Admin() {
   const [data, setData] = useState(null);
@@ -11,6 +23,8 @@ export default function Admin() {
   const [openId, setOpenId] = useState(null);
   const [menuMsg, setMenuMsg] = useState("");
   const [welcomeMsg, setWelcomeMsg] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [q, setQ] = useState("");
 
   const load = () => fetch("/api/admin").then((r) => r.json()).then((j) => (j.error ? setErr(j.error) : setData(j))).catch(() => setErr("โหลดไม่สำเร็จ"));
   useEffect(() => { load(); }, []);
@@ -43,9 +57,22 @@ export default function Admin() {
           {data.members.some((m) => m.pendingOrder?.slipAt) && <span className="stat-alert"><b className="num">{data.members.filter((m) => m.pendingOrder?.slipAt).length}</b> สลิปรอตรวจ</span>}
           <span>Early Access เหลือ <b className="num">{Math.max(0, data.seats - data.active)}</b>/{data.seats}</span>
         </div>
+        <div className="bar" style={{ flexWrap: "wrap", gap: 6, margin: "10px 0" }}>
+          {FILTERS.map(([k, label, fn]) => {
+            const n = data.members.filter(fn).length;
+            if (k !== "all" && !n && filter !== k) return null;
+            return <button key={k} className={"chip" + (filter === k ? " on" : "")} onClick={() => setFilter(k)}>{label} <span className="num">{n}</span></button>;
+          })}
+          <input className="grow" value={q} onChange={(e) => setQ(e.target.value)} placeholder="ค้นหาชื่อ" style={{ minWidth: 140 }} />
+        </div>
         <div className="list">
-          {!data.members.length && <div className="empty"><strong>ยังไม่มีสมาชิก</strong></div>}
-          {data.members.map((m) => (
+          {(() => {
+            const fn = (FILTERS.find(([k]) => k === filter) || FILTERS[0])[2];
+            const shown = data.members.filter(fn).filter((m) => !q.trim() || (m.name || "").toLowerCase().includes(q.trim().toLowerCase()))
+              .sort((a, b) => rankOf(a) - rankOf(b) || (b.pendingOrder?.slipAt || b.pendingOrder?.at || b.joinedAt || 0) - (a.pendingOrder?.slipAt || a.pendingOrder?.at || a.joinedAt || 0));
+            return <>
+          {!shown.length && <div className="empty"><strong>{data.members.length ? "ไม่พบสมาชิกในตัวกรองนี้" : "ยังไม่มีสมาชิก"}</strong></div>}
+          {shown.map((m) => (
             <div key={m.id} className="mrow">
               {m.picture ? <img className="avatar" src={m.picture} alt="" referrerPolicy="no-referrer" /> : <span className="avatar" />}
               <div className="mrow-main">
@@ -83,6 +110,8 @@ export default function Admin() {
               )}
             </div>
           ))}
+            </>;
+          })()}
         </div>
         {(data.toWelcome > 0 || stats.wait > 0 || welcomeMsg) && (
           <div className="bar">
