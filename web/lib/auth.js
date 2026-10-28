@@ -1,6 +1,6 @@
 // LINE Login session + Early Access members (stored in the private Blob store).
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
-import { readJSON, writeJSON, updateJSON } from "./store";
+import { readJSON, writeJSON, updateJSON, listPaths } from "./store";
 import { grantPro, TRIAL_DAYS } from "./plan";
 
 const COOKIE = "pp_session";
@@ -55,11 +55,22 @@ export const saveMember = (m) => writeJSON(memberPath(m.id), m);
 // The new database started empty on 28 Oct 2026 (old Blob store suspended): the 10 Early Access seats
 // were already taken, so the roster starts with them marked as used.
 const freshRoster = () => ({ active: [], waitlist: [], admins: [], early: Array(10).fill("legacy") });
+// "active" is derived from the member documents themselves (one row per member, no hot shared list);
+// the roster document only keeps the rarely-changing parts: admins, early seats, restored EA names.
 export async function roster() {
-  return (await readJSON("meta/roster.json")) || freshRoster();
+  const [doc, paths] = await Promise.all([readJSON("meta/roster.json"), listPaths("members/")]);
+  const r = { ...freshRoster(), ...(doc || {}) };
+  r.active = paths.map((p) => p.slice(8, -5));
+  r.waitlist = []; r.revoked = [];
+  return r;
 }
-// All roster changes go through here so concurrent requests never overwrite each other. fn may run more than once.
-export const mutateRoster = (fn) => updateJSON("meta/roster.json", async (r) => { r.active ||= []; r.waitlist ||= []; r.admins ||= []; await fn(r); return r; }, freshRoster);
+// Changes to admins / early / restored. fn may run more than once; active/waitlist/revoked edits are ignored.
+export const mutateRoster = (fn) => updateJSON("meta/roster.json", async (r) => {
+  r.admins ||= []; r.early ||= Array(10).fill("legacy");
+  const view = { ...r, active: [], waitlist: [], revoked: [] };
+  await fn(view);
+  return { admins: view.admins, early: view.early, restored: view.restored || r.restored || [] };
+}, freshRoster);
 const addTo = (arr, id) => { if (!arr.includes(id)) arr.push(id); };
 
 // Early Access members from before the move get their Pro back when they show up again (matched by LINE name).
@@ -90,7 +101,6 @@ export async function ensureMember(sub, profile = {}) {
   if (!r.admins.length) return null; // before the owner has claimed the new database nobody is auto-created
   m = { id: sub, name: profile.name || "สมาชิก", picture: profile.picture || "", status: "active", joinedAt: Date.now(), ai: { day: "", count: 0 },
     plan: "free", proUntil: null, freeSince: Date.now(), returning: true };
-  await mutateRoster((x) => addTo(x.active, sub));
   await restoreLegacy(m);
   await saveMember(m);
   return m;
@@ -104,11 +114,6 @@ export const seatsLeft = (r) => Math.max(0, seats() - earlyTaken(r));
 
 // Move a waiting member onto the Free plan and mark them to be welcomed (web banner + bot card).
 export async function openFree(m, r) {
-  await mutateRoster((x) => {
-    x.early ||= [...x.active];
-    for (const k of ["active", "waitlist", "revoked"]) x[k] = (x[k] || []).filter((y) => y !== m.id);
-    x.active.push(m.id);
-  });
   m.status = "active"; m.plan = "free"; m.proUntil = null;
   m.freeSince = Date.now(); m.welcomeFree = true;
   await saveMember(m);
@@ -121,10 +126,8 @@ export async function joinOrUpdate(profile) {
   let m = await getMember(profile.sub);
   if (!m) {
     let early = false; // the owner claims admin explicitly via /api/admin/claim
-    await mutateRoster((x) => {
-      x.early ||= [...x.active];
+    if (seatsLeft(await roster()) > 0) await mutateRoster((x) => {
       early = !x.early.includes(profile.sub) && seatsLeft(x) > 0;
-      addTo(x.active, profile.sub);
       if (early) x.early.push(profile.sub);
     });
     m = { id: profile.sub, name: profile.name, picture: profile.picture || "", status: "active", joinedAt: Date.now(), ai: { day: "", count: 0 } };

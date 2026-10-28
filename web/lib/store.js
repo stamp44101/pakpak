@@ -44,3 +44,10 @@ export async function updateJSON(path, fn, init = () => ({})) {
   }
   throw new Error("updateJSON: too much contention on " + path);
 }
+
+// Paths under a prefix, e.g. listPaths("members/") → ["members/U1.json", ...].
+export async function listPaths(prefix) {
+  const s = await db();
+  const rows = await s`SELECT path FROM kv WHERE path LIKE ${prefix + "%"}`;
+  return rows.map((r) => r.path);
+}
