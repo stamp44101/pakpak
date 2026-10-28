@@ -84,6 +84,7 @@ export default function Home({ signedIn = false }) {
   const active = member && member.status === "active";
   const pro = active && member.plan === "pro";
   const [catalogMode, setCatalogMode] = useState(false); // showing the shared catalog (no own data yet)
+  const [locked, setLocked] = useState({}); // Free + lock test: { category: [{ rank, image, perOrder }] } for ranks 1–5
   const shared = !pro || catalogMode;
 
   // ---- who am I ----
@@ -120,6 +121,7 @@ export default function Home({ signedIn = false }) {
     const r = await api("/api/catalog");
     skipSave.current = true;
     setCatalogMode(true);
+    setLocked(r.locked || {});
     setProducts(r.products || {});
     setReady(true);
   }
@@ -280,10 +282,12 @@ export default function Home({ signedIn = false }) {
   // rank each category once per data change; switching category then only picks a cached list
   const rankedBy = useMemo(() => {
     const m = { "": rank(all) };
-    for (const c of new Set(all.map((p) => p.category).filter(Boolean))) m[c] = rank(all.filter((p) => p.category === c));
+    for (const c of new Set(all.map((p) => p.category).filter(Boolean))) m[c] = byRank(rank(all.filter((p) => p.category === c)));
     return m;
   }, [products]);
   const ranked = rankedBy[cat] || rankedBy[""];
+  // all categories: one teaser row per category's #1; a category: its locked 1–5
+  const lockedRows = shared ? (cat ? locked[cat] || [] : Object.entries(locked).map(([c, r]) => r[0] && { ...r[0], category: c }).filter(Boolean)) : [];
   const [limit, setLimit] = useState(40);
   const [, startTransition] = useTransition();
   const newestBy = useMemo(() => all.reduce((m, p) => ((m[p.category] = Math.max(m[p.category] || 0, p.fetchedAt || 0)), m), {}), [products]);
@@ -472,7 +476,7 @@ export default function Home({ signedIn = false }) {
           <div className="bar"><button className="btn primary" onClick={connectShopee}>เชื่อม Shopee Affiliate ↗</button></div>
         </section>
       )}
-      {active && !pro && <Upgrade price={me.price} />}
+      {active && !pro && <Upgrade price={me.price} lock={Object.keys(locked).length > 0} />}
       {pro && viewOnly && !catalogMode && (
         <section className="panel">
           <p className="hint" style={{ margin: 0 }}>เครื่องนี้ดูคะแนนและก๊อปลิงก์ได้ ส่วนการสแกนใหม่และสร้างลิงก์ ใช้คอมที่ติดตั้ง <a href="/connector" target="_blank" rel="noopener">ปั๊กปัก Connector</a> (ขั้นสูง)</p>
@@ -533,11 +537,12 @@ export default function Home({ signedIn = false }) {
               <p><b>≈ ฿/ชิ้น</b> = ราคา × % ค่าคอม คือค่าคอมโดยประมาณต่อ 1 order</p>
             </div>
           </details>
+          {lockedRows.length > 0 && <LockedTop rows={lockedRows} cat={cat} />}
           <div className="list">
             {!ranked.length && <div className="empty"><strong>ยังไม่มีสินค้า</strong><span>{ready ? (account ? "กดเลือกหมวดด้านบนเพื่อดึงสินค้า" : "เชื่อม Shopee Affiliate บนคอมเพื่อดึงสินค้า") : "กำลังโหลด…"}</span></div>}
             {ranked.slice(0, limit).map((p, i) => (
               <div key={p.id} id={"row-" + p.id} className={"row" + (i < 10 ? " top10" : "")} onClick={(e) => { if (!e.target.closest(".detail")) setOpen(open === p.id ? null : p.id); }}>
-                <div className="rank">{i + 1}</div>
+                <div className="rank">{p._rank || i + 1}</div>
                 {p.image ? <img className="thumb" src={img(p.image)} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <div className="thumb" />}
                 <div style={{ minWidth: 0 }}>
                   <div className="name">{p.name}</div>
@@ -549,6 +554,7 @@ export default function Home({ signedIn = false }) {
                     {p.affLink && <span className="tag a">มีลิงก์</span>}
                     {p.fetchedAt && Date.now() - p.fetchedAt > STALE_MS && <span className="tag b">ข้อมูล{ago(p.fetchedAt)}</span>}
                     {p.shop && <span className="tag">{p.shop}</span>}
+                    {!cat && p._rank && <span className="tag">{p.category}</span>}
                   </div>
                 </div>
                 <div className="scores">
@@ -590,6 +596,35 @@ export default function Home({ signedIn = false }) {
   );
 }
 
+// Stored rank (6–10 while top 5 is locked) wins over re-ranking a partial list.
+const byRank = (list) => (list.some((p) => p._rank) ? [...list].sort((a, b) => (a._rank || 99) - (b._rank || 99)) : list);
+
+// Lock test: blurred rows for ranks 1–5 with one call to action on top.
+function LockedTop({ rows, cat }) {
+  return (
+    <a className="locked" href={UPGRADE_URL} target="_blank" rel="noopener">
+      <div className="locked-rows" aria-hidden="true">
+        {rows.map((r, i) => (
+          <div key={i} className="row top10">
+            <div className="rank">{r.rank}</div>
+            {r.image ? <img className="thumb" src={img(r.image)} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <div className="thumb" />}
+            <div style={{ minWidth: 0 }}>
+              <div className="name">ตะกร้าอันดับ {r.rank}{r.category ? ` · ${r.category}` : ""} ███████ ████</div>
+              <div className="meta"><span>≈ ฿<span className="num">{fmt(r.perOrder)}</span>/ชิ้น</span></div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="locked-cta">
+        <span className="locked-ico">🔒</span>
+        <b>ปลดล็อคตะกร้า Top 5 สำหรับผู้ใช้งาน Pro เท่านั้น</b>
+        <small>{cat ? `อันดับ 1–${rows.length} ของหมวด ${cat}` : `ท็อป 5 ของทั้ง ${rows.length} หมวด`} · ด้านล่างคืออันดับ 6–10</small>
+        <span className="btn primary">ปลดล็อคด้วย Pro</span>
+      </div>
+    </a>
+  );
+}
+
 const UPGRADE_URL = "https://line.me/R/oaMessage/@979soyth/?" + encodeURIComponent("อัปเกรด Pro");
 const OA_ADD = "https://line.me/R/ti/p/@979soyth";
 const thDate = (t) => new Date(t).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
@@ -606,12 +641,12 @@ function PlanBadge({ member }) {
   return <a className="plan free" href={UPGRADE_URL} target="_blank" rel="noopener">Free <small>อัปเกรด</small></a>;
 }
 
-function Upgrade({ price }) {
+function Upgrade({ price, lock }) {
   return (
     <section className="panel upgrade">
       <div>
         <h2>คุณใช้แพ็ก Free อยู่</h2>
-        <p className="hint">ดูท็อป 5 ของแต่ละหมวดจากคลังกลาง และให้ AI ดูได้วันละ 3 ตัว ใช้บนมือถืออย่างเดียวได้ ไม่ต้องยุ่งกับคอม</p>
+        <p className="hint">{lock ? "ดูอันดับ 6–10 ของแต่ละหมวด (ท็อป 1–5 ล็อกไว้สำหรับ Pro)" : "ดูท็อป 5 ของแต่ละหมวด"}จากคลังกลาง และให้ AI ดูได้วันละ 3 ตัว ใช้บนมือถืออย่างเดียวได้ ไม่ต้องยุ่งกับคอม</p>
       </div>
       <div className="howlink">
         <b>อยากได้ลิงก์แอฟของตัวเอง ต้องมี Affiliate ID เท่านั้น</b>
@@ -622,7 +657,8 @@ function Upgrade({ price }) {
         </ol>
       </div>
       <ul className="upgrade-list">
-        <li>ดูได้ทุกตัว ไม่ใช่แค่ท็อป 5</li>
+        {lock && <li>ปลดล็อคตะกร้า Top 5 ทุกหมวด</li>}
+        <li>ดูได้ทุกตัว ไม่ใช่แค่ 5 ตัว</li>
         <li>AI ไอเดียคลิปวันละ 30 ตัว</li>
         <li>ขั้นสูง: ลิงก์อัตโนมัติ Top 20 และสแกนหมวดของคุณเอง (ใช้คอม)</li>
       </ul>

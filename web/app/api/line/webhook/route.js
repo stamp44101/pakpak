@@ -9,7 +9,8 @@ import { readJSON, writeJSON } from "../../../../lib/store";
 import { rank, effPrice } from "../../../../lib/score";
 import { scoreItem } from "../../../../lib/ai";
 import { isPro, PRICE, ORDER_TTL_H } from "../../../../lib/plan";
-import { catalog, publicProduct, ownerProducts } from "../../../../lib/catalog";
+import { catalog, freeCatalog, publicProduct, ownerProducts } from "../../../../lib/catalog";
+import { flags, setFlag, lockTop5For, lockLabel } from "../../../../lib/flags";
 import { parseAffId, affLink, cleanProductUrl, isShortLink, resolveShortLink, AFF_ID_HOW, SHORT_NOTE } from "../../../../lib/afflink";
 
 export const runtime = "nodejs";
@@ -54,12 +55,13 @@ async function handle(e) {
   if (m && m.status !== "revoked") {
     if (e.type === "postback" && e.postback.data.startsWith("a=buy")) {
       const plan = new URLSearchParams(e.postback.data).get("p") === "year" ? "year" : "month";
-      m.pendingOrder = { plan, at: Date.now() };
+      const lockGroup = lockTop5For(await flags(), m);
+      m.pendingOrder = { plan, at: Date.now(), ...(lockGroup ? { lockGroup: true } : {}) };
       await saveMember(m);
       const price = plan === "year" ? PRICE.year : PRICE.month;
       await Promise.all([
         reply(e.replyToken, payInfo(plan)),
-        notifyDiscord("interest", { title: `🛒 เลือกแพ็ก Pro ${plan === "year" ? "รายปี" : "รายเดือน"} ฿${price.toLocaleString("en-US")}`, lines: [`**${m.name}** กำลังจะโอน`, `${APP}/admin`] }).catch(() => {}),
+        notifyDiscord("interest", { title: `🛒 เลือกแพ็ก Pro ${plan === "year" ? "รายปี" : "รายเดือน"} ฿${price.toLocaleString("en-US")}`, lines: [`**${m.name}** กำลังจะโอน${lockGroup ? " · กลุ่มทดสอบล็อกท็อป 5" : ""}`, `${APP}/admin`] }).catch(() => {}),
       ]);
       return;
     }
@@ -80,7 +82,7 @@ async function handle(e) {
       ]);
       return;
     }
-    if (e.type === "message" && e.message.type === "text" && /^(อัปเกรด|อัพเกรด|ซื้อ|สมัคร pro|ต่ออายุ|pro$|แพ็ก|ราคา)/i.test(e.message.text.trim())) return reply(e.replyToken, buyCard(m));
+    if (e.type === "message" && e.message.type === "text" && /^(อัปเกรด|อัพเกรด|ซื้อ|สมัคร pro|ต่ออายุ|pro$|แพ็ก|ราคา)/i.test(e.message.text.trim())) return reply(e.replyToken, buyCard(m, null, lockTop5For(await flags(), m)));
   }
 
   if (!m || m.status !== "active") return reply(e.replyToken, await gate(m, e.type === "follow"));
@@ -100,12 +102,28 @@ async function handle(e) {
     await saveMember(m);
     return reply(e.replyToken, text(m.viewAsFree ? "โหมดทดสอบ: ตอนนี้บอทตอบคุณแบบผู้ใช้ Free (พิมพ์ \"ดูแบบ pro\" เพื่อกลับ)" : "กลับเป็น Pro แล้ว", HELP_QR()));
   }
+  // Lock-top-5 test switch: "ล็อกท็อป" (status) · "ล็อกท็อป admin" · "ล็อกท็อป 20" (% of Free) · "ล็อกท็อป off" (rollback)
+  const lm = admin && tt.match(/^ล็อกท็อป\s*(off|ปิด|admin|แอดมิน|\d{1,3})?$/);
+  if (lm) {
+    const raw = lm[1];
+    if (raw) {
+      const n = Math.min(100, +raw || 0);
+      const v = /^(admin|แอดมิน)$/.test(raw) ? "admin" : n > 0 ? String(n) : "off";
+      await setFlag("lockTop5", v, uid);
+    }
+    const f = await flags();
+    return reply(e.replyToken, text(`🔒 ล็อกท็อป 5: ${lockLabel(f.lockTop5)}${f.lockTop5At ? `\nเปลี่ยนล่าสุด ${ago(f.lockTop5At)}` : ""}\n\nสั่งได้: "ล็อกท็อป admin" (ทดสอบเอง + "ดูแบบ free") · "ล็อกท็อป 20" (20% ของ Free) · "ล็อกท็อป 100" · "ล็อกท็อป off" (ย้อนกลับทันที)\nมีผลกับทุกคนภายใน ~30 วิ`, HELP_QR()));
+  }
   const pro = isPro(m) && !(admin && m.viewAsFree);
   let state = (await readJSON(`users/m_${uid}.json`)) || { products: {} };
-  if (!pro || !Object.keys(state.products || {}).length) {
-    // Free, or Pro without own scans yet: the shared catalog, product pages only
+  if (!pro) {
+    // Free: the shared catalog, product pages only (ranks 6–10 + locked teasers while the lock test is on)
+    const fc = await freeCatalog(lockTop5For(await flags(), m, { adminPreview: admin && m.viewAsFree }));
+    state = { ...state, products: fc.products, locked: fc.locked, lockedIds: fc.lockedIds, shared: true };
+  } else if (!Object.keys(state.products || {}).length) {
+    // Pro without own scans yet: the shared catalog
     const products = {};
-    for (const list of Object.values(await catalog(pro ? 20 : 5))) for (const p of list) products[p.id] = publicProduct(p);
+    for (const list of Object.values(await catalog(20))) for (const p of list) products[p.id] = publicProduct(p);
     state = { ...state, products, shared: true };
   }
   const all = Object.values(state.products || {});
@@ -257,13 +275,18 @@ function pickCat(all, want, cats) {
 async function top(all, want, cats, ctx = {}) {
   const c = pickCat(all, want, cats);
   if (!c) return notInCatalog(want, cats, ctx);
-  const list = rank(all.filter((p) => p.category === c)).slice(0, 5);
+  const list = byRank(rank(all.filter((p) => p.category === c))).slice(0, 5);
   addViews(list.length).catch(() => {});
   const newest = Math.max(...all.filter((p) => p.category === c).map((p) => p.fetchedAt || 0));
   const others = cats.filter((x) => x !== c).slice(0, 12).map((x) => qr(x, "ท็อป " + x));
+  const locked = ctx.state?.locked?.[c];
+  const head = locked?.length
+    ? `🔒 ท็อป 1–${locked.length} หมวด "${c}" ปลดล็อคได้เฉพาะผู้ใช้งาน Pro\nด้านล่างคืออันดับ ${list[0]?._rank || 6}–${list[list.length - 1]?._rank || 10} · ข้อมูล ${ago(newest)}`
+    : `ท็อป 5 หมวด "${c}" · ข้อมูล ${ago(newest)}`;
+  const bubbles = [...(locked?.length ? [lockBubble(locked)] : []), ...list.map((p, i) => bubble(p, p._rank || i + 1))];
   return [
-    text(`ท็อป 5 หมวด "${c}" · ข้อมูล ${ago(newest)}${list.some((p) => p.affLink) ? "" : "\nอยากได้ลิงก์แอฟของคุณ: กด \"เอาลิงก์ของฉัน\" แล้วส่ง Affiliate ID มา"}`),
-    { type: "flex", altText: `ท็อป 5 ${c}`, contents: { type: "carousel", contents: list.map((p, i) => bubble(p, i + 1)) }, ...(others.length ? { quickReply: { items: others } } : {}) },
+    text(`${head}${list.some((p) => p.affLink) ? "" : "\nอยากได้ลิงก์แอฟของคุณ: กด \"เอาลิงก์ของฉัน\" แล้วส่ง Affiliate ID มา"}`),
+    { type: "flex", altText: locked?.length ? `ท็อป ${c} (ท็อป 5 ล็อกไว้สำหรับ Pro)` : `ท็อป 5 ${c}`, contents: { type: "carousel", contents: bubbles }, ...(others.length ? { quickReply: { items: others } } : {}) },
   ];
 }
 
@@ -273,7 +296,7 @@ async function notInCatalog(want, cats, { m, pro, state } = {}) {
   want = cleanWant(want);
   const kw = want.toLowerCase().replace(/\s+/g, " ").trim().slice(0, 40);
   logRequest(kw, m?.id).catch(() => {});
-  const pool = state?.shared ? (await ownerProducts()).map(publicProduct) : Object.values(state?.products || {});
+  const pool = state?.shared ? (await ownerProducts()).filter((p) => !state.lockedIds?.has(p.id)).map(publicProduct) : Object.values(state?.products || {});
   const words = kw.split(" ").filter((w) => w.length > 1);
   const hits = rank(pool.filter((p) => { const n = (p.name || "").toLowerCase(); return words.length && words.every((w) => n.includes(w)); })).slice(0, pro ? 5 : 3);
   const pick = cats.slice(0, 13).map((x) => qr(x, "ท็อป " + x));
@@ -302,6 +325,31 @@ async function logRequest(kw, uid) {
   if (uid && !x.users.includes(uid)) x.users.push(uid);
   r[kw] = x;
   await writeJSON("meta/requests.json", r);
+}
+
+// Stored rank (6–10 while top 5 is locked) wins over the order re-ranked from a partial list.
+const byRank = (list) => (list.some((p) => p._rank) ? [...list].sort((a, b) => (a._rank || 99) - (b._rank || 99)) : list);
+
+// First card of the carousel while the lock test is on: ranks 1–5 hidden, only ≈฿/order as a teaser.
+function lockBubble(rows) {
+  return {
+    type: "bubble", size: "kilo",
+    styles: { body: { backgroundColor: "#2B1E16" }, footer: { backgroundColor: "#2B1E16" } },
+    body: { type: "box", layout: "vertical", spacing: "sm", paddingAll: "16px", contents: [
+      { type: "text", text: "🔒", size: "3xl", align: "center" },
+      { type: "text", text: `ปลดล็อคตะกร้า Top ${rows.length}`, weight: "bold", size: "lg", color: "#FFFFFF", align: "center", wrap: true },
+      { type: "text", text: "สำหรับผู้ใช้งาน Pro เท่านั้น", size: "sm", color: "#FFC9A6", align: "center", wrap: true },
+      { type: "separator", margin: "lg", color: "#4A382C" },
+      ...rows.map((r) => ({ type: "box", layout: "horizontal", margin: "md", contents: [
+        { type: "text", text: `#${r.rank}`, weight: "bold", size: "sm", color: "#FE6A0E", flex: 0 },
+        { type: "text", text: "▒▒▒▒▒▒▒▒", size: "sm", color: "#5C4636", flex: 3, margin: "md" },
+        { type: "text", text: r.perOrder ? `~${baht(r.perOrder)}/ออเดอร์` : "", size: "xxs", color: "#FFC9A6", align: "end", gravity: "center", flex: 3 },
+      ] })),
+    ] },
+    footer: { type: "box", layout: "vertical", contents: [
+      { type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "message", label: "ปลดล็อคด้วย Pro", text: "อัปเกรด Pro" } },
+    ] },
+  };
 }
 
 function bubble(p, n) {
@@ -340,12 +388,12 @@ function bubble(p, n) {
 const thDate = (t) => new Date(t).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
 
 // Plan picker. Shown from the rich menu ("อัปเกรด Pro"), typed keywords, or Free-only features.
-function buyCard(m, why) {
+function buyCard(m, why, lock = false) {
   const isProNow = isPro(m);
   const head = why || (isProNow ? "ต่ออายุ Pro" : "อัปเกรดเป็น Pro");
   const sub = isProNow
     ? (m.proUntil ? `Pro ของคุณใช้ได้ถึง ${thDate(m.proUntil)} ต่ออายุแล้ววันจะบวกต่อจากเดิม` : "บัญชีนี้เป็น Pro ไม่หมดอายุ")
-    : "• ดูได้ทุกตัว ไม่ใช่แค่ท็อป 5\n• AI ไอเดียคลิปวันละ 30 ตัว (Free 3)\n• ขั้นสูง: ลิงก์อัตโนมัติ + สแกนหมวดของคุณเอง";
+    : (lock ? "• ปลดล็อคตะกร้า Top 5 ทุกหมวด\n• ดูได้ทุกตัว ไม่ใช่แค่ 5 ตัว" : "• ดูได้ทุกตัว ไม่ใช่แค่ท็อป 5") + "\n• AI ไอเดียคลิปวันละ 30 ตัว (Free 3)\n• ขั้นสูง: ลิงก์อัตโนมัติ + สแกนหมวดของคุณเอง";
   const opt = (label, price, note, p, primary) => ({
     type: "box", layout: "horizontal", paddingAll: "12px", cornerRadius: "10px", backgroundColor: primary ? "#FFF1E7" : "#F7F7F7",
     action: { type: "postback", label, data: `a=buy&p=${p}`, displayText: `สมัคร Pro ${label}` },
