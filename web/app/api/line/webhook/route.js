@@ -8,7 +8,7 @@ import { addViews } from "../../../../lib/activity";
 import { readJSON, writeJSON } from "../../../../lib/store";
 import { rank, effPrice } from "../../../../lib/score";
 import { scoreItem } from "../../../../lib/ai";
-import { isPro, PRICE } from "../../../../lib/plan";
+import { isPro, PRICE, ORDER_TTL_H } from "../../../../lib/plan";
 import { catalog, publicProduct, ownerProducts } from "../../../../lib/catalog";
 import { parseAffId, affLink, cleanProductUrl, isShortLink, resolveShortLink, AFF_ID_HOW, SHORT_NOTE } from "../../../../lib/afflink";
 
@@ -62,6 +62,10 @@ async function handle(e) {
         notifyDiscord("interest", { title: `🛒 เลือกแพ็ก Pro ${plan === "year" ? "รายปี" : "รายเดือน"} ฿${price.toLocaleString("en-US")}`, lines: [`**${m.name}** กำลังจะโอน`, `${APP}/admin`] }).catch(() => {}),
       ]);
       return;
+    }
+    if (e.type === "message" && e.message.type === "image" && !m.pendingOrder && m.orderExpired && Date.now() - m.orderExpired.expiredAt < 7 * 864e5) {
+      m.pendingOrder = { plan: m.orderExpired.plan, at: m.orderExpired.at, late: true }; // slip came after the 24h window: still count it
+      m.orderExpired = null;
     }
     if (e.type === "message" && e.message.type === "image" && m.pendingOrder && !m.pendingOrder.slipAt) {
       m.pendingOrder.slipAt = Date.now();
@@ -365,7 +369,7 @@ function buyCard(m, why) {
 function payInfo(plan) {
   const amount = (plan === "year" ? PRICE.year : PRICE.month).toLocaleString("en-US");
   return [
-    text(`แพ็ก Pro ${plan === "year" ? "รายปี" : "รายเดือน"} ยอด ฿${amount}\n\n1) สแกน QR พร้อมเพย์ด้านล่าง ร้าน ปั๊กปัก รับได้ทุกธนาคาร\n2) โอน ฿${amount} แล้วส่งรูปสลิปในแชทนี้\n\nแอดมินตรวจแล้วเปิดสิทธิ์ให้ ระบบจะแจ้งในแชทนี้ทันที`),
+    text(`แพ็ก Pro ${plan === "year" ? "รายปี" : "รายเดือน"} ยอด ฿${amount}\n\n1) สแกน QR พร้อมเพย์ด้านล่าง ร้าน ปั๊กปัก รับได้ทุกธนาคาร\n2) โอน ฿${amount} แล้วส่งรูปสลิปในแชทนี้ภายใน ${ORDER_TTL_H} ชม. (เกินเวลาคำสั่งซื้อจะถูกยกเลิก เลือกแพ็กใหม่ได้ตลอด)\n\nแอดมินตรวจแล้วเปิดสิทธิ์ให้ ระบบจะแจ้งในแชทนี้ทันที`),
     { type: "image", originalContentUrl: `${APP}/pay-qr.jpg`, previewImageUrl: `${APP}/pay-qr-preview.jpg` },
   ];
 }

@@ -2,7 +2,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { readJSON, writeJSON, updateJSON, listPaths } from "./store";
 import { notifyDiscord } from "./discord";
-import { grantPro, TRIAL_DAYS } from "./plan";
+import { grantPro, TRIAL_DAYS, expireOrder } from "./plan";
 
 const COOKIE = "pp_session";
 const MAX_AGE = 60 * 60 * 24 * 30; // 30 days
@@ -42,6 +42,7 @@ export const memberPath = (sub) => `members/${sub}.json`;
 // Members from before plans existed: active ones become Early Access Pro (owner: no expiry).
 export async function getMember(sub) {
   const m = await readJSON(memberPath(sub));
+  if (m && expireOrder(m)) await writeJSON(memberPath(m.id), m); // written once, when the order lapses
   if (m && m.status === "waitlist") await openFree(m); // the old waitlist now gets Free right away
   if (m && m.plan === undefined && m.status === "active") {
     const r = await roster();

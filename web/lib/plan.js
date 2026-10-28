@@ -5,6 +5,15 @@ export const PLANS = {
 };
 export const PRICE = { month: 199, year: 1990, early: 99 };
 export const TRIAL_DAYS = 30;
+// A chosen plan with no slip after this long is cancelled (a late slip still revives it, see webhook).
+export const ORDER_TTL_H = 24;
+export function expireOrder(m) {
+  const o = m?.pendingOrder;
+  if (!o || o.slipAt || Date.now() - (o.at || 0) < ORDER_TTL_H * 36e5) return false;
+  m.orderExpired = { plan: o.plan, at: o.at, expiredAt: Date.now() };
+  m.pendingOrder = null;
+  return true;
+}
 
 export const isPro = (m) => m?.plan === "pro" && (!m.proUntil || m.proUntil > Date.now());
 export const planOf = (m) => (isPro(m) ? "pro" : "free");
