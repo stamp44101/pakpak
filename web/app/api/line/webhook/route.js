@@ -32,7 +32,7 @@ export async function POST(req) {
   await Promise.all(events.map((e) => handle(e).catch(async (err) => {
     console.error("event", err);
     // Storage down (e.g. Blob suspended): still answer, replies cost no quota.
-    if (e.replyToken && /blob/i.test(String(err?.message))) await reply(e.replyToken, text("🛠️ เนื่องจากมีผู้ให้ความสนใจเป็นจำนวนมาก ปั๊กปักจึงมีความจำเป็นต้องปิดปรับปรุงเพื่ออัปเกรดระบบชั่วคราว\n\nข้อมูลของคุณยังอยู่ครบ เมื่อระบบพร้อมจะกลับมาให้บริการทันที ขออภัยในความไม่สะดวกครับ 🙏")).catch(() => {});
+    if (e.replyToken && /blob/i.test(String(err?.message))) await reply(e.replyToken, text("🛠️ ปั๊กปักกำลังปรับปรุงระบบ!\n\nเนื่องจากได้รับความสนใจจากผู้ใช้งานเป็นจำนวนมาก เราจึงกำลังพัฒนาระบบให้รองรับการใช้งานได้ดียิ่งขึ้น เพื่อให้ทุกคนใช้งานสะดวกและรวดเร็วกว่าเดิม\n\nขออภัยในความไม่สะดวก และขอบคุณที่ให้การสนับสนุนปั๊กปักนะคะ 🙏")).catch(() => {});
   })));
   return Response.json({ ok: true });
 }
