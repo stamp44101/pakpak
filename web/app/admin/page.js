@@ -12,6 +12,7 @@ const FILTERS = [
   ["slip", "ส่งสลิป", (m) => !!m.pendingOrder?.slipAt],
   ["interest", "สนใจ Pro", (m) => !!m.pendingOrder && !m.pendingOrder.slipAt],
   ["promo", "โปร ฿99", (m) => !!m.promo?.at],
+  ["follow", "ได้สิทธิ์ติดตาม", (m) => !!m.followReward],
   ["heavy", "ใช้ AI ครบโควตาวันนี้", (m) => m.plan !== "pro" && m.aiDay === today() && m.aiToday >= (m.limits?.aiPerDay || 3)],
   ["paid", "จ่ายจริง", (m) => m.plan === "pro" && !m.admin && m.payments?.length > 0],
   ["pro", "Pro", (m) => m.plan === "pro" && !m.admin],
@@ -149,6 +150,7 @@ export default function Admin() {
                   {m.status === "active" && !m.admin && <>
                     <button className="btn" onClick={() => confirm(`ตั้ง ${m.name} เป็นผู้ดูแล? จะเข้าหน้านี้ได้ อนุมัติสลิป และได้ Pro ไม่หมดอายุ`) && set(m.id, null, { admin: true })}>ตั้งเป็นผู้ดูแล</button>
                     <button className="btn" disabled={!!m.trialAt} title={m.trialAt ? `เคยทดลองแล้ว ${short(m.trialAt)}` : ""} onClick={() => confirm(`ให้ ${m.name} ทดลองใช้ Pro ฟรี 7 วัน? ระบบจะแจ้งใน LINE ให้เอง`) && set(m.id, null, { trial: true })}>{m.trialAt ? `ทดลองแล้ว · ${short(m.trialAt)}` : "🎁 ทดลองฟรี 7 วัน"}</button>
+                    <button className="btn" disabled={!!m.followReward} title={m.followReward ? `ได้แล้ว ${short(m.followReward.at)} · โดย ${m.followReward.by}` : "ตรวจแล้วว่าติดตามทั้ง IG และ FB"} onClick={() => confirm(m.plan === "pro" ? `${m.name} ติดตาม IG + FB แล้ว? ต่ออายุ Pro ให้อีก 3 วัน ระบบจะแจ้งใน LINE ให้เอง` : `${m.name} ติดตาม IG + FB แล้ว? เปิด Pro ให้ฟรี 3 วัน ระบบจะแจ้งใน LINE ให้เอง`) && set(m.id, null, { follow: true })}>{m.followReward ? `📲 ติดตามแล้ว · ${short(m.followReward.at)}` : m.plan === "pro" ? "📲 ติดตาม IG/FB · +3 วัน" : "📲 ติดตาม IG/FB · Pro 3 วัน"}</button>
                     {!m.founding && <button className="btn" onClick={() => (m.promoLive ? confirm(`ยกเลิกข้อเสนอ ฿99 ของ ${m.name}?`) : confirm(`ส่งการ์ดข้อเสนอ ฿99/เดือน · ฿990/ปี ให้ ${m.name}? ใช้ได้ 48 ชม. ลูกค้ากด "สนใจ" แล้วระบบส่ง QR ให้เอง`)) && set(m.id, null, { founding: !m.promoLive })}>{m.promoLive ? "ยกเลิกข้อเสนอ ฿99" : m.promo?.at ? "🎁 ส่ง ฿99 อีกครั้ง" : "🎁 เสนอ ฿99"}</button>}
                     <button className="btn primary" onClick={() => set(m.id, null, { plan: "pro", days: 30 })}>Pro +30 วัน</button>
                     <button className="btn" onClick={() => set(m.id, null, { plan: "pro", days: 365 })}>Pro +1 ปี</button>

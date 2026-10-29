@@ -6,6 +6,7 @@ export const PLANS = {
 export const PRICE = { month: 199, year: 1990, early: 99 };
 export const EA_DAYS = 30; // Early Access: Pro free for this long
 export const ADMIN_TRIAL_DAYS = 7; // "🎁 ทดลองฟรี" button in /admin, once per member
+export const FOLLOW_DAYS = 3; // "ติดตาม IG/FB" reward in /admin: Free gets Pro 3 days, Pro gets +3 days, once per member
 
 // Paid plans, so price / length / wording come from one place. f* = Founding price: offered per member by an admin
 // (m.foundingOffer, from /admin) and kept forever once bought (m.founding).

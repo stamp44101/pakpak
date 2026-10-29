@@ -1,6 +1,6 @@
 // Admin: list members, activate / move to waitlist / revoke.
 import { requireMember, isAdmin, roster, mutateRoster, getMember, saveMember, memberPath, seats, earlyTaken, openFree } from "../../../lib/auth";
-import { planInfo, grantPro, makeAdminPro, orderOf, ORDERS, EA_DAYS, ADMIN_TRIAL_DAYS, PROMO_HOURS, promoLive } from "../../../lib/plan";
+import { planInfo, isPro, grantPro, makeAdminPro, orderOf, ORDERS, EA_DAYS, ADMIN_TRIAL_DAYS, FOLLOW_DAYS, PROMO_HOURS, promoLive } from "../../../lib/plan";
 import { offerCard } from "../../../lib/bot/ui";
 import { thDate } from "../../../lib/fmt";
 import { push, quota, markPushed } from "../../../lib/line";
@@ -30,7 +30,7 @@ export async function GET(req) {
   const all = [];
   for (let i = 0; i < ids.length; i += 40) all.push(...(await Promise.all(ids.slice(i, i + 40).map(getMember))).filter(Boolean));
   const members = all.map((m) => ({
-    id: m.id, name: m.name, picture: m.picture, status: m.status, joinedAt: m.joinedAt, admin: r.admins.includes(m.id), owner: r.admins[0] === m.id, aiToday: m.ai?.count || 0, aiDay: m.ai?.day || "", onboarding: m.onboarding?.done || [], ...planInfo(m), pendingOrder: m.pendingOrder || null, freeSince: m.freeSince || null, welcomeFree: !!m.welcomeFree, welcomePushedAt: m.welcomePushedAt || null, trialAt: m.trialAt || null, founding: !!m.founding, foundingOffer: !!m.foundingOffer, promo: m.promo || null, promoLive: promoLive(m),
+    id: m.id, name: m.name, picture: m.picture, status: m.status, joinedAt: m.joinedAt, admin: r.admins.includes(m.id), owner: r.admins[0] === m.id, aiToday: m.ai?.count || 0, aiDay: m.ai?.day || "", onboarding: m.onboarding?.done || [], ...planInfo(m), pendingOrder: m.pendingOrder || null, freeSince: m.freeSince || null, welcomeFree: !!m.welcomeFree, welcomePushedAt: m.welcomePushedAt || null, trialAt: m.trialAt || null, followReward: m.followReward || null, founding: !!m.founding, foundingOffer: !!m.foundingOffer, promo: m.promo || null, promoLive: promoLive(m),
     payments: m.payments || [],
   }));
   const announce = Object.entries(ANNOUNCE).map(([key, a]) => {
@@ -57,7 +57,7 @@ async function quotaBlock(n, what) {
 export async function POST(req) {
   const g = await guard(req);
   if (g.error) return g.error;
-  const { id, ids: offerIds, announce, status, plan, days, approve, reject, welcomeFree, admin, trial, founding } = (await req.json().catch(() => ({}))) || {};
+  const { id, ids: offerIds, announce, status, plan, days, approve, reject, welcomeFree, admin, trial, follow, founding } = (await req.json().catch(() => ({}))) || {};
   // One-time LINE push to everyone moved from the waitlist to Free who hasn't been told yet.
   if (welcomeFree) {
     const r0 = await roster();
@@ -160,6 +160,26 @@ export async function POST(req) {
       if (m.promo) m.promo.cancelledAt = Date.now();
       await saveMember(m);
     }
+    return Response.json({ ok: true });
+  }
+  // Followed IG + FB (checked by an admin): Free → Pro 3 days, Pro → +3 days. Once per member, with a LINE push.
+  if (follow) {
+    if (m.status !== "active") return Response.json({ error: "ต้องเป็นสมาชิกที่ใช้งานอยู่" }, { status: 400 });
+    if (isPro(m) && m.proUntil === null) return Response.json({ error: `${m.name} เป็น Pro ไม่มีวันหมดอยู่แล้ว` }, { status: 400 });
+    let already = null, wasPro = false;
+    const saved = await updateJSON(memberPath(m.id), (cur) => {
+      already = cur.followReward; wasPro = isPro(cur);
+      if (already) return cur;
+      grantPro(cur, FOLLOW_DAYS);
+      cur.followReward = { at: Date.now(), by: g.member.name, wasPro };
+      return cur;
+    }, () => m);
+    if (already) return Response.json({ error: `${m.name} เคยได้สิทธิ์ติดตามแล้ว (${thDate(already.at)} · โดย ${already.by})` }, { status: 400 });
+    Object.assign(m, saved);
+    notifyDiscord("trial", { title: `📲 ติดตาม IG/FB → Pro +${FOLLOW_DAYS} วัน`, lines: [`**${m.name}** · ${wasPro ? "Pro ต่ออายุ" : "Free → Pro"} ถึง ${thDate(m.proUntil)} · โดย ${g.member.name}`] }).catch(() => {});
+    await push(m.id, { type: "text", text: wasPro
+      ? `🎁 ขอบคุณที่ติดตามปั๊กปักทั้ง IG และ FB ค่ะ\nต่ออายุ Pro ให้อีก ${FOLLOW_DAYS} วัน ใช้ได้ถึง ${thDate(m.proUntil)}`
+      : `🎁 ขอบคุณที่ติดตามปั๊กปักทั้ง IG และ FB ค่ะ\nเปิด Pro ให้ฟรี ${FOLLOW_DAYS} วัน ใช้ได้ถึง ${thDate(m.proUntil)}\nดูตะกร้าได้ทุกหมวดทุกอันดับ + AI ไอเดียคลิปวันละ 30 ครั้ง\nกด "ท็อป 5 วันนี้" ที่เมนูด้านล่างเพื่อเริ่มได้เลยค่ะ` }).catch(() => {});
     return Response.json({ ok: true });
   }
   // Free trial: Pro for 7 days (stacks on time left), once per member, with a LINE push.
