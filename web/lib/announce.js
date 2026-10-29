@@ -12,7 +12,7 @@ const ideas5 = () => ({ type: "flex", altText: `✨ สิทธิ์ใหม�
     { type: "text", text: "วิธีใช้: กด \"ดูไอเดียคลิป\" ใต้สินค้า แล้วกด \"🔄 ไอเดียใหม่\" ด้านล่างข้อความ", size: "xs", color: "#999999", wrap: true },
   ] },
   footer: { type: "box", layout: "vertical", contents: [
-    { type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "message", label: "ลองเลย: ท็อป 5 วันนี้", text: "ท็อป" } },
+    { type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "message", label: "ดูท็อป 5 วันนี้", text: "ท็อป" } },
   ] },
 } });
 

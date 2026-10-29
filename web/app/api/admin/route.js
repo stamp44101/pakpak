@@ -26,7 +26,9 @@ export async function GET(req) {
   if (g.error) return g.error;
   const r = await roster();
   const ids = [...r.active, ...r.waitlist, ...(r.revoked || [])];
-  const all = (await Promise.all(ids.map(getMember))).filter(Boolean);
+  // In batches: 500+ parallel DB fetches ran the function out of sockets (EMFILE) on 29 Oct.
+  const all = [];
+  for (let i = 0; i < ids.length; i += 40) all.push(...(await Promise.all(ids.slice(i, i + 40).map(getMember))).filter(Boolean));
   const members = all.map((m) => ({
     id: m.id, name: m.name, picture: m.picture, status: m.status, joinedAt: m.joinedAt, admin: r.admins.includes(m.id), owner: r.admins[0] === m.id, aiToday: m.ai?.count || 0, aiDay: m.ai?.day || "", onboarding: m.onboarding?.done || [], ...planInfo(m), pendingOrder: m.pendingOrder || null, freeSince: m.freeSince || null, welcomeFree: !!m.welcomeFree, welcomePushedAt: m.welcomePushedAt || null, trialAt: m.trialAt || null, founding: !!m.founding, foundingOffer: !!m.foundingOffer, promo: m.promo || null, promoLive: promoLive(m),
     payments: m.payments || [],

@@ -12,7 +12,7 @@ export function freeWelcome(m, rules = RULES.free) {
       { type: "text", text: `อยากปลดล็อคท็อป 1–5 + AI ${PLANS.pro.aiPerDay} ครั้ง/วัน → Pro ฿${PRICE.month}/เดือน`, size: "xs", color: "#999999", wrap: true },
     ] },
     footer: { type: "box", layout: "vertical", spacing: "sm", contents: [
-      { type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "message", label: "ลองเลย: ท็อป 5 วันนี้", text: "ท็อป" } },
+      { type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "message", label: "ดูท็อป 5 วันนี้", text: "ท็อป" } },
       { type: "button", style: "link", height: "sm", action: { type: "message", label: "ดูแพ็ก Pro", text: "อัปเกรด Pro" } },
     ] },
   } };
