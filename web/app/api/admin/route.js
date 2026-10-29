@@ -1,6 +1,6 @@
 // Admin: list members, activate / move to waitlist / revoke.
 import { requireMember, isAdmin, roster, mutateRoster, getMember, saveMember, memberPath, seats, earlyTaken, openFree } from "../../../lib/auth";
-import { planInfo, isPro, grantPro, makeAdminPro, orderOf, ORDERS, EA_DAYS, ADMIN_TRIAL_DAYS, FOLLOW_DAYS, PROMO_HOURS, promoLive } from "../../../lib/plan";
+import { planInfo, isPro, grantPro, makeAdminPro, orderOf, ORDERS, EA_DAYS, PROMO_HOURS, promoLive } from "../../../lib/plan";
 import { offerCard } from "../../../lib/bot/ui";
 import { thDate } from "../../../lib/fmt";
 import { push, quota, markPushed } from "../../../lib/line";
@@ -9,6 +9,8 @@ import { freeWelcome } from "../../../lib/welcome";
 import { freeRulesNow } from "../../../lib/access";
 import { notifyDiscord, notifyError } from "../../../lib/discord";
 import { ANNOUNCE } from "../../../lib/announce";
+import { loadCampaigns, grant, grantsOf, freeDaysOf, isLive, messageFor, FREE_DAYS_CAP } from "../../../lib/campaigns";
+import { allMembers, membersOf } from "../../../lib/members";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,12 +27,9 @@ export async function GET(req) {
   const g = await guard(req);
   if (g.error) return g.error;
   const r = await roster();
-  const ids = [...r.active, ...r.waitlist, ...(r.revoked || [])];
-  // In batches: 500+ parallel DB fetches ran the function out of sockets (EMFILE) on 29 Oct.
-  const all = [];
-  for (let i = 0; i < ids.length; i += 40) all.push(...(await Promise.all(ids.slice(i, i + 40).map(getMember))).filter(Boolean));
+  const [all, campaigns] = await Promise.all([allMembers(r), loadCampaigns()]);
   const members = all.map((m) => ({
-    id: m.id, name: m.name, picture: m.picture, status: m.status, joinedAt: m.joinedAt, admin: r.admins.includes(m.id), owner: r.admins[0] === m.id, aiToday: m.ai?.count || 0, aiDay: m.ai?.day || "", onboarding: m.onboarding?.done || [], ...planInfo(m), pendingOrder: m.pendingOrder || null, freeSince: m.freeSince || null, welcomeFree: !!m.welcomeFree, welcomePushedAt: m.welcomePushedAt || null, trialAt: m.trialAt || null, followReward: m.followReward || null, founding: !!m.founding, foundingOffer: !!m.foundingOffer, promo: m.promo || null, promoLive: promoLive(m),
+    id: m.id, name: m.name, picture: m.picture, status: m.status, joinedAt: m.joinedAt, admin: r.admins.includes(m.id), owner: r.admins[0] === m.id, aiToday: m.ai?.count || 0, aiDay: m.ai?.day || "", onboarding: m.onboarding?.done || [], ...planInfo(m), pendingOrder: m.pendingOrder || null, freeSince: m.freeSince || null, welcomeFree: !!m.welcomeFree, welcomePushedAt: m.welcomePushedAt || null, trialAt: m.trialAt || null, grants: grantsOf(m), freeDays: freeDaysOf(m), founding: !!m.founding, foundingOffer: !!m.foundingOffer, promo: m.promo || null, promoLive: promoLive(m),
     payments: m.payments || [],
   }));
   const announce = Object.entries(ANNOUNCE).map(([key, a]) => {
@@ -40,7 +39,7 @@ export async function GET(req) {
   const toWelcome = members.filter((m) => m.status === "active" && m.plan !== "pro" && m.welcomeFree && !m.welcomePushedAt).length;
   const req0 = (await readJSON("meta/requests.json")) || {};
   const requests = Object.entries(req0).map(([kw, x]) => ({ kw, count: x.count, people: x.users?.length || 0, last: x.last })).sort((a, b) => b.people - a.people || b.count - a.count).slice(0, 20);
-  return Response.json({ members, seats: seats(), active: earlyTaken(r), toWelcome, requests, announce, quota: await quota() });
+  return Response.json({ members, campaigns: Object.values(campaigns).filter((c) => isLive(c)).map((c) => ({ key: c.key, label: c.label, days: c.days, who: c.who, perMember: c.perMember, proof: c.proof || "" })), freeDaysCap: FREE_DAYS_CAP, seats: seats(), active: earlyTaken(r), toWelcome, requests, announce, quota: await quota() });
 }
 
 // Group pushes stop before they start if the month's push quota can't cover them.
@@ -57,11 +56,11 @@ async function quotaBlock(n, what) {
 export async function POST(req) {
   const g = await guard(req);
   if (g.error) return g.error;
-  const { id, ids: offerIds, announce, status, plan, days, approve, reject, welcomeFree, admin, trial, follow, founding } = (await req.json().catch(() => ({}))) || {};
+  const { id, ids: offerIds, announce, status, plan, days, approve, reject, welcomeFree, admin, grant: grantKey, cancelOrder, founding } = (await req.json().catch(() => ({}))) || {};
   // One-time LINE push to everyone moved from the waitlist to Free who hasn't been told yet.
   if (welcomeFree) {
     const r0 = await roster();
-    const est = (await Promise.all(r0.active.map(getMember))).filter((w) => w && w.welcomeFree && !w.welcomePushedAt && w.plan !== "pro").length + r0.waitlist.length;
+    const est = (await membersOf(r0.active)).filter((w) => w && w.welcomeFree && !w.welcomePushedAt && w.plan !== "pro").length + r0.waitlist.length;
     const blocked = await quotaBlock(est, "แจ้งคน Free");
     if (blocked) return blocked;
     const r = await roster();
@@ -81,7 +80,7 @@ export async function POST(req) {
     const a = ANNOUNCE[announce];
     if (!a) return Response.json({ error: "ไม่พบประกาศนี้" }, { status: 400 });
     const r = await roster();
-    const targets = (await Promise.all(r.active.map(getMember))).filter((w) => w && a.to(w, r.admins) && !w.news?.[announce]);
+    const targets = (await membersOf(r.active)).filter((w) => w && a.to(w, r.admins) && !w.news?.[announce]);
     const blocked = await quotaBlock(targets.length, `"${a.label}"`);
     if (blocked) return blocked;
     let sent = 0, failed = 0;
@@ -111,6 +110,22 @@ export async function POST(req) {
   }
   const m = await getMember(String(id || ""));
   if (!m) return Response.json({ error: "ไม่พบสมาชิก" }, { status: 404 });
+  // Chose a plan but never sent a slip: an admin can drop it before the 24h expiry. Kept as orderExpired, so a
+  // slip that still arrives within 7 days revives the order (same path as the automatic expiry, see webhook).
+  if (cancelOrder) {
+    let had = null;
+    const saved = await updateJSON(memberPath(m.id), (cur) => {
+      had = cur.pendingOrder;
+      if (!had || had.slipAt) return cur;
+      cur.orderExpired = { plan: had.plan, at: had.at, expiredAt: Date.now(), cancelledBy: g.member.name };
+      cur.pendingOrder = null;
+      return cur;
+    }, () => m);
+    if (!had) return Response.json({ error: "ไม่มีคำสั่งซื้อที่รอสลิป" }, { status: 400 });
+    if (had.slipAt) return Response.json({ error: `${m.name} ส่งสลิปมาแล้ว ให้ตรวจแล้วกดอนุมัติหรือสลิปไม่ผ่านแทน` }, { status: 400 });
+    Object.assign(m, saved);
+    return Response.json({ ok: true });
+  }
   if (approve || reject) {
     // Version-checked write: a slip or plan tap landing at the same moment can't wipe the approval (or vice versa).
     let order, o;
@@ -162,35 +177,14 @@ export async function POST(req) {
     }
     return Response.json({ ok: true });
   }
-  // Followed IG + FB (checked by an admin): Free → Pro 3 days, Pro → +3 days. Once per member, with a LINE push.
-  if (follow) {
-    if (m.status !== "active") return Response.json({ error: "ต้องเป็นสมาชิกที่ใช้งานอยู่" }, { status: 400 });
-    if (isPro(m) && m.proUntil === null) return Response.json({ error: `${m.name} เป็น Pro ไม่มีวันหมดอยู่แล้ว` }, { status: 400 });
-    let already = null, wasPro = false;
-    const saved = await updateJSON(memberPath(m.id), (cur) => {
-      already = cur.followReward; wasPro = isPro(cur);
-      if (already) return cur;
-      grantPro(cur, FOLLOW_DAYS);
-      cur.followReward = { at: Date.now(), by: g.member.name, wasPro };
-      return cur;
-    }, () => m);
-    if (already) return Response.json({ error: `${m.name} เคยได้สิทธิ์ติดตามแล้ว (${thDate(already.at)} · โดย ${already.by})` }, { status: 400 });
-    Object.assign(m, saved);
-    notifyDiscord("trial", { title: `📲 ติดตาม IG/FB → Pro +${FOLLOW_DAYS} วัน`, lines: [`**${m.name}** · ${wasPro ? "Pro ต่ออายุ" : "Free → Pro"} ถึง ${thDate(m.proUntil)} · โดย ${g.member.name}`] }).catch(() => {});
-    await push(m.id, { type: "text", text: wasPro
-      ? `🎁 ขอบคุณที่ติดตามปั๊กปักทั้ง IG และ FB ค่ะ\nต่ออายุ Pro ให้อีก ${FOLLOW_DAYS} วัน ใช้ได้ถึง ${thDate(m.proUntil)}`
-      : `🎁 ขอบคุณที่ติดตามปั๊กปักทั้ง IG และ FB ค่ะ\nเปิด Pro ให้ฟรี ${FOLLOW_DAYS} วัน ใช้ได้ถึง ${thDate(m.proUntil)}\nดูตะกร้าได้ทุกหมวดทุกอันดับ + AI ไอเดียคลิปวันละ 30 ครั้ง\nกด "ท็อป 5 วันนี้" ที่เมนูด้านล่างเพื่อเริ่มได้เลยค่ะ` }).catch(() => {});
-    return Response.json({ ok: true });
-  }
-  // Free trial: Pro for 7 days (stacks on time left), once per member, with a LINE push.
-  if (trial) {
-    if (m.status !== "active") return Response.json({ error: "ต้องเป็นสมาชิกที่ใช้งานอยู่" }, { status: 400 });
-    if (m.trialAt) return Response.json({ error: `${m.name} เคยได้ทดลองใช้แล้ว (${thDate(m.trialAt)})` }, { status: 400 });
-    grantPro(m, ADMIN_TRIAL_DAYS);
-    m.trialAt = Date.now();
-    await saveMember(m);
-    notifyDiscord("trial", { title: `🎁 ทดลอง Pro ${ADMIN_TRIAL_DAYS} วัน`, lines: [`**${m.name}** · โดย ${g.member.name}`] }).catch(() => {});
-    await push(m.id, { type: "text", text: `🎁 แอดมินเปิดให้ทดลองใช้ Pro ฟรี ${ADMIN_TRIAL_DAYS} วัน ใช้ได้ถึง ${thDate(m.proUntil)}\nดูตะกร้าได้ทุกตัว + AI ไอเดียคลิปวันละ 30 ครั้ง\nกด "ท็อป 5 วันนี้" ที่เมนูด้านล่างเพื่อเริ่มได้เลยค่ะ` }).catch(() => {});
+  // Campaign grant (see lib/campaigns.js): Pro days for an admin-checked activity, rules live in the campaign.
+  if (grantKey) {
+    const c = (await loadCampaigns())[grantKey];
+    const { err, wasPro, member } = await grant(memberPath(m.id), m, c, g.member.name);
+    if (err) return Response.json({ error: err }, { status: 400 });
+    Object.assign(m, member);
+    notifyDiscord("trial", { title: `🎁 ${c.label} → Pro +${c.days} วัน`, lines: [`**${m.name}** · ${wasPro ? "Pro ต่ออายุ" : "Free → Pro"} ถึง ${thDate(m.proUntil)} · โดย ${g.member.name}`] }).catch(() => {});
+    await push(m.id, { type: "text", text: messageFor(c, m) }).catch(() => {});
     return Response.json({ ok: true });
   }
   if (plan) {

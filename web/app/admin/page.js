@@ -12,7 +12,7 @@ const FILTERS = [
   ["slip", "ส่งสลิป", (m) => !!m.pendingOrder?.slipAt],
   ["interest", "สนใจ Pro", (m) => !!m.pendingOrder && !m.pendingOrder.slipAt],
   ["promo", "โปร ฿99", (m) => !!m.promo?.at],
-  ["follow", "ได้สิทธิ์ติดตาม", (m) => !!m.followReward],
+  ["grants", "ได้สิทธิ์แคมเปญ", (m) => m.grants?.length > 0],
   ["heavy", "ใช้ AI ครบโควตาวันนี้", (m) => m.plan !== "pro" && m.aiDay === today() && m.aiToday >= (m.limits?.aiPerDay || 3)],
   ["paid", "จ่ายจริง", (m) => m.plan === "pro" && !m.admin && m.payments?.length > 0],
   ["pro", "Pro", (m) => m.plan === "pro" && !m.admin],
@@ -32,6 +32,25 @@ const promoStage = (m) => {
   return ["ส่งแล้ว ยังไม่กด", ""];
 };
 const rankOf = (m) => (m.pendingOrder?.slipAt ? 0 : m.pendingOrder ? 1 : 2);
+
+// One picker for every campaign (lib/campaigns.js), so a new campaign never adds a button here.
+function GrantPicker({ m, campaigns = [], cap, onGrant }) {
+  const [key, setKey] = useState("");
+  const own = (k) => (m.grants || []).filter((g) => g.campaign === k).length;
+  const c = campaigns.find((x) => x.key === key);
+  const why = (x) => (x.perMember && own(x.key) >= x.perMember ? "ได้แล้ว" : x.who === "free" && m.plan === "pro" ? "เฉพาะ Free" : x.who === "pro" && m.plan !== "pro" ? "เฉพาะ Pro" : (m.freeDays || 0) + x.days > cap ? `เกินเพดาน ${cap} วัน` : "");
+  if (!campaigns.length) return <a className="btn" href="/admin/campaigns">🎁 สร้างแคมเปญ</a>;
+  return (
+    <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}>
+      <select value={key} onChange={(e) => setKey(e.target.value)} style={{ padding: "5px 8px", fontSize: 13 }} aria-label="เลือกแคมเปญ">
+        <option value="">🎁 ให้สิทธิ์จากแคมเปญ…</option>
+        {campaigns.map((x) => <option key={x.key} value={x.key} disabled={!!why(x)}>{x.label} · +{x.days} วัน{why(x) ? ` (${why(x)})` : ""}</option>)}
+      </select>
+      {c && <button className="btn primary" onClick={() => confirm(`${c.proof ? `ตรวจแล้วว่า ${m.name} ${c.proof}?\n` : ""}${m.plan === "pro" ? `ต่อ Pro ให้ ${m.name} อีก ${c.days} วัน` : `เปิด Pro ให้ ${m.name} ${c.days} วัน`} (${c.label}) ระบบจะแจ้งใน LINE ให้เอง`) && onGrant(c.key)}>ให้สิทธิ์</button>}
+      {m.grants?.length > 0 && <span className="hint" style={{ fontSize: 12 }}>ได้ฟรีไปแล้ว {m.freeDays} วัน</span>}
+    </span>
+  );
+}
 
 export default function Admin() {
   const [data, setData] = useState(null);
@@ -64,7 +83,7 @@ export default function Admin() {
     <div className="wrap" style={{ maxWidth: 760 }}>
       <header className="top">
         <div><h1>สมาชิก</h1></div>
-        <a className="btn" href="/">← กลับไปปั๊กปัก</a>
+        <div className="bar" style={{ gap: 6 }}><a className="btn" href="/admin/campaigns">🎁 แคมเปญ</a><a className="btn" href="/">← กลับไปปั๊กปัก</a></div>
       </header>
       {err && <p className="hint">{err}</p>}
       {data && <>
@@ -140,8 +159,10 @@ export default function Admin() {
               {m.pendingOrder && (
                 <div className="act-row order-row">
                   <button className="btn primary" onClick={() => set(m.id, null, { approve: true })}>อนุมัติ · เปิด Pro {orderOf(m.pendingOrder.plan).span}</button>
-                  <button className="btn" onClick={() => set(m.id, null, { reject: true })}>สลิปไม่ผ่าน</button>
-                  <span className="hint">ดูสลิปในแชท LINE OA ก่อนกดอนุมัติ ระบบจะแจ้งลูกค้าในแชทให้เอง</span>
+                  {m.pendingOrder.slipAt
+                    ? <button className="btn" onClick={() => set(m.id, null, { reject: true })}>สลิปไม่ผ่าน</button>
+                    : <button className="btn" onClick={() => confirm(`เอา ${m.name} ออกจาก "รอสลิป"? ไม่แจ้งลูกค้า · ถ้าเขาส่งสลิปมาภายหลัง (ภายใน 7 วัน) จะกลับมาให้ตรวจเอง`) && set(m.id, null, { cancelOrder: true })}>เอาออกจากรอสลิป</button>}
+                  <span className="hint">{m.pendingOrder.slipAt ? "ดูสลิปในแชท LINE OA ก่อนกดอนุมัติ ระบบจะแจ้งลูกค้าในแชทให้เอง" : `เลือกแพ็กเมื่อ ${short(m.pendingOrder.at)} · ยังไม่ส่งสลิป (ระบบเอาออกเองเมื่อครบ 24 ชม.)`}</span>
                 </div>
               )}
               {openId === m.id && (
@@ -149,8 +170,7 @@ export default function Admin() {
                   {m.admin && <button className="btn danger-ghost" onClick={() => confirm(`ถอด ${m.name} ออกจากผู้ดูแล? (จะได้ Pro 30 วันแทน)`) && set(m.id, null, { admin: false })}>ถอดผู้ดูแล</button>}
                   {m.status === "active" && !m.admin && <>
                     <button className="btn" onClick={() => confirm(`ตั้ง ${m.name} เป็นผู้ดูแล? จะเข้าหน้านี้ได้ อนุมัติสลิป และได้ Pro ไม่หมดอายุ`) && set(m.id, null, { admin: true })}>ตั้งเป็นผู้ดูแล</button>
-                    <button className="btn" disabled={!!m.trialAt} title={m.trialAt ? `เคยทดลองแล้ว ${short(m.trialAt)}` : ""} onClick={() => confirm(`ให้ ${m.name} ทดลองใช้ Pro ฟรี 7 วัน? ระบบจะแจ้งใน LINE ให้เอง`) && set(m.id, null, { trial: true })}>{m.trialAt ? `ทดลองแล้ว · ${short(m.trialAt)}` : "🎁 ทดลองฟรี 7 วัน"}</button>
-                    <button className="btn" disabled={!!m.followReward} title={m.followReward ? `ได้แล้ว ${short(m.followReward.at)} · โดย ${m.followReward.by}` : "ตรวจแล้วว่าติดตามทั้ง IG และ FB"} onClick={() => confirm(m.plan === "pro" ? `${m.name} ติดตาม IG + FB แล้ว? ต่ออายุ Pro ให้อีก 3 วัน ระบบจะแจ้งใน LINE ให้เอง` : `${m.name} ติดตาม IG + FB แล้ว? เปิด Pro ให้ฟรี 3 วัน ระบบจะแจ้งใน LINE ให้เอง`) && set(m.id, null, { follow: true })}>{m.followReward ? `📲 ติดตามแล้ว · ${short(m.followReward.at)}` : m.plan === "pro" ? "📲 ติดตาม IG/FB · +3 วัน" : "📲 ติดตาม IG/FB · Pro 3 วัน"}</button>
+                    <GrantPicker m={m} campaigns={data.campaigns} cap={data.freeDaysCap} onGrant={(key) => set(m.id, null, { grant: key })} />
                     {!m.founding && <button className="btn" onClick={() => (m.promoLive ? confirm(`ยกเลิกข้อเสนอ ฿99 ของ ${m.name}?`) : confirm(`ส่งการ์ดข้อเสนอ ฿99/เดือน · ฿990/ปี ให้ ${m.name}? ใช้ได้ 48 ชม. ลูกค้ากด "สนใจ" แล้วระบบส่ง QR ให้เอง`)) && set(m.id, null, { founding: !m.promoLive })}>{m.promoLive ? "ยกเลิกข้อเสนอ ฿99" : m.promo?.at ? "🎁 ส่ง ฿99 อีกครั้ง" : "🎁 เสนอ ฿99"}</button>}
                     <button className="btn primary" onClick={() => set(m.id, null, { plan: "pro", days: 30 })}>Pro +30 วัน</button>
                     <button className="btn" onClick={() => set(m.id, null, { plan: "pro", days: 365 })}>Pro +1 ปี</button>
