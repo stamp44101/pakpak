@@ -95,8 +95,25 @@ export function useLink(m, view) {
   return { ok: true, left: lim === Infinity ? null : lim - used - 1 };
 }
 
-// Teaser rows for a locked block.
-export const lockRows = (items) => items.map((p, i) => ({ rank: i + 1, image: p.image || "", category: p.category || "", perOrder: Math.round(p._perOrder || 0) }));
+// Why a locked product ranks high, in words — the score's own signals that are strong (≥70% of their weight),
+// in order of how much they say about a clip: sales speeding up, AI clip-ability, demand, commission, trust, then price/shop.
+// Shows the reason without the name, price or commission %, so it sells Pro without giving the product away.
+const REASONS = [
+  ["problem", 15, "โชว์ปัญหา→ทางแก้ได้ใน 3 วิ"], ["visual", 15, "มีภาพหยุดนิ้ว"], ["multi", 10, "ต่อยอดได้หลายคลิป"],
+  ["demand", 20, "ขายดีมากในหมวด"], ["commission", 15, "ค่าคอมสูง"], ["trust", 10, "รีวิวดี ลูกค้ามั่นใจ"],
+  ["price", 10, "ราคาซื้อง่าย"], ["shop", 5, "ร้าน Mall/แนะนำ"],
+];
+export function whyGood(p, n = 2) {
+  const parts = { ...(p._d?.parts || {}), ...(p._a?.parts || {}) };
+  const out = [];
+  if (p._boost >= 1.5) out.push(`ยอดพุ่ง ${p._boost.toFixed(1)} เท่าจากปกติ`);
+  else if (p._perDay) out.push(`ขายวันละ ~${Math.round(p._perDay).toLocaleString("en-US")} ชิ้น`);
+  for (const [k, max, label] of REASONS) if ((parts[k] || 0) / max >= 0.7) out.push(label);
+  return out.slice(0, n);
+}
+
+// Teaser rows for a locked block: rank, blurred image, score and why — never name, link, id or price.
+export const lockRows = (items) => items.map((p, i) => ({ rank: i + 1, image: p.image || "", category: p.category || "", score: Math.round(p._t || 0), max: p._a ? 100 : 60, why: whyGood(p) }));
 
 // Card-safe copy of a ranked product: no owner link/sub-id, but keeps the scores the cards show.
 export const forCard = (p) => ({ ...publicProduct(p), _t: p._t, _a: p._a, _perOrder: p._perOrder, ...(p._perDay != null ? { _perDay: p._perDay, _boost: p._boost } : {}) });

@@ -84,7 +84,7 @@ export default function Home({ signedIn = false }) {
   const active = member && member.status === "active";
   const pro = active && member.plan === "pro";
   const [catalogMode, setCatalogMode] = useState(false); // showing the shared catalog (no own data yet)
-  const [locked, setLocked] = useState({}); // Free with locked tops: { category: [{ rank, image, perOrder }] } for ranks 1–5
+  const [locked, setLocked] = useState({}); // Free with locked tops: { category: [{ rank, image, score, max, why }] } for ranks 1–5
   const [oneCat, setOneCat] = useState(null); // Free V2: { dayCat, cats: [{ name, count }] } — one category a day
   const shared = !pro || catalogMode;
 
@@ -677,7 +677,7 @@ function LockedTop({ rows, cat, note }) {
             {r.image ? <img className="thumb" src={img(r.image)} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <div className="thumb" />}
             <div style={{ minWidth: 0 }}>
               <div className="name">ตะกร้าอันดับ {r.rank}{r.category ? ` · ${r.category}` : ""} ███████ ████</div>
-              <div className="meta"><span>≈ ฿<span className="num">{fmt(r.perOrder)}</span>/ชิ้น</span></div>
+              <div className="meta">{r.score > 0 && <span>คะแนน <span className="num">{r.score}</span>/{r.max}</span>}{(r.why || []).map((w) => <span key={w} className="tag">{w}</span>)}</div>
             </div>
           </div>
         ))}

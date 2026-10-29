@@ -53,7 +53,7 @@ export function card(title, body, buttons) {
   };
 }
 
-// First card of a carousel whose top ranks are locked for Free: rank + ≈฿/order only (see lib/access.js).
+// First card of a carousel whose top ranks are locked for Free: rank, score and why it ranks high (see lib/access.js).
 export function lockBubble(rows) {
   return {
     type: "bubble", size: "kilo",
@@ -63,10 +63,13 @@ export function lockBubble(rows) {
       { type: "text", text: `ปลดล็อคตะกร้า Top ${rows.length}`, weight: "bold", size: "lg", color: "#FFFFFF", align: "center", wrap: true },
       { type: "text", text: "สำหรับผู้ใช้งาน Pro เท่านั้น", size: "sm", color: "#FFC9A6", align: "center", wrap: true },
       { type: "separator", margin: "lg", color: "#4A382C" },
-      ...rows.map((r) => ({ type: "box", layout: "horizontal", margin: "md", contents: [
-        { type: "text", text: `#${r.rank}`, weight: "bold", size: "sm", color: "#FE6A0E", flex: 0 },
-        { type: "text", text: "▒▒▒▒▒▒▒▒", size: "sm", color: "#5C4636", flex: 3, margin: "md" },
-        { type: "text", text: r.perOrder ? `~${baht(r.perOrder)}/ออเดอร์` : "", size: "xxs", color: "#FFC9A6", align: "end", gravity: "center", flex: 3 },
+      ...rows.map((r) => ({ type: "box", layout: "vertical", margin: "md", contents: [
+        { type: "box", layout: "horizontal", contents: [
+          { type: "text", text: `#${r.rank}`, weight: "bold", size: "sm", color: "#FE6A0E", flex: 0 },
+          { type: "text", text: "▒▒▒▒▒▒", size: "sm", color: "#5C4636", flex: 3, margin: "md" },
+          { type: "text", text: r.score ? `คะแนน ${r.score}/${r.max}` : "", size: "xxs", color: "#FFC9A6", align: "end", gravity: "center", flex: 3 },
+        ] },
+        ...(r.why?.length ? [{ type: "text", text: r.why.join(" · "), size: "xxs", color: "#FFC9A6", wrap: true, margin: "xs" }] : []),
       ] })),
     ] },
     footer: { type: "box", layout: "vertical", contents: [

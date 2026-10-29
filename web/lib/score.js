@@ -12,14 +12,15 @@ export function dataScore(p, maxSold, w = DEFAULT_W) {
   if (price > 0) pf = price >= w.pmin && price <= w.pmax ? 1 : price < w.pmin || price <= w.pmax * 1.7 ? 0.6 : 0.2;
   const shop = w.shop * ({ mall: 1, preferred: 0.6 }[p.shop] || 0);
   const total = demand + commission + trust + w.price * pf + shop;
-  return { total, max: w.demand + w.commission + w.trust + w.price + w.shop };
+  return { total, max: w.demand + w.commission + w.trust + w.price + w.shop, parts: { demand, commission, trust, price: w.price * pf, shop } };
 }
 
 export function aiScore(p, w = DEFAULT_W) {
   const a = p.ai;
   if (!a) return null;
   const c = (v, m) => (Math.max(0, Math.min(+v || 0, 10)) / 10) * m;
-  return { total: c(a.problem, w.problem) + c(a.visual, w.visual) + c(a.multi, w.multi), max: w.problem + w.visual + w.multi };
+  const parts = { problem: c(a.problem, w.problem), visual: c(a.visual, w.visual), multi: c(a.multi, w.multi) };
+  return { total: parts.problem + parts.visual + parts.multi, max: w.problem + w.visual + w.multi, parts };
 }
 
 export function rank(list, w = DEFAULT_W) {
