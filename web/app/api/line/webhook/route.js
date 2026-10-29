@@ -298,22 +298,26 @@ async function top(all, want, cats, ctx = {}) {
 }
 
 // "มาแรงวันนี้": across all categories, products selling faster than their own 30-day average.
-// Free: top 3 (never the locked top-5 of the lock test). Pro: top 10. Owner links only for the member's own scans.
+// Free: ranks 1–5 locked (teaser card), ranks 6–8 shown. Pro: top 10. Owner links only for the member's own scans.
 async function hot(state, pro, mixFrom) {
+  const LOCK = 5;
   const { items } = await trending(await ownerProducts(), 20);
-  const pool = state.lockedIds ? items.filter((p) => !state.lockedIds.has(p.id)) : items;
-  const n = pro ? 10 : 3;
-  const list = pool.slice(0, n).map((p) => ({
-    ...publicProduct(p), _t: p._t, _a: p._a, _perOrder: p._perOrder, _perDay: p._perDay, _boost: p._boost,
+  const locked = pro ? [] : items.slice(0, LOCK).map((p, i) => ({ rank: i + 1, perOrder: Math.round(p._perOrder || 0) }));
+  const pool = pro ? items : items.slice(LOCK);
+  const list = pool.slice(0, pro ? 10 : 3).map((p, i) => ({
+    ...publicProduct(p), _t: p._t, _a: p._a, _perOrder: p._perOrder, _perDay: p._perDay, _boost: p._boost, _n: locked.length + i + 1,
     ...(!state.shared && state.products?.[p.id]?.affLink ? { affLink: state.products[p.id].affLink } : {}),
   }));
-  if (!list.length && mixFrom) return mix(mixFrom.all, mixFrom.cats, pro);
-  if (!list.length) return text("🔥 มาแรงวันนี้ยังไม่พร้อมค่ะ ต้องมีข้อมูลยอดขายอย่างน้อย 2 วันเพื่อเทียบกัน\nระหว่างนี้ดูท็อปรายหมวดไปก่อนได้เลย", HELP_QR());
+  if (!list.length && !locked.length && mixFrom) return mix(mixFrom.all, mixFrom.cats, pro);
+  if (!list.length && !locked.length) return text("🔥 มาแรงวันนี้ยังไม่พร้อมค่ะ ต้องมีข้อมูลยอดขายอย่างน้อย 2 วันเพื่อเทียบกัน\nระหว่างนี้ดูท็อปรายหมวดไปก่อนได้เลย", HELP_QR());
   addViews(list.length).catch(() => {});
   const more = pool.length - list.length;
+  const head = locked.length
+    ? `🔥 มาแรงวันนี้ · 🔒 อันดับ 1–${locked.length} ปลดล็อคได้เฉพาะผู้ใช้งาน Pro${list.length ? `\nด้านล่างคืออันดับ ${locked.length + 1}–${locked.length + list.length}` : ""}`
+    : `🔥 มาแรงวันนี้ · ${list.length} ตะกร้าที่ยอดขายกำลังพุ่ง จากทุกหมวด`;
   return [
-    text(`🔥 มาแรงวันนี้ · ${list.length} ตะกร้าที่ยอดขายกำลังพุ่ง จากทุกหมวด\nเทียบกับยอดขายปกติของตัวมันเอง ไม่ใช่ยอดรวม${!pro && more > 0 ? `\n\nแพ็ก Pro ดูได้อีก ${more} ตัว` : ""}`),
-    { type: "flex", altText: "🔥 มาแรงวันนี้", contents: { type: "carousel", contents: list.map((p, i) => bubble(p, i + 1)) }, quickReply: { items: HELP_QR().slice(1) } },
+    text(`${head}\nเทียบกับยอดขายปกติของตัวมันเอง ไม่ใช่ยอดรวม${!pro && more > 0 ? `\n\nแพ็ก Pro ดูได้อีก ${more} ตัว` : ""}`),
+    { type: "flex", altText: locked.length ? "🔥 มาแรงวันนี้ (ท็อป 5 ล็อกไว้สำหรับ Pro)" : "🔥 มาแรงวันนี้", contents: { type: "carousel", contents: [...(locked.length ? [lockBubble(locked)] : []), ...list.map((p) => bubble(p, p._n))] }, quickReply: { items: HELP_QR().slice(1) } },
   ];
 }
 

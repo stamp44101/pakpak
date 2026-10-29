@@ -513,7 +513,7 @@ export default function Home({ signedIn = false }) {
       {(
         <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div className="bar" id="cats">
-            {hot?.items?.length > 0 && <button className={"chip hot" + (cat === HOT ? " on" : "")} onClick={() => pickCat(HOT)}>🔥 มาแรง</button>}
+            {(hot?.items?.length > 0 || hot?.locked?.length > 0) && <button className={"chip hot" + (cat === HOT ? " on" : "")} onClick={() => pickCat(HOT)}>🔥 มาแรง</button>}
             <button className={"chip" + (!cat ? " on" : "")} onClick={() => pickCat("")}>ทุกหมวด <span className="num">{all.length}</span></button>
             {cats.map((c) => (
               <span key={c} className={"chip-wrap" + (editCats ? " editing" : "")}>
@@ -618,10 +618,11 @@ function HotList({ hot, open, setOpen, shared, usedAppLink, say }) {
   return (
     <>
       <p className="hint" style={{ margin: 0 }}>ตะกร้าจากทุกหมวดที่ขายเร็วกว่าปกติของตัวเอง{hot?.since ? ` · เทียบกับ${ago(hot.since)}` : ""} — ไม่ใช่ยอดขายรวม เลยไม่ซ้ำกับท็อปรายหมวด</p>
+      {hot?.locked?.length > 0 && <LockedTop rows={hot.locked} note={`มาแรงอันดับ 1–${hot.locked.length}${items.length ? ` · ด้านล่างคืออันดับ ${hot.locked.length + 1}–${hot.locked.length + items.length}` : ""}`} />}
       <div className="list">
         {items.map((p, i) => (
           <div key={p.id} className="row hot top10" onClick={(e) => { if (!e.target.closest(".detail")) setOpen(open === p.id ? null : p.id); }}>
-            <div className="rank">{i + 1}</div>
+            <div className="rank">{p.rank || i + 1}</div>
             {p.image ? <img className="thumb" src={img(p.image)} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <div className="thumb" />}
             <div style={{ minWidth: 0 }}>
               <div className="name">{p.name}</div>
@@ -651,7 +652,7 @@ function HotList({ hot, open, setOpen, shared, usedAppLink, say }) {
 const byRank = (list) => (list.some((p) => p._rank) ? [...list].sort((a, b) => (a._rank || 99) - (b._rank || 99)) : list);
 
 // Lock test: blurred rows for ranks 1–5 with one call to action on top.
-function LockedTop({ rows, cat }) {
+function LockedTop({ rows, cat, note }) {
   return (
     <a className="locked" href={UPGRADE_URL} target="_blank" rel="noopener">
       <div className="locked-rows" aria-hidden="true">
@@ -669,7 +670,7 @@ function LockedTop({ rows, cat }) {
       <div className="locked-cta">
         <span className="locked-ico">🔒</span>
         <b>ปลดล็อคตะกร้า Top 5 สำหรับผู้ใช้งาน Pro เท่านั้น</b>
-        <small>{cat ? `อันดับ 1–${rows.length} ของหมวด ${cat}` : `ท็อป 5 ของทั้ง ${rows.length} หมวด`} · ด้านล่างคืออันดับ 6–10</small>
+        <small>{note || `${cat ? `อันดับ 1–${rows.length} ของหมวด ${cat}` : `ท็อป 5 ของทั้ง ${rows.length} หมวด`} · ด้านล่างคืออันดับ 6–10`}</small>
         <span className="btn primary">ปลดล็อคด้วย Pro</span>
       </div>
     </a>
