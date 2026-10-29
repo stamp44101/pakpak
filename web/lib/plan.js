@@ -5,6 +5,8 @@ export const PLANS = {
 };
 export const PRICE = { month: 199, year: 1990, early: 99 };
 export const TRIAL_DAYS = 30;
+// Admin-granted free trial (once per member, from /admin).
+export const TRIAL7_DAYS = 7;
 // A chosen plan with no slip after this long is cancelled (a late slip still revives it, see webhook).
 export const ORDER_TTL_H = 24;
 export function expireOrder(m) {

@@ -1,6 +1,6 @@
 // Admin: list members, activate / move to waitlist / revoke.
 import { requireMember, isAdmin, roster, mutateRoster, getMember, saveMember, seats, earlyTaken, openFree } from "../../../lib/auth";
-import { planInfo, grantPro, TRIAL_DAYS, PRICE } from "../../../lib/plan";
+import { planInfo, grantPro, TRIAL_DAYS, TRIAL7_DAYS, PRICE } from "../../../lib/plan";
 import { push } from "../../../lib/line";
 import { readJSON } from "../../../lib/store";
 import { freeWelcome } from "../../../lib/welcome";
@@ -22,7 +22,7 @@ export async function GET(req) {
   const r = await roster();
   const ids = [...r.active, ...r.waitlist, ...(r.revoked || [])];
   const members = (await Promise.all(ids.map(getMember))).filter(Boolean).map((m) => ({
-    id: m.id, name: m.name, picture: m.picture, status: m.status, joinedAt: m.joinedAt, admin: r.admins.includes(m.id), owner: r.admins[0] === m.id, aiToday: m.ai?.count || 0, aiDay: m.ai?.day || "", onboarding: m.onboarding?.done || [], ...planInfo(m), pendingOrder: m.pendingOrder || null, freeSince: m.freeSince || null, welcomeFree: !!m.welcomeFree, welcomePushedAt: m.welcomePushedAt || null,
+    id: m.id, name: m.name, picture: m.picture, status: m.status, joinedAt: m.joinedAt, admin: r.admins.includes(m.id), owner: r.admins[0] === m.id, aiToday: m.ai?.count || 0, aiDay: m.ai?.day || "", onboarding: m.onboarding?.done || [], ...planInfo(m), pendingOrder: m.pendingOrder || null, freeSince: m.freeSince || null, welcomeFree: !!m.welcomeFree, welcomePushedAt: m.welcomePushedAt || null, trialAt: m.trialAt || null,
   }));
   const toWelcome = members.filter((m) => m.status === "active" && m.plan !== "pro" && m.welcomeFree && !m.welcomePushedAt).length;
   const req0 = (await readJSON("meta/requests.json")) || {};
@@ -33,7 +33,7 @@ export async function GET(req) {
 export async function POST(req) {
   const g = await guard(req);
   if (g.error) return g.error;
-  const { id, status, plan, days, approve, reject, welcomeFree, admin } = (await req.json().catch(() => ({}))) || {};
+  const { id, status, plan, days, approve, reject, welcomeFree, admin, trial } = (await req.json().catch(() => ({}))) || {};
   // One-time LINE push to everyone moved from the waitlist to Free who hasn't been told yet.
   if (welcomeFree) {
     const r = await roster();
@@ -77,6 +77,17 @@ export async function POST(req) {
     if (admin) { m.plan = "pro"; m.proUntil = null; m.pendingOrder = null; }
     else { m.plan = "pro"; m.proUntil = Date.now() + 30 * 864e5; } // was Pro forever as admin: back to 30 days
     await saveMember(m);
+    return Response.json({ ok: true });
+  }
+  // Free trial: Pro for 7 days (stacks on time left), once per member, with a LINE push.
+  if (trial) {
+    if (m.status !== "active") return Response.json({ error: "ต้องเป็นสมาชิกที่ใช้งานอยู่" }, { status: 400 });
+    if (m.trialAt) return Response.json({ error: `${m.name} เคยได้ทดลองใช้แล้ว (${thDate(m.trialAt)})` }, { status: 400 });
+    grantPro(m, TRIAL7_DAYS);
+    m.trialAt = Date.now();
+    await saveMember(m);
+    notifyDiscord("trial", { title: `🎁 ทดลอง Pro ${TRIAL7_DAYS} วัน`, lines: [`**${m.name}** · โดย ${g.member.name}`] }).catch(() => {});
+    await push(m.id, { type: "text", text: `🎁 แอดมินเปิดให้ทดลองใช้ Pro ฟรี ${TRIAL7_DAYS} วัน ใช้ได้ถึง ${thDate(m.proUntil)}\nดูตะกร้าได้ทุกตัว + AI ไอเดียคลิปวันละ 30 ครั้ง\nกด "ท็อป 5 วันนี้" ที่เมนูด้านล่างเพื่อเริ่มได้เลยค่ะ` }).catch(() => {});
     return Response.json({ ok: true });
   }
   if (plan) {

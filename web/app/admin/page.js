@@ -100,6 +100,7 @@ export default function Admin() {
                   {m.admin && <button className="btn danger-ghost" onClick={() => confirm(`ถอด ${m.name} ออกจากผู้ดูแล? (จะได้ Pro 30 วันแทน)`) && set(m.id, null, { admin: false })}>ถอดผู้ดูแล</button>}
                   {m.status === "active" && !m.admin && <>
                     <button className="btn" onClick={() => confirm(`ตั้ง ${m.name} เป็นผู้ดูแล? จะเข้าหน้านี้ได้ อนุมัติสลิป และได้ Pro ไม่หมดอายุ`) && set(m.id, null, { admin: true })}>ตั้งเป็นผู้ดูแล</button>
+                    <button className="btn" disabled={!!m.trialAt} title={m.trialAt ? `เคยทดลองแล้ว ${short(m.trialAt)}` : ""} onClick={() => confirm(`ให้ ${m.name} ทดลองใช้ Pro ฟรี 7 วัน? ระบบจะแจ้งใน LINE ให้เอง`) && set(m.id, null, { trial: true })}>{m.trialAt ? `ทดลองแล้ว · ${short(m.trialAt)}` : "🎁 ทดลองฟรี 7 วัน"}</button>
                     <button className="btn primary" onClick={() => set(m.id, null, { plan: "pro", days: 30 })}>Pro +30 วัน</button>
                     <button className="btn" onClick={() => set(m.id, null, { plan: "pro", days: 365 })}>Pro +1 ปี</button>
                     {m.plan === "pro" && <button className="btn" onClick={() => set(m.id, null, { plan: "free" })}>เปลี่ยนเป็น Free</button>}
