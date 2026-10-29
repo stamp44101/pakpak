@@ -15,8 +15,12 @@ export const ORDERS = {
   fmonth: { price: 99, days: 30, label: "Founding รายเดือน", span: "1 เดือน", founding: true },
   fyear: { price: 990, days: 365, label: "Founding รายปี", span: "1 ปี", founding: true },
 };
-// Founding prices: only for members an admin offered them to, or who already bought one.
-export const foundingOpen = (m) => !!(m?.founding || m?.foundingOffer);
+// ฿99 promo sent by an admin (/admin → "🎁 เสนอ ฿99", one member or the whole "สนใจ Pro" group).
+// m.promo = { at, until, by, interestedAt?, declinedAt?, plan?, paidAt? } tracks the card's funnel; the price ends at `until`.
+export const PROMO_HOURS = 48;
+export const promoLive = (m) => !!(m?.foundingOffer && (!m.promo?.until || m.promo.until > Date.now()));
+// Founding prices: only for members an admin offered them to (still within the promo window), or who already bought one.
+export const foundingOpen = (m) => !!(m?.founding || promoLive(m));
 // What a member is allowed to pick: a founding plan only while foundingOpen, else the matching regular one.
 export const pickOrder = (m, p) => (ORDERS[p]?.founding && !foundingOpen(m) ? (p === "fyear" ? "year" : "month") : ORDERS[p] ? p : "month");
 export const orderOf = (plan) => ORDERS[plan] || ORDERS.month;

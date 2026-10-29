@@ -8,12 +8,12 @@ import { addViews } from "../../../../lib/activity";
 import { readJSON, writeJSON } from "../../../../lib/store";
 import { rank, effPrice } from "../../../../lib/score";
 import { scoreItem } from "../../../../lib/ai";
-import { isPro, orderOf, pickOrder, makeAdminPro } from "../../../../lib/plan";
+import { isPro, orderOf, pickOrder, makeAdminPro, promoLive, ORDERS } from "../../../../lib/plan";
 import { ownerProducts, publicProduct } from "../../../../lib/catalog";
 import { flags, setFlag, bucket } from "../../../../lib/flags";
 import { viewOf, sharedCatalog, topAll, hotView, lockTop5For, lockLabel, paywallLabel, freeRulesNow, countdownLine, chooseCat, todayCat, useLink } from "../../../../lib/access";
 import { parseAffId, cleanProductUrl, isShortLink, resolveShortLink, AFF_ID_HOW } from "../../../../lib/afflink";
-import { ago } from "../../../../lib/fmt";
+import { ago, thDateTime } from "../../../../lib/fmt";
 import { APP, text, qr, HELP_QR, openApp, card, bubble, lockBubble, buyCard, payInfo, howto, affResult } from "../../../../lib/bot/ui";
 
 export const runtime = "nodejs";
@@ -53,6 +53,27 @@ async function handle(e) {
       await Promise.all([
         reply(e.replyToken, payInfo(plan)),
         notifyDiscord("interest", { title: `🛒 เลือกแพ็ก Pro ${o.label} ฿${o.price.toLocaleString("en-US")}`, lines: [`**${m.name}** กำลังจะโอน${lockGroup ? " · กลุ่มทดสอบล็อกท็อป 5" : ""}`, `${APP}/admin`] }).catch(() => {}),
+      ]);
+      return;
+    }
+    // ฿99 offer card from /admin: "สนใจ" → payment QR for that plan, "ไว้ก่อน" → noted. Both tracked in m.promo for /admin.
+    if (e.type === "postback" && e.postback.data.startsWith("a=promo")) {
+      const q = new URLSearchParams(e.postback.data), yes = q.get("r") === "yes";
+      if (!m.promo) m.promo = { at: Date.now() };
+      if (!promoLive(m) && !m.founding) return reply(e.replyToken, [text("ข้อเสนอราคานี้หมดเวลาแล้วค่ะ 🙏 ถ้ายังสนใจ เลือกแพ็กด้านล่างได้เลย หรือพิมพ์ทักแอดมินในแชทนี้"), buyCard(m)]);
+      if (!yes) {
+        m.promo.declinedAt = Date.now();
+        await saveMember(m);
+        return reply(e.replyToken, text(`ได้เลยค่ะ ไม่เป็นไร 😊${m.promo.until ? `\nราคา ฿${ORDERS.fmonth.price} ยังกดสนใจได้ถึง ${thDateTime(m.promo.until)} จากการ์ดด้านบน` : ""}`));
+      }
+      const plan = pickOrder(m, q.get("p") || "fmonth"), o = orderOf(plan);
+      m.promo.interestedAt = m.promo.interestedAt || Date.now();
+      m.promo.plan = plan;
+      if (!m.pendingOrder?.slipAt) m.pendingOrder = { plan, at: Date.now(), promo: true };
+      await saveMember(m);
+      await Promise.all([
+        reply(e.replyToken, payInfo(plan)),
+        notifyDiscord("interest", { title: `🙋 สนใจโปร ฿${o.price.toLocaleString("en-US")} · ${o.label}`, lines: [`**${m.name}** กดสนใจจากการ์ดข้อเสนอ กำลังจะโอน`, `${APP}/admin`] }).catch(() => {}),
       ]);
       return;
     }

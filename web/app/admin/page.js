@@ -11,11 +11,24 @@ const FILTERS = [
   ["all", "ทั้งหมด", () => true],
   ["slip", "ส่งสลิป", (m) => !!m.pendingOrder?.slipAt],
   ["interest", "สนใจ Pro", (m) => !!m.pendingOrder && !m.pendingOrder.slipAt],
+  ["promo", "โปร ฿99", (m) => !!m.promo?.at],
   ["heavy", "ใช้ AI ครบโควตาวันนี้", (m) => m.plan !== "pro" && m.aiDay === today() && m.aiToday >= (m.limits?.aiPerDay || 3)],
   ["pro", "Pro", (m) => m.plan === "pro" && !m.admin],
   ["free", "Free", (m) => m.plan !== "pro"],
   ["admin", "ผู้ดูแล", (m) => m.admin],
 ];
+// Where a member is in the ฿99 offer funnel (card sent from here → buttons in LINE → slip → approved).
+const promoStage = (m) => {
+  const p = m.promo;
+  if (!p?.at) return null;
+  if (p.paidAt) return ["ซื้อแล้ว", "pro"];
+  if (m.pendingOrder?.slipAt && m.pendingOrder.promo) return ["ส่งสลิปแล้ว", "slip"];
+  if (p.interestedAt) return [m.promoLive ? "สนใจ รอโอน" : "สนใจ แต่หมดเวลา", "hot"];
+  if (p.cancelledAt && !m.promoLive) return ["ยกเลิกข้อเสนอ", ""];
+  if (!m.promoLive) return ["หมดเวลา ไม่ตอบ", ""];
+  if (p.declinedAt) return ["ไว้ก่อน", ""];
+  return ["ส่งแล้ว ยังไม่กด", ""];
+};
 const rankOf = (m) => (m.pendingOrder?.slipAt ? 0 : m.pendingOrder ? 1 : 2);
 
 export default function Admin() {
@@ -24,6 +37,7 @@ export default function Admin() {
   const [openId, setOpenId] = useState(null);
   const [menuMsg, setMenuMsg] = useState("");
   const [welcomeMsg, setWelcomeMsg] = useState("");
+  const [offerMsg, setOfferMsg] = useState("");
   const [filter, setFilter] = useState("all");
   const [q, setQ] = useState("");
 
@@ -71,13 +85,36 @@ export default function Admin() {
             const fn = (FILTERS.find(([k]) => k === filter) || FILTERS[0])[2];
             const shown = data.members.filter(fn).filter((m) => !q.trim() || (m.name || "").toLowerCase().includes(q.trim().toLowerCase()))
               .sort((a, b) => rankOf(a) - rankOf(b) || (b.pendingOrder?.slipAt || b.pendingOrder?.at || b.joinedAt || 0) - (a.pendingOrder?.slipAt || a.pendingOrder?.at || a.joinedAt || 0));
+            const canOffer = shown.filter((m) => m.status === "active" && !m.admin && !m.founding && !m.promoLive);
+            const P = data.members.filter((m) => m.promo?.at), cnt = (fn) => P.filter(fn).length;
             return <>
+          {filter === "promo" && P.length > 0 && (
+            <div className="stats" style={{ margin: "0 0 10px" }}>
+              <span>ส่ง <b className="num">{P.length}</b></span>
+              <span>กดสนใจ <b className="num">{cnt((m) => m.promo.interestedAt)}</b></span>
+              <span>ส่งสลิป <b className="num">{cnt((m) => m.promo.paidAt || (m.pendingOrder?.slipAt && m.pendingOrder.promo))}</b></span>
+              <span>ซื้อแล้ว <b className="num">{cnt((m) => m.promo.paidAt)}</b></span>
+              <span>ไว้ก่อน <b className="num">{cnt((m) => m.promo.declinedAt && !m.promo.interestedAt)}</b></span>
+            </div>
+          )}
+          {filter === "interest" && (canOffer.length > 0 || offerMsg) && (
+            <div className="bar" style={{ margin: "0 0 10px" }}>
+              {canOffer.length > 0 && <button className="btn primary" disabled={offerMsg === "กำลังส่ง…"} onClick={async () => {
+                if (!confirm(`ส่งการ์ดข้อเสนอ ฿99 ให้ ${canOffer.length} คนในกลุ่มนี้? (ใช้โควตา push ${canOffer.length} ข้อความ · ข้อเสนออยู่ 48 ชม.)`)) return;
+                setOfferMsg("กำลังส่ง…");
+                const r = await fetch("/api/admin", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ids: canOffer.map((m) => m.id) }) }).then((x) => x.json()).catch(() => ({ error: "เชื่อมต่อไม่ได้" }));
+                setOfferMsg(r.ok ? `ส่งแล้ว ${r.sent} คน${r.skipped ? ` · ข้าม ${r.skipped}` : ""} → ดูผลที่ตัวกรอง "โปร ฿99"` : "ไม่สำเร็จ: " + (r.error || ""));
+                load();
+              }}>🎁 ส่งข้อเสนอ ฿99 ให้กลุ่มนี้ ({canOffer.length} คน)</button>}
+              {offerMsg && <span className="hint">{offerMsg}</span>}
+            </div>
+          )}
           {!shown.length && <div className="empty"><strong>{data.members.length ? "ไม่พบสมาชิกในตัวกรองนี้" : "ยังไม่มีสมาชิก"}</strong></div>}
           {shown.map((m) => (
             <div key={m.id} className="mrow">
               {m.picture ? <img className="avatar" src={m.picture} alt="" referrerPolicy="no-referrer" /> : <span className="avatar" />}
               <div className="mrow-main">
-                <div className="mrow-name">{m.name}{m.pendingOrder && <span className={"tag order" + (m.pendingOrder.slipAt ? " slip" : "")}>{m.pendingOrder.slipAt ? "ส่งสลิปแล้ว" : "เลือกแพ็กแล้ว รอสลิป"} · {orderOf(m.pendingOrder.plan).label} ฿{orderOf(m.pendingOrder.plan).price.toLocaleString("en-US")}</span>}{m.admin && <span className="tag">{m.owner ? "เจ้าของ" : "ผู้ดูแล"}</span>}{m.status !== "active" && <span className={"tag" + (m.status === "waitlist" ? " b" : "")}>{STATUS[m.status]}</span>}</div>
+                <div className="mrow-name">{m.name}{m.pendingOrder && <span className={"tag order" + (m.pendingOrder.slipAt ? " slip" : "")}>{m.pendingOrder.slipAt ? "ส่งสลิปแล้ว" : "เลือกแพ็กแล้ว รอสลิป"} · {orderOf(m.pendingOrder.plan).label} ฿{orderOf(m.pendingOrder.plan).price.toLocaleString("en-US")}</span>}{promoStage(m) && <span className={"tag order" + (promoStage(m)[1] === "slip" || promoStage(m)[1] === "pro" ? " slip" : "")}>฿99 · {promoStage(m)[0]}</span>}{m.admin && <span className="tag">{m.owner ? "เจ้าของ" : "ผู้ดูแล"}</span>}{m.status !== "active" && <span className={"tag" + (m.status === "waitlist" ? " b" : "")}>{STATUS[m.status]}</span>}</div>
                 <div className="mrow-sub">
                   สมัคร {short(m.joinedAt)} · เริ่มต้น {STEPS.filter(([k]) => k === "line" || m.onboarding.includes(k)).length}/3{m.status === "active" && STEPS.some(([k]) => k !== "line" && !m.onboarding.includes(k)) ? ` (ติดที่ ${nextStep(["line", ...m.onboarding])})` : ""}{m.onboarding.includes("scan") ? " · ขั้นสูง ✓" : m.onboarding.includes("connector") ? " · ขั้นสูง: ติดตั้งแล้ว" : ""} · AI วันนี้ {m.aiToday}/{m.limits?.aiPerDay}
                 </div>
@@ -102,7 +139,7 @@ export default function Admin() {
                   {m.status === "active" && !m.admin && <>
                     <button className="btn" onClick={() => confirm(`ตั้ง ${m.name} เป็นผู้ดูแล? จะเข้าหน้านี้ได้ อนุมัติสลิป และได้ Pro ไม่หมดอายุ`) && set(m.id, null, { admin: true })}>ตั้งเป็นผู้ดูแล</button>
                     <button className="btn" disabled={!!m.trialAt} title={m.trialAt ? `เคยทดลองแล้ว ${short(m.trialAt)}` : ""} onClick={() => confirm(`ให้ ${m.name} ทดลองใช้ Pro ฟรี 7 วัน? ระบบจะแจ้งใน LINE ให้เอง`) && set(m.id, null, { trial: true })}>{m.trialAt ? `ทดลองแล้ว · ${short(m.trialAt)}` : "🎁 ทดลองฟรี 7 วัน"}</button>
-                    {!m.founding && <button className="btn" onClick={() => (m.foundingOffer ? confirm(`ยกเลิกข้อเสนอ Founding ของ ${m.name}?`) : confirm(`เสนอราคา Founding ฿99/เดือน · ฿990/ปี ให้ ${m.name}? ระบบจะส่ง LINE พร้อมการ์ดสมัครให้เอง`)) && set(m.id, null, { founding: !m.foundingOffer })}>{m.foundingOffer ? "ยกเลิกข้อเสนอ Founding" : "🎁 เสนอ Founding ฿99"}</button>}
+                    {!m.founding && <button className="btn" onClick={() => (m.promoLive ? confirm(`ยกเลิกข้อเสนอ ฿99 ของ ${m.name}?`) : confirm(`ส่งการ์ดข้อเสนอ ฿99/เดือน · ฿990/ปี ให้ ${m.name}? ใช้ได้ 48 ชม. ลูกค้ากด "สนใจ" แล้วระบบส่ง QR ให้เอง`)) && set(m.id, null, { founding: !m.promoLive })}>{m.promoLive ? "ยกเลิกข้อเสนอ ฿99" : m.promo?.at ? "🎁 ส่ง ฿99 อีกครั้ง" : "🎁 เสนอ ฿99"}</button>}
                     <button className="btn primary" onClick={() => set(m.id, null, { plan: "pro", days: 30 })}>Pro +30 วัน</button>
                     <button className="btn" onClick={() => set(m.id, null, { plan: "pro", days: 365 })}>Pro +1 ปี</button>
                     {m.plan === "pro" && <button className="btn" onClick={() => set(m.id, null, { plan: "free" })}>เปลี่ยนเป็น Free</button>}

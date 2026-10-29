@@ -3,7 +3,7 @@ import { LIFF_URL } from "../line";
 import { affLink, SHORT_NOTE } from "../afflink";
 import { effPrice } from "../score";
 import { isPro, ORDERS, orderOf, ORDER_TTL_H, PLANS, foundingOpen } from "../plan";
-import { baht, thDate } from "../fmt";
+import { baht, thDate, thDateTime } from "../fmt";
 
 export const APP = process.env.APP_URL || "https://pakpak-two.vercel.app";
 export const img = (id, size = "") => (id ? `https://down-th.img.susercontent.com/file/${id}${size}` : "");
@@ -143,6 +143,32 @@ export function buyCard(m, why) {
         opt(ORDERS.month.label, baht(ORDERS.month.price), `ใช้ได้ ${ORDERS.month.days} วัน`, "month", false),
         opt(ORDERS.year.label, baht(ORDERS.year.price), `ใช้ได้ ${ORDERS.year.span} · ได้ฟรี 2 เดือน`, "year", true),
       ]),
+    ] },
+  } };
+}
+
+// ฿99 offer an admin sends from /admin. Its buttons drive the follow-up on their own (webhook a=promo):
+// "สนใจ" → payment QR for that plan + tracked as interested; "ไว้ก่อน" → tracked as declined, can still tap สนใจ until it ends.
+export function offerCard(m) {
+  const until = m?.promo?.until;
+  const btn = (label, data, display, style = "secondary") => ({ type: "button", style, height: "sm", ...(style === "primary" ? { color: "#FE6A0E" } : {}), action: { type: "postback", label, data, displayText: display } });
+  return { type: "flex", altText: `🎁 ข้อเสนอพิเศษ Pro ฿${ORDERS.fmonth.price}/เดือน สำหรับคุณ`, contents: {
+    type: "bubble",
+    body: { type: "box", layout: "vertical", spacing: "md", contents: [
+      { type: "text", text: "🎁 ข้อเสนอพิเศษสำหรับคุณ", weight: "bold", size: "lg", wrap: true },
+      { type: "text", text: `คุณ${m?.name || ""} ได้สิทธิ์ราคา Founding`, size: "sm", color: "#666666", wrap: true },
+      { type: "box", layout: "baseline", spacing: "sm", contents: [
+        { type: "text", text: baht(ORDERS.fmonth.price), weight: "bold", size: "3xl", color: "#E5480A", flex: 0 },
+        { type: "text", text: `/เดือน · ปกติ ${baht(ORDERS.month.price)}`, size: "sm", color: "#888888" },
+      ] },
+      { type: "text", text: `หรือรายปี ${baht(ORDERS.fyear.price)} (ปกติ ${baht(ORDERS.year.price)}) · ซื้อแล้วต่ออายุราคานี้ได้ตลอดไป`, size: "xs", color: "#666666", wrap: true },
+      { type: "text", text: `• ปลดล็อคตะกร้า Top 5 ทุกหมวด\n• ทำลิงก์ Affiliate ID ไม่จำกัด\n• AI ไอเดียคลิปวันละ ${PLANS.pro.aiPerDay} ตัว`, size: "sm", color: "#444444", wrap: true },
+      ...(until ? [{ type: "text", text: `⏳ ราคานี้ถึง ${thDateTime(until)}`, size: "xs", color: "#E5480A", weight: "bold", wrap: true }] : []),
+    ] },
+    footer: { type: "box", layout: "vertical", spacing: "sm", contents: [
+      btn(`ใช่ ฉันสนใจ ฿${ORDERS.fmonth.price}`, "a=promo&r=yes&p=fmonth", `ใช่ ฉันสนใจโปร ฿${ORDERS.fmonth.price}`, "primary"),
+      btn(`เอารายปี ฿${ORDERS.fyear.price}`, "a=promo&r=yes&p=fyear", `สนใจโปรรายปี ฿${ORDERS.fyear.price}`),
+      { type: "button", style: "link", height: "sm", action: { type: "postback", label: "ไว้ก่อน", data: "a=promo&r=no", displayText: "ไว้ก่อน" } },
     ] },
   } };
 }

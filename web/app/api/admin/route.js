@@ -1,7 +1,7 @@
 // Admin: list members, activate / move to waitlist / revoke.
 import { requireMember, isAdmin, roster, mutateRoster, getMember, saveMember, seats, earlyTaken, openFree } from "../../../lib/auth";
-import { planInfo, grantPro, makeAdminPro, orderOf, ORDERS, EA_DAYS, ADMIN_TRIAL_DAYS } from "../../../lib/plan";
-import { buyCard } from "../../../lib/bot/ui";
+import { planInfo, grantPro, makeAdminPro, orderOf, ORDERS, EA_DAYS, ADMIN_TRIAL_DAYS, PROMO_HOURS, promoLive } from "../../../lib/plan";
+import { offerCard } from "../../../lib/bot/ui";
 import { thDate } from "../../../lib/fmt";
 import { push } from "../../../lib/line";
 import { readJSON } from "../../../lib/store";
@@ -25,7 +25,7 @@ export async function GET(req) {
   const r = await roster();
   const ids = [...r.active, ...r.waitlist, ...(r.revoked || [])];
   const members = (await Promise.all(ids.map(getMember))).filter(Boolean).map((m) => ({
-    id: m.id, name: m.name, picture: m.picture, status: m.status, joinedAt: m.joinedAt, admin: r.admins.includes(m.id), owner: r.admins[0] === m.id, aiToday: m.ai?.count || 0, aiDay: m.ai?.day || "", onboarding: m.onboarding?.done || [], ...planInfo(m), pendingOrder: m.pendingOrder || null, freeSince: m.freeSince || null, welcomeFree: !!m.welcomeFree, welcomePushedAt: m.welcomePushedAt || null, trialAt: m.trialAt || null, founding: !!m.founding, foundingOffer: !!m.foundingOffer,
+    id: m.id, name: m.name, picture: m.picture, status: m.status, joinedAt: m.joinedAt, admin: r.admins.includes(m.id), owner: r.admins[0] === m.id, aiToday: m.ai?.count || 0, aiDay: m.ai?.day || "", onboarding: m.onboarding?.done || [], ...planInfo(m), pendingOrder: m.pendingOrder || null, freeSince: m.freeSince || null, welcomeFree: !!m.welcomeFree, welcomePushedAt: m.welcomePushedAt || null, trialAt: m.trialAt || null, founding: !!m.founding, foundingOffer: !!m.foundingOffer, promo: m.promo || null, promoLive: promoLive(m),
   }));
   const toWelcome = members.filter((m) => m.status === "active" && m.plan !== "pro" && m.welcomeFree && !m.welcomePushedAt).length;
   const req0 = (await readJSON("meta/requests.json")) || {};
@@ -36,7 +36,7 @@ export async function GET(req) {
 export async function POST(req) {
   const g = await guard(req);
   if (g.error) return g.error;
-  const { id, status, plan, days, approve, reject, welcomeFree, admin, trial, founding } = (await req.json().catch(() => ({}))) || {};
+  const { id, ids: offerIds, status, plan, days, approve, reject, welcomeFree, admin, trial, founding } = (await req.json().catch(() => ({}))) || {};
   // One-time LINE push to everyone moved from the waitlist to Free who hasn't been told yet.
   if (welcomeFree) {
     const r = await roster();
@@ -50,6 +50,18 @@ export async function POST(req) {
     }
     return Response.json({ ok: true, sent });
   }
+  // ฿99 promo to a group the admin picked in /admin (e.g. the "สนใจ Pro" filter). Skips anyone who can't or needn't get it.
+  if (Array.isArray(offerIds)) {
+    const r = await roster();
+    let sent = 0, skipped = 0;
+    for (const oid of offerIds.slice(0, 200)) {
+      const w = await getMember(String(oid));
+      if (!w || w.status !== "active" || r.admins.includes(w.id) || w.founding || promoLive(w)) { skipped++; continue; }
+      try { await sendOffer(w, g.member); sent++; } catch { skipped++; }
+    }
+    notifyDiscord("trial", { title: `🎁 ส่งข้อเสนอ ฿${ORDERS.fmonth.price} ทั้งกลุ่ม`, lines: [`ส่ง ${sent} คน · ข้าม ${skipped} คน · โดย ${g.member.name}`] }).catch(() => {});
+    return Response.json({ ok: true, sent, skipped });
+  }
   const m = await getMember(String(id || ""));
   if (!m) return Response.json({ error: "ไม่พบสมาชิก" }, { status: 404 });
   if (approve || reject) {
@@ -59,6 +71,7 @@ export async function POST(req) {
     if (approve) {
       grantPro(m, o.days);
       if (o.founding) m.founding = true; // keeps the founding price on renewals
+      if (o.founding && m.promo && !m.promo.paidAt) m.promo.paidAt = Date.now();
       m.payments = [...(m.payments || []), { plan: order.plan, amount: o.price, at: Date.now() }];
       if (m.status !== "active") {
         await mutateRoster((r) => { for (const k of ["active", "waitlist", "revoked"]) r[k] = (r[k] || []).filter((x) => x !== m.id); r.active.push(m.id); });
@@ -85,11 +98,13 @@ export async function POST(req) {
   // Founding price, offered one member at a time: their buy card then shows ฿99/฿990, with a LINE push when offered.
   if (founding !== undefined) {
     if (m.founding && !founding) return Response.json({ error: `${m.name} ซื้อราคา Founding ไปแล้ว ยกเลิกไม่ได้` }, { status: 400 });
-    m.foundingOffer = !!founding;
-    await saveMember(m);
     if (founding) {
-      notifyDiscord("trial", { title: "🎁 เสนอราคา Founding", lines: [`**${m.name}** · โดย ${g.member.name}`] }).catch(() => {});
-      await push(m.id, [{ type: "text", text: `🎁 ข้อเสนอพิเศษจากปั๊กปักสำหรับคุณ${m.name}\nแพ็ก Pro ราคา Founding ฿${ORDERS.fmonth.price}/เดือน (ปกติ ฿${ORDERS.month.price}) หรือ ฿${ORDERS.fyear.price}/ปี ราคานี้ล็อกไว้ตลอดไปค่ะ` }, buyCard(m)]).catch(() => {});
+      try { await sendOffer(m, g.member); } catch { return Response.json({ error: `ส่ง LINE ให้ ${m.name} ไม่สำเร็จ (โควตา push หมด หรือถูกบล็อก)` }, { status: 502 }); }
+      notifyDiscord("trial", { title: `🎁 เสนอราคา ฿${ORDERS.fmonth.price}`, lines: [`**${m.name}** · โดย ${g.member.name}`] }).catch(() => {});
+    } else {
+      m.foundingOffer = false;
+      if (m.promo) m.promo.cancelledAt = Date.now();
+      await saveMember(m);
     }
     return Response.json({ ok: true });
   }
@@ -119,3 +134,10 @@ export async function POST(req) {
   return Response.json({ ok: true });
 }
 
+// Open the ฿99 window for PROMO_HOURS and push the offer card; its buttons take over from there (webhook a=promo).
+async function sendOffer(m, by) {
+  m.foundingOffer = true;
+  m.promo = { at: Date.now(), until: Date.now() + PROMO_HOURS * 36e5, by: by.name };
+  if (!(await push(m.id, offerCard(m)))) throw new Error("push failed"); // push first: nothing is saved if LINE refuses (quota, blocked)
+  await saveMember(m);
+}
