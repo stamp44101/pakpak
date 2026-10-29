@@ -1,7 +1,7 @@
 // AI clipability score for ONE product, shared by the web app and the LINE bot.
 // Results are cached per product for every user, so a product anyone scored before is free.
-import { readJSON, writeJSON } from "./store";
-import { saveMember } from "./auth";
+import { readJSON, writeJSON, updateJSON } from "./store";
+import { memberPath } from "./auth";
 import { planOf } from "./plan";
 import { viewOf, RULES } from "./access";
 
@@ -65,8 +65,7 @@ export async function scoreItem(member, item, refresh = false) {
     model: MODEL, at: Date.now(),
   };
   await writeJSON(cachePath, score);
-  member.ai = { day, count: used + 1 };
-  await saveMember(member);
+  await bumpAi(member, day);
   return { score, cached: false };
 }
 
@@ -117,7 +116,12 @@ ${before ? `ไอเดียที่ให้ไปแล้ว ห้าม�
   const idea = { hook: String(s.hook), angles: (s.angles || []).slice(0, 3).map(String), why: String(s.why || ""), at: Date.now() };
   const next = [...list, idea];
   await writeJSON(ideasPath(member, id), { list: next });
-  member.ai = { day, count: used + 1 };
-  await saveMember(member);
+  await bumpAi(member, day);
   return { idea, list: next, left: IDEA_EXTRA - next.length };
+}
+
+// Count one AI call today without overwriting fields another request changed meanwhile (e.g. aiSeen).
+async function bumpAi(member, day) {
+  const next = await updateJSON(memberPath(member.id), (cur) => ({ ...cur, ai: { day, count: (cur.ai?.day === day ? cur.ai.count : 0) + 1 } }), () => member);
+  member.ai = next.ai;
 }

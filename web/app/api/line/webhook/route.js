@@ -12,7 +12,7 @@ import { isPro, orderOf, orderLive, pickOrder, makeAdminPro, promoLive, ORDERS, 
 const PRO_AI = PLANS.pro.aiPerDay;
 import { ownerProducts, publicProduct } from "../../../../lib/catalog";
 import { flags, setFlag, bucket } from "../../../../lib/flags";
-import { viewOf, sharedCatalog, topAll, hotView, lockTop5For, lockLabel, paywallLabel, freeRulesNow, countdownLine, chooseCat, todayCat, useLink, aiAllowed, markAi } from "../../../../lib/access";
+import { viewOf, sharedCatalog, topAll, hotView, lockTop5For, lockLabel, paywallLabel, freeRulesNow, countdownLine, chooseCat, todayCat, useLink, reserveAi, releaseAi } from "../../../../lib/access";
 import { parseAffId, cleanProductUrl, isShortLink, resolveShortLink, AFF_ID_HOW } from "../../../../lib/afflink";
 import { ago, thDateTime } from "../../../../lib/fmt";
 import { APP, text, qr, HELP_QR, openApp, card, bubble, lockBubble, buyCard, payInfo, howto, affResult, moreBubble } from "../../../../lib/bot/ui";
@@ -443,19 +443,18 @@ function status(all, cats, state, m, view) {
 async function aiIdea(e, m, state, id, view) {
   const p = await shownProduct(state, id);
   if (!p) return reply(e.replyToken, text("ไม่พบสินค้านี้แล้ว ลองพิมพ์ \"ท็อป\" ใหม่ค่ะ"));
-  const gate = aiAllowed(m, view, id);
+  const gate = await reserveAi(m, view, id);
   if (!gate.ok) return reply(e.replyToken, [text(`แพ็ก Free ดูไอเดียคลิปจาก AI ได้วันละ ${gate.limit} ตะกร้า ครบแล้ววันนี้ค่ะ\nตะกร้าที่เปิดไปแล้ววันนี้ กดดูซ้ำได้ · พรุ่งนี้ดูตะกร้าใหม่ได้อีก · อัปเกรด Pro ดูได้วันละ ${PRO_AI} ตะกร้า + ไอเดียส่วนตัว`), buyCard(m)]);
   let s = p.ai || (await readJSON(`ai/${id}.json`).catch(() => null));
   if (!s) {
     loading(e.source.userId, 20).catch(() => {});
     const r = await scoreItem(m, { id: p.id, name: p.name, price: effPrice(p), category: p.category });
-    if (r.error) return reply(e.replyToken, text(r.error));
+    if (r.error) { if (gate.limit !== Infinity && !gate.seen) await releaseAi(m, id); return reply(e.replyToken, text(r.error)); }
     s = r.score;
     // save into the member's state so the web app shows it too
     const cur = (await readJSON(`users/m_${m.id}.json`)) || state;
     if (cur.products?.[id]) { cur.products[id] = { ...cur.products[id], ai: s }; cur.updatedAt = Date.now(); await writeJSON(`users/m_${m.id}.json`, cur); }
   }
-  if (markAi(m, view, id)) await saveMember(m);
   const mine = await myIdeas(m, id);
   const msg = `🎬 ${(p.name || "").slice(0, 60)}\n\nAI: โชว์ปัญหา ${s.problem}/10 · ภาพหยุดนิ้ว ${s.visual}/10 · ต่อยอดหลายคลิป ${s.multi}/10\n\nHook 3 วิแรก\n"${s.hook}"\n\nมุมเล่า\n${(s.angles || []).map((a) => "• " + a).join("\n")}\n\nเหตุผล: ${s.why}`
     + (mine.length ? `\n\n✨ ไอเดียส่วนตัวของคุณ\n${mine.map((x, i) => `#${i + 2} "${x.hook}"`).join("\n")}` : "")

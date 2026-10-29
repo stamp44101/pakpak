@@ -13,7 +13,8 @@ import { flags, bucket } from "./flags";
 import { rank } from "./score";
 import { trending } from "./trending";
 import { isPro, PLANS } from "./plan";
-import { saveMember } from "./auth";
+import { saveMember, memberPath } from "./auth";
+import { updateJSON } from "./store";
 
 export const LOCK_N = 5; // ranks hidden from Free
 export const TOP_ALL_N = 10; // ท็อปรวมวันนี้: one product per category, at most this many
@@ -114,6 +115,27 @@ export function markAi(m, view, id) {
   if (ids.includes(id)) return false;
   m.aiSeen = { day: bkkDay(), ids: [...ids, id] };
   return true;
+}
+// Atomic version of aiAllowed + markAi: reserves the basket in the database, so quick taps on several baskets
+// can't all pass on the same stale member. Updates m.aiSeen too. Returns the same shape as aiAllowed.
+export async function reserveAi(m, view, id) {
+  const lim = view.v2 && !view.pro ? view.rules.aiPerDay : Infinity;
+  if (lim === Infinity) return { ok: true, limit: lim, left: null };
+  let gate;
+  const next = await updateJSON(memberPath(m.id), (cur) => {
+    const ids = cur.aiSeen?.day === bkkDay() ? cur.aiSeen.ids : [];
+    if (ids.includes(id)) { gate = { ok: true, limit: lim, left: Math.max(0, lim - ids.length), seen: true }; return cur; }
+    if (ids.length >= lim) { gate = { ok: false, limit: lim, left: 0 }; return cur; }
+    gate = { ok: true, limit: lim, left: lim - ids.length - 1 };
+    return { ...cur, aiSeen: { day: bkkDay(), ids: [...ids, id] } };
+  }, () => m);
+  m.aiSeen = next.aiSeen;
+  return gate;
+}
+// Give a reserved basket back when the AI call failed.
+export async function releaseAi(m, id) {
+  const next = await updateJSON(memberPath(m.id), (cur) => cur.aiSeen?.ids?.includes(id) ? { ...cur, aiSeen: { ...cur.aiSeen, ids: cur.aiSeen.ids.filter((x) => x !== id) } } : cur, () => m);
+  m.aiSeen = next.aiSeen;
 }
 // Free V2 doesn't get the shared AI score in the catalog — it opens one a day through aiAllowed.
 const noAi = ({ ai, ...p }) => p;
