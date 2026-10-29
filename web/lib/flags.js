@@ -21,16 +21,3 @@ export async function setFlag(key, value, by) {
 
 // Stable 0–99 bucket per member: the same person stays in the same group while a rollout % holds.
 export const bucket = (id) => { let h = 0; for (const c of String(id || "")) h = (h * 31 + c.charCodeAt(0)) | 0; return Math.abs(h) % 100; };
-
-// lockTop5: "off" | "admin" (only admins previewing with "ดูแบบ free") | 1–100 (% of Free members).
-// Env LOCK_TOP5=off is the emergency kill switch (needs a redeploy).
-export function lockTop5For(f, m, { adminPreview = false } = {}) {
-  if (process.env.LOCK_TOP5 === "off") return false;
-  const v = f?.lockTop5;
-  if (!v || v === "off") return false;
-  if (adminPreview) return true;
-  if (v === "admin") return false;
-  return bucket(m?.id) < Math.min(100, +v || 0);
-}
-
-export const lockLabel = (v) => (!v || v === "off" ? "ปิด (ทุกคนเห็นท็อป 1–5 ตามเดิม)" : v === "admin" ? "ทดสอบเฉพาะแอดมิน (\"ดูแบบ free\")" : `เปิด ${v}% ของผู้ใช้ Free`);

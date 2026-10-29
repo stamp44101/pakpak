@@ -1,33 +1,24 @@
 // LINE bot webhook: members use ปั๊กปัก from the chat (top products, links, AI ideas).
 // The LINE userId equals the member id because Login and Messaging API share the ปั๊กปัก provider.
-import { verifySignature, reply, push, loading, LIFF_URL, botFetch } from "../../../../lib/line";
-import { getMember, ensureMember, saveMember, roster, seats, seatsLeft, isAdmin } from "../../../../lib/auth";
+import { verifySignature, reply, push, loading, botFetch } from "../../../../lib/line";
+import { getMember, ensureMember, saveMember, roster, seatsLeft, isAdmin } from "../../../../lib/auth";
 import { freeWelcome } from "../../../../lib/welcome";
 import { notifyDiscord } from "../../../../lib/discord";
 import { addViews } from "../../../../lib/activity";
 import { readJSON, writeJSON } from "../../../../lib/store";
 import { rank, effPrice } from "../../../../lib/score";
 import { scoreItem } from "../../../../lib/ai";
-import { isPro, PRICE, ORDER_TTL_H } from "../../../../lib/plan";
-import { catalog, freeCatalog, publicProduct, ownerProducts } from "../../../../lib/catalog";
-import { flags, setFlag, lockTop5For, lockLabel, bucket } from "../../../../lib/flags";
-import { trending } from "../../../../lib/trending";
-import { parseAffId, affLink, cleanProductUrl, isShortLink, resolveShortLink, AFF_ID_HOW, SHORT_NOTE } from "../../../../lib/afflink";
+import { isPro, orderOf, makeAdminPro, PLANS } from "../../../../lib/plan";
+import { ownerProducts, publicProduct } from "../../../../lib/catalog";
+import { flags, setFlag, bucket } from "../../../../lib/flags";
+import { viewOf, sharedCatalog, topAll, hotView, lockTop5For, lockLabel, FREE_PER_CAT } from "../../../../lib/access";
+import { parseAffId, cleanProductUrl, isShortLink, resolveShortLink, AFF_ID_HOW } from "../../../../lib/afflink";
+import { ago } from "../../../../lib/fmt";
+import { APP, text, qr, HELP_QR, openApp, card, bubble, lockBubble, buyCard, payInfo, howto, affResult } from "../../../../lib/bot/ui";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
-
-const APP = process.env.APP_URL || "https://pakpak-two.vercel.app";
-const img = (id, size = "") => (id ? `https://down-th.img.susercontent.com/file/${id}${size}` : "");
-const baht = (n) => "฿" + Math.round(+n || 0).toLocaleString("en-US");
-const ago = (t) => { const h = (Date.now() - t) / 3600e3; return h < 1 ? "ไม่ถึงชั่วโมงก่อน" : h < 24 ? `${Math.floor(h)} ชม.ก่อน` : `${Math.floor(h / 24)} วันก่อน`; };
-const text = (t, quick) => ({ type: "text", text: t, ...(quick ? { quickReply: { items: quick } } : {}) });
-const qr = (label, txt) => ({ type: "action", action: { type: "message", label: label.slice(0, 20), text: txt } });
-const HELP_QR = () => [qr("🔥 มาแรง", "มาแรง"), qr("ท็อป 5", "ท็อป"), qr("เลือกหมวด", "หมวด"), qr("ลิงก์ของฉัน", "ลิงก์"), qr("สถานะ", "สถานะ")];
-// LINE opens links in its own browser; this makes it hand off to Safari/Chrome, which then opens the Shopee app.
-const external = (u) => { try { const x = new URL(u); x.searchParams.set("openExternalBrowser", "1"); return x.toString(); } catch { return u; } };
-const openApp = (label = "เปิดปั๊กปัก") => ({ type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "uri", label, uri: LIFF_URL } });
 
 export async function POST(req) {
   const raw = await req.text();
@@ -55,14 +46,13 @@ async function handle(e) {
   // ---- buying Pro: choose plan → send slip → admin approves in /admin ----
   if (m && m.status !== "revoked") {
     if (e.type === "postback" && e.postback.data.startsWith("a=buy")) {
-      const plan = new URLSearchParams(e.postback.data).get("p") === "year" ? "year" : "month";
+      const plan = new URLSearchParams(e.postback.data).get("p") === "year" ? "year" : "month", o = orderOf(plan);
       const lockGroup = lockTop5For(await flags(), m);
       m.pendingOrder = { plan, at: Date.now(), ...(lockGroup ? { lockGroup: true } : {}) };
       await saveMember(m);
-      const price = plan === "year" ? PRICE.year : PRICE.month;
       await Promise.all([
         reply(e.replyToken, payInfo(plan)),
-        notifyDiscord("interest", { title: `🛒 เลือกแพ็ก Pro ${plan === "year" ? "รายปี" : "รายเดือน"} ฿${price.toLocaleString("en-US")}`, lines: [`**${m.name}** กำลังจะโอน${lockGroup ? " · กลุ่มทดสอบล็อกท็อป 5" : ""}`, `${APP}/admin`] }).catch(() => {}),
+        notifyDiscord("interest", { title: `🛒 เลือกแพ็ก Pro ${o.label} ฿${o.price.toLocaleString("en-US")}`, lines: [`**${m.name}** กำลังจะโอน${lockGroup ? " · กลุ่มทดสอบล็อกท็อป 5" : ""}`, `${APP}/admin`] }).catch(() => {}),
       ]);
       return;
     }
@@ -73,17 +63,17 @@ async function handle(e) {
     if (e.type === "message" && e.message.type === "image" && m.pendingOrder && !m.pendingOrder.slipAt) {
       m.pendingOrder.slipAt = Date.now();
       await saveMember(m);
-      const plan = m.pendingOrder.plan, price = plan === "year" ? PRICE.year : PRICE.month;
+      const o = orderOf(m.pendingOrder.plan);
       const slip = await botFetch(`message/${e.message.id}/content`, { data: true, method: "GET" }).then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null);
       await Promise.all([
         reply(e.replyToken, text(`ได้รับสลิปแล้ว ขอบคุณค่ะ 🙏
-แอดมินกำลังตรวจสอบ เปิดสิทธิ์ Pro ${plan === "year" ? "1 ปี" : "1 เดือน"} แล้วจะแจ้งในแชทนี้ทันที`)),
+แอดมินกำลังตรวจสอบ เปิดสิทธิ์ Pro ${o.span} แล้วจะแจ้งในแชทนี้ทันที`)),
         notifyAdmins(m).catch(() => {}),
-        notifyDiscord("slip", { title: `💰 สลิปใหม่ ฿${price.toLocaleString("en-US")} · Pro ${plan === "year" ? "รายปี" : "รายเดือน"}`, lines: [`**${m.name}** ส่งสลิปแล้ว ตรวจยอดแล้วกดอนุมัติ`, `${APP}/admin`], image: slip }).catch(() => {}),
+        notifyDiscord("slip", { title: `💰 สลิปใหม่ ฿${o.price.toLocaleString("en-US")} · Pro ${o.label}`, lines: [`**${m.name}** ส่งสลิปแล้ว ตรวจยอดแล้วกดอนุมัติ`, `${APP}/admin`], image: slip }).catch(() => {}),
       ]);
       return;
     }
-    if (e.type === "message" && e.message.type === "text" && /^(อัปเกรด|อัพเกรด|ซื้อ|สมัคร pro|ต่ออายุ|pro$|แพ็ก|ราคา)/i.test(e.message.text.trim())) return reply(e.replyToken, buyCard(m, null, lockTop5For(await flags(), m)));
+    if (e.type === "message" && e.message.type === "text" && /^(อัปเกรด|อัพเกรด|ซื้อ|สมัคร pro|ต่ออายุ|pro$|แพ็ก|ราคา)/i.test(e.message.text.trim())) return reply(e.replyToken, buyCard(m));
   }
 
   if (!m || m.status !== "active") return reply(e.replyToken, await gate(m, e.type === "follow"));
@@ -96,7 +86,7 @@ async function handle(e) {
 
   // admin can preview the Free experience: "ดูแบบ free" / "ดูแบบ pro"
   const admin = await isAdmin(uid);
-  if (admin && (m.plan !== "pro" || m.proUntil || m.pendingOrder)) { m.plan = "pro"; m.proUntil = null; m.pendingOrder = null; await saveMember(m); }
+  if (admin && (m.plan !== "pro" || m.proUntil || m.pendingOrder)) { makeAdminPro(m); await saveMember(m); }
   const tt = e.type === "message" && e.message.type === "text" ? e.message.text.trim().toLowerCase() : "";
   if (admin && /^ดูแบบ\s*(free|pro)$/.test(tt)) {
     m.viewAsFree = tt.endsWith("free");
@@ -115,17 +105,13 @@ async function handle(e) {
     const f = await flags();
     return reply(e.replyToken, text(`🔒 ล็อกท็อป 5: ${lockLabel(f.lockTop5)}${f.lockTop5At ? `\nเปลี่ยนล่าสุด ${ago(f.lockTop5At)}` : ""}\n\nสั่งได้: "ล็อกท็อป admin" (ทดสอบเอง + "ดูแบบ free") · "ล็อกท็อป 20" (20% ของ Free) · "ล็อกท็อป 100" · "ล็อกท็อป off" (ย้อนกลับทันที)\nมีผลกับทุกคนภายใน ~30 วิ`, HELP_QR()));
   }
-  const pro = isPro(m) && !(admin && m.viewAsFree);
+  // What this member may see (lib/access.js). Pro with own scans uses them; everyone else the shared catalog.
+  const view = await viewOf(m, { admin });
+  const { pro } = view;
   let state = (await readJSON(`users/m_${uid}.json`)) || { products: {} };
-  if (!pro) {
-    // Free: the shared catalog, product pages only (ranks 6–10 + locked teasers while the lock test is on)
-    const fc = await freeCatalog(lockTop5For(await flags(), m, { adminPreview: admin && m.viewAsFree }));
-    state = { ...state, products: fc.products, locked: fc.locked, lockedIds: fc.lockedIds, shared: true };
-  } else if (!Object.keys(state.products || {}).length) {
-    // Pro without own scans yet: the shared catalog
-    const products = {};
-    for (const list of Object.values(await catalog(20))) for (const p of list) products[p.id] = publicProduct(p);
-    state = { ...state, products, shared: true };
+  if (!pro || !Object.keys(state.products || {}).length) {
+    const sc = await sharedCatalog(view);
+    state = { ...state, products: sc.products, locked: sc.locked, lockedIds: sc.lockedIds, shared: true };
   }
   const all = Object.values(state.products || {});
   const cats = [...new Set(all.map((p) => p.category).filter(Boolean))];
@@ -161,7 +147,7 @@ async function handle(e) {
   if (/^(🔥\s*)?มาแรง/.test(t)) return reply(e.replyToken, await hot(state, pro));
   const cm = t.match(/^(?:ท็อป|top|ท๊อป)\s*\d*\s*(.*)$/i);
   // plain "ท็อป" (rich menu): one cross-category list — มาแรง when there is data, else each category's #1
-  if (cm && !cleanWant(cm[1].trim())) return reply(e.replyToken, await hot(state, pro, { all, cats }));
+  if (cm && !cleanWant(cm[1].trim())) return reply(e.replyToken, await hot(state, pro, true));
   if (cm) return reply(e.replyToken, await top(all, cm[1].trim(), cats, { m, pro, state }));
   if (cats.includes(t)) return reply(e.replyToken, await top(all, t, cats, { m, pro, state }));
   const sm = t.match(/^(?:หา|ค้นหา|ค้น|search)\s+(.+)$/i);
@@ -174,7 +160,7 @@ async function handle(e) {
     const hit = all.find((p) => (p.name || "").toLowerCase().startsWith(head) || (p.name || "").toLowerCase().includes(head));
     if (hit?.url && !hit.affLink) return reply(e.replyToken, await askAffId(m, hit.url, hit.name));
   }
-  return reply(e.replyToken, text(`พิมพ์ได้แบบนี้ค่ะ\n• มาแรง — ตะกร้าที่ยอดขายกำลังพุ่ง ทุกหมวด\n• ท็อป — 5 ตะกร้าน่าทำคลิปที่สุด\n• ท็อป ห้องครัว — เฉพาะหมวด\n• หมวด — เลือกหมวด\n• หา สายนาฬิกา — ค้นสินค้าที่อยากทำ\n• ลิงก์ — ลิงก์ affiliate ที่สร้างแล้ว\n• สถานะ — ข้อมูลอัปเดตล่าสุดเมื่อไร`, HELP_QR()));
+  return reply(e.replyToken, text(`พิมพ์ได้แบบนี้ค่ะ\n• มาแรง — ตะกร้าที่ยอดขายกำลังพุ่ง ทุกหมวด\n• ท็อป — ท็อปรวมวันนี้ จากทุกหมวด\n• ท็อป ห้องครัว — เฉพาะหมวด\n• หมวด — เลือกหมวด\n• หา สายนาฬิกา — ค้นสินค้าที่อยากทำ\n• ลิงก์ — ลิงก์ affiliate ที่สร้างแล้ว\n• สถานะ — ข้อมูลอัปเดตล่าสุดเมื่อไร`, HELP_QR()));
 }
 
 const COMMAND = /^(🔥|มาแรง|ท็อป|top|ท๊อป|หมวด|หา|ค้น|search|ลิงก์|ลิ้ง|link|สถานะ|วิธี|ช่วยเหลือ|help|ติดต่อ|แอดมิน|อัปเกรด|อัพเกรด|ซื้อ|สมัคร|ต่ออายุ|ราคา|แพ็ก|ดูแบบ)/i;
@@ -187,17 +173,6 @@ async function askAffId(m, url, name) {
   m.awaitAff = { url, name: name || "", at: Date.now() };
   await saveMember(m);
   return text(`${name ? `🛒 ${name.slice(0, 60)}\n\n` : ""}ส่ง Affiliate ID ของคุณมาได้เลยค่ะ บอทจะแปลงเป็นลิงก์แอฟของคุณให้\n\n${AFF_ID_HOW}`, idQR(m));
-}
-
-function affResult(url, name, id) {
-  const link = affLink(url, id);
-  return [
-    text(`✅ ลิงก์แอฟของคุณ (ID ${id})${name ? `\n${name.slice(0, 60)}` : ""}\n\n${link}\n\n${SHORT_NOTE}`, HELP_QR()),
-    { type: "flex", altText: "ลิงก์แอฟของคุณ", contents: { type: "bubble", size: "kilo", body: { type: "box", layout: "vertical", spacing: "sm", contents: [
-      { type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "clipboard", label: "คัดลอกลิงก์", clipboardText: link } },
-      { type: "button", style: "secondary", height: "sm", action: { type: "uri", label: "ลองเปิดลิงก์", uri: external(link) } },
-    ] } } },
-  ];
 }
 
 // Someone pasted a Shopee link into the chat.
@@ -213,23 +188,6 @@ async function pastedLink(t, m) {
   return askAffId(m, u);
 }
 
-function howto() {
-  return { type: "flex", altText: "วิธีใช้ปั๊กปัก", contents: {
-    type: "bubble",
-    body: { type: "box", layout: "vertical", spacing: "md", contents: [
-      { type: "text", text: "เริ่มใช้บนมือถือ 🐶", weight: "bold", size: "lg" },
-      { type: "text", wrap: true, size: "sm", color: "#555555", text: "1) กด \"ท็อป 5 วันนี้\" ที่เมนูด้านล่าง\n2) กด \"ให้ AI ดู\" เพื่อเอา hook 3 วิแรก + มุมเล่าคลิป\n3) กด \"เอาลิงก์ของฉัน\" → ส่ง Affiliate ID → ได้ลิงก์แอฟของคุณทันที (ต้องมี Affiliate ID เท่านั้น)" },
-      { type: "separator", margin: "md" },
-      { type: "text", text: "ขั้นสูง (ไม่บังคับ)", weight: "bold", size: "sm", margin: "md" },
-      { type: "text", wrap: true, size: "xs", color: "#888888", text: "อยากได้ลิงก์อัตโนมัติทุกตัว หรือสแกนหมวดที่คุณทำเอง ใช้คอม + Chrome + ล็อกอิน Shopee ราว 3 นาที" },
-    ] },
-    footer: { type: "box", layout: "vertical", spacing: "sm", contents: [
-      { type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "message", label: "ท็อป 5 วันนี้", text: "ท็อป" } },
-      { type: "button", style: "link", height: "sm", action: { type: "uri", label: "ขั้นสูง (คอม)", uri: `${APP}/connector` } },
-    ] },
-  } };
-}
-
 // Not a member yet, or waiting for a seat.
 async function gate(m, isFollow) {
   if (m?.status === "waitlist") {
@@ -240,19 +198,8 @@ async function gate(m, isFollow) {
   if (m?.status === "revoked") return text("บัญชีนี้ถูกระงับการใช้งาน หากคิดว่าผิดพลาด พิมพ์ \"ติดต่อแอดมิน\" ได้เลยค่ะ");
   const r = await roster();
   const left = seatsLeft(r);
-  const body = left > 0 ? `Early Access เหลือ ${left} ที่ สมัครด้วย LINE แล้วใช้งานได้ทันที` : "สมัครด้วย LINE แล้วใช้ฟรีได้ทันที (ท็อป 5/หมวด · AI 3 ครั้ง/วัน)";
+  const body = left > 0 ? `Early Access เหลือ ${left} ที่ สมัครด้วย LINE แล้วใช้งานได้ทันที` : `สมัครด้วย LINE แล้วใช้ฟรีได้ทันที (ท็อป ${FREE_PER_CAT}/หมวด · AI ${PLANS.free.aiPerDay} ครั้ง/วัน)`;
   return { type: "flex", altText: "สมัครใช้ปั๊กปัก", contents: card(isFollow ? "ยินดีต้อนรับสู่ปั๊กปัก 🐶" : "ใช้งานได้หลังสมัครสมาชิก", `ปักตะกร้าให้ปัง ต้องเริ่มจากเลือกตะกร้าให้เป็น\n${body}`, [openApp(left > 0 ? "สมัคร Early Access" : "สมัครใช้ฟรี")]) };
-}
-
-function card(title, body, buttons) {
-  return {
-    type: "bubble",
-    body: { type: "box", layout: "vertical", spacing: "md", contents: [
-      { type: "text", text: title, weight: "bold", size: "lg", wrap: true },
-      { type: "text", text: body, size: "sm", color: "#666666", wrap: true },
-    ] },
-    footer: { type: "box", layout: "vertical", spacing: "sm", contents: buttons },
-  };
 }
 
 // Words people type for a category we already have under another name.
@@ -297,47 +244,36 @@ async function top(all, want, cats, ctx = {}) {
   ];
 }
 
-// "มาแรงวันนี้": across all categories, products selling faster than their own 30-day average.
-// Free: ranks 1–5 locked (teaser card), ranks 6–8 shown. Pro: top 10. Owner links only for the member's own scans.
-async function hot(state, pro, mixFrom) {
-  const LOCK = 5;
-  const { items } = await trending(await ownerProducts(), 20);
-  const locked = pro ? [] : items.slice(0, LOCK).map((p, i) => ({ rank: i + 1, perOrder: Math.round(p._perOrder || 0) }));
-  const pool = pro ? items : items.slice(LOCK);
-  const list = pool.slice(0, pro ? 10 : 3).map((p, i) => ({
-    ...publicProduct(p), _t: p._t, _a: p._a, _perOrder: p._perOrder, _perDay: p._perDay, _boost: p._boost, _n: locked.length + i + 1,
-    ...(!state.shared && state.products?.[p.id]?.affLink ? { affLink: state.products[p.id].affLink } : {}),
-  }));
-  if (!list.length && !locked.length && mixFrom) return mix(mixFrom.all, mixFrom.cats, pro);
-  if (!list.length && !locked.length) return text("🔥 มาแรงวันนี้ยังไม่พร้อมค่ะ ต้องมีข้อมูลยอดขายอย่างน้อย 2 วันเพื่อเทียบกัน\nระหว่างนี้ดูท็อปรายหมวดไปก่อนได้เลย", HELP_QR());
-  addViews(list.length).catch(() => {});
-  const more = pool.length - list.length;
-  const head = locked.length
-    ? `🔥 มาแรงวันนี้ · 🔒 อันดับ 1–${locked.length} ปลดล็อคได้เฉพาะผู้ใช้งาน Pro${list.length ? `\nด้านล่างคืออันดับ ${locked.length + 1}–${locked.length + list.length}` : ""}`
-    : `🔥 มาแรงวันนี้ · ${list.length} ตะกร้าที่ยอดขายกำลังพุ่ง จากทุกหมวด`;
+// Carousel with the locked teaser card first (Free) — used by มาแรง and ท็อปรวม.
+const lockedCarousel = (alt, locked, items, quick) => ({ type: "flex", altText: locked.length ? `${alt} (ท็อป ${locked.length} ล็อกไว้สำหรับ Pro)` : alt,
+  contents: { type: "carousel", contents: [...(locked.length ? [lockBubble(locked)] : []), ...items.map((p) => bubble(p, p._n))] }, ...(quick?.length ? { quickReply: { items: quick } } : {}) });
+const lockHead = (locked, items) => `🔒 อันดับ 1–${locked.length} ปลดล็อคได้เฉพาะผู้ใช้งาน Pro${items.length ? `\nด้านล่างคืออันดับ ${locked.length + 1}–${locked.length + items.length}` : ""}`;
+
+// "มาแรงวันนี้" (rules: lib/access.js hotView). Owner links only for the member's own scans.
+// fallbackTop: plain "ท็อป" shows ท็อปรวมวันนี้ instead while มาแรง has no data yet.
+async function hot(state, pro, fallbackTop) {
+  const { locked, items: raw, more } = await hotView({ pro });
+  if (!raw.length && !locked.length) {
+    if (fallbackTop) return topToday(state, pro);
+    return text("🔥 มาแรงวันนี้ยังไม่พร้อมค่ะ ต้องมีข้อมูลยอดขายอย่างน้อย 2 วันเพื่อเทียบกัน\nระหว่างนี้ดูท็อปรายหมวดไปก่อนได้เลย", HELP_QR());
+  }
+  const items = raw.map((p) => ({ ...p, ...(!state.shared && state.products?.[p.id]?.affLink ? { affLink: state.products[p.id].affLink } : {}) }));
+  addViews(items.length).catch(() => {});
+  const head = locked.length ? `🔥 มาแรงวันนี้ · ${lockHead(locked, items)}` : `🔥 มาแรงวันนี้ · ${items.length} ตะกร้าที่ยอดขายกำลังพุ่ง จากทุกหมวด`;
   return [
     text(`${head}\nเทียบกับยอดขายปกติของตัวมันเอง ไม่ใช่ยอดรวม${!pro && more > 0 ? `\n\nแพ็ก Pro ดูได้อีก ${more} ตัว` : ""}`),
-    { type: "flex", altText: locked.length ? "🔥 มาแรงวันนี้ (ท็อป 5 ล็อกไว้สำหรับ Pro)" : "🔥 มาแรงวันนี้", contents: { type: "carousel", contents: [...(locked.length ? [lockBubble(locked)] : []), ...list.map((p) => bubble(p, p._n))] }, quickReply: { items: HELP_QR().slice(1) } },
+    lockedCarousel("🔥 มาแรงวันนี้", locked, items, HELP_QR().slice(1)),
   ];
 }
 
-// "ท็อปรวมวันนี้": the #1 of every category in one carousel (until มาแรง has two days of data).
-// Free: always built from the full shared catalog with ranks 1–5 locked (teaser card), ranks 6–10 shown.
-async function mix(all, cats, pro) {
-  const LOCK = 5;
-  const src = pro ? all : (await ownerProducts());
-  const srcCats = pro ? cats : [...new Set(src.map((p) => p.category).filter(Boolean))];
-  const ranked = srcCats.map((c) => byRank(rank(src.filter((p) => p.category === c)))[0]).filter(Boolean).sort((a, b) => b._t - a._t).slice(0, 10);
-  const locked = pro ? [] : ranked.slice(0, LOCK).map((p, i) => ({ rank: i + 1, perOrder: Math.round(p._perOrder || 0) }));
-  const list = (pro ? ranked : ranked.slice(LOCK)).map((p, i) => ({ ...(pro ? p : publicProduct(p)), _t: p._t, _a: p._a, _cat: p.category, _n: (pro ? 0 : LOCK) + i + 1 }));
-  addViews(list.length).catch(() => {});
-  const others = srcCats.slice(0, 12).map((x) => qr(x, "ท็อป " + x));
-  const head = locked.length
-    ? `ท็อปรวมวันนี้ · 🔒 อันดับ 1–${locked.length} ปลดล็อคได้เฉพาะผู้ใช้งาน Pro\nด้านล่างคืออันดับ ${locked.length + 1}–${locked.length + list.length} จากอันดับ 1 ของแต่ละหมวด`
-    : `ท็อปรวมวันนี้ · อันดับ 1 ของแต่ละหมวด ${list.length} หมวด`;
+// "ท็อปรวมวันนี้": the #1 of every category (rules: lib/access.js topAll).
+async function topToday(state, pro) {
+  const { locked, items, cats } = await topAll({ pro, own: state.shared ? null : Object.values(state.products || {}) });
+  addViews(items.length).catch(() => {});
+  const head = locked.length ? `ท็อปรวมวันนี้ · ${lockHead(locked, items)} จากอันดับ 1 ของแต่ละหมวด` : `ท็อปรวมวันนี้ · อันดับ 1 ของแต่ละหมวด ${items.length} หมวด`;
   return [
-    text(`${head}\nอยากดูลึกหมวดไหน กดชื่อหมวดด้านล่าง${list.some((p) => p.affLink) ? "" : "\nอยากได้ลิงก์แอฟของคุณ: กด \"เอาลิงก์ของฉัน\" แล้วส่ง Affiliate ID มา"}`),
-    { type: "flex", altText: locked.length ? "ท็อปรวมวันนี้ (ท็อป 5 ล็อกไว้สำหรับ Pro)" : "ท็อปรวมวันนี้", contents: { type: "carousel", contents: [...(locked.length ? [lockBubble(locked)] : []), ...list.map((p) => bubble(p, p._n))] }, ...(others.length ? { quickReply: { items: others } } : {}) },
+    text(`${head}\nอยากดูลึกหมวดไหน กดชื่อหมวดด้านล่าง${items.some((p) => p.affLink) ? "" : "\nอยากได้ลิงก์แอฟของคุณ: กด \"เอาลิงก์ของฉัน\" แล้วส่ง Affiliate ID มา"}`),
+    lockedCarousel("ท็อปรวมวันนี้", locked, items.map((p) => ({ ...p, _cat: p.category })), cats.slice(0, 12).map((x) => qr(x, "ท็อป " + x))),
   ];
 }
 
@@ -362,7 +298,7 @@ async function notInCatalog(want, cats, { m, pro, state } = {}) {
       [{ type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "uri", label: "วิธีตั้งค่าบนคอม", uri: `${APP}/connector` } }]), quickReply: { items: pick } });
   } else {
     out.push({ ...buyCard(m, `ค้นหา "${want}" เองได้ใน Pro`), quickReply: { items: pick } });
-    out.splice(out.length - 1, 0, text(`${hits.length ? "" : `ตอนนี้คลังกลางยังไม่มี "${want}" `}แพ็ก Free ดูได้เฉพาะท็อป 5 ของหมวดที่มีอยู่ ส่วน Pro ค้นสินค้าเฉพาะตัวที่คุณทำเองได้ จัดอันดับ + สร้างลิงก์ให้ทุกตัว\nแจ้งทีมไว้แล้วว่ามีคนอยากได้หมวดนี้ 🙏`));
+    out.splice(out.length - 1, 0, text(`${hits.length ? "" : `ตอนนี้คลังกลางยังไม่มี "${want}" `}แพ็ก Free ดูได้ ${FREE_PER_CAT} ตัวต่อหมวดที่มีอยู่ ส่วน Pro ค้นสินค้าเฉพาะตัวที่คุณทำเองได้ จัดอันดับ + สร้างลิงก์ให้ทุกตัว\nแจ้งทีมไว้แล้วว่ามีคนอยากได้หมวดนี้ 🙏`));
   }
   return out.slice(0, 5);
 }
@@ -378,106 +314,12 @@ async function logRequest(kw, uid) {
   await writeJSON("meta/requests.json", r);
 }
 
-// Stored rank (6–10 while top 5 is locked) wins over the order re-ranked from a partial list.
+// Stored rank (6–10 while a category's top 5 is locked) wins over the order re-ranked from a partial list.
 const byRank = (list) => (list.some((p) => p._rank) ? [...list].sort((a, b) => (a._rank || 99) - (b._rank || 99)) : list);
-
-// First card of the carousel while the lock test is on: ranks 1–5 hidden, only ≈฿/order as a teaser.
-function lockBubble(rows) {
-  return {
-    type: "bubble", size: "kilo",
-    styles: { body: { backgroundColor: "#2B1E16" }, footer: { backgroundColor: "#2B1E16" } },
-    body: { type: "box", layout: "vertical", spacing: "sm", paddingAll: "16px", contents: [
-      { type: "text", text: "🔒", size: "3xl", align: "center" },
-      { type: "text", text: `ปลดล็อคตะกร้า Top ${rows.length}`, weight: "bold", size: "lg", color: "#FFFFFF", align: "center", wrap: true },
-      { type: "text", text: "สำหรับผู้ใช้งาน Pro เท่านั้น", size: "sm", color: "#FFC9A6", align: "center", wrap: true },
-      { type: "separator", margin: "lg", color: "#4A382C" },
-      ...rows.map((r) => ({ type: "box", layout: "horizontal", margin: "md", contents: [
-        { type: "text", text: `#${r.rank}`, weight: "bold", size: "sm", color: "#FE6A0E", flex: 0 },
-        { type: "text", text: "▒▒▒▒▒▒▒▒", size: "sm", color: "#5C4636", flex: 3, margin: "md" },
-        { type: "text", text: r.perOrder ? `~${baht(r.perOrder)}/ออเดอร์` : "", size: "xxs", color: "#FFC9A6", align: "end", gravity: "center", flex: 3 },
-      ] })),
-    ] },
-    footer: { type: "box", layout: "vertical", contents: [
-      { type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "message", label: "ปลดล็อคด้วย Pro", text: "อัปเกรด Pro" } },
-    ] },
-  };
-}
-
-function bubble(p, n) {
-  const score = Math.round(p._t), max = p._a ? 100 : 60;
-  const link = p.affLink || p.url;
-  const buttons = [];
-  if (p.affLink) {
-    buttons.push({ type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "clipboard", label: "คัดลอกลิงก์", clipboardText: p.affLink } });
-    buttons.push({ type: "button", style: "secondary", height: "sm", action: { type: "uri", label: "เปิดลิงก์", uri: p.affLink } });
-  } else if (p.url) {
-    // Free: get your OWN affiliate link from the Shopee app (product page → share → copy)
-    buttons.push({ type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "postback", label: "เอาลิงก์ของฉัน", data: `a=link&id=${p.id}`, displayText: `เอาลิงก์ #${n}` } });
-    buttons.push({ type: "button", style: "secondary", height: "sm", action: { type: "uri", label: "ดูหน้าสินค้า", uri: external(p.url) } });
-  }
-  buttons.push({ type: "button", style: "link", height: "sm", action: { type: "postback", label: p.ai ? "ดูไอเดียคลิป" : "ให้ AI ดู", data: `a=ai&id=${p.id}`, displayText: `ไอเดียคลิป #${n}` } });
-  return {
-    type: "bubble", size: "kilo",
-    ...(p.image ? { hero: { type: "image", url: img(p.image), size: "full", aspectRatio: "1:1", aspectMode: "cover", ...(link ? { action: { type: "uri", uri: link } } : {}) } } : {}),
-    body: { type: "box", layout: "vertical", spacing: "sm", paddingAll: "14px", contents: [
-      { type: "box", layout: "horizontal", contents: [
-        { type: "text", text: `#${n}`, weight: "bold", color: "#FE6A0E", size: "sm", flex: 0 },
-        { type: "text", text: `คะแนน ${score}/${max}${p._a ? "" : " · ยังไม่มี AI"}`, size: "xs", color: "#888888", align: "end" },
-      ] },
-      ...(p._cat && !p._perDay ? [{ type: "text", text: `หมวด ${p._cat}`, size: "xxs", color: "#E5480A", weight: "bold" }] : []),
-      ...(p._perDay ? [{ type: "text", text: `🔥 ขายวันละ ~${Math.round(p._perDay).toLocaleString("en-US")} ชิ้น · ${p._boost >= 1.5 ? `เร็วกว่าปกติ ${p._boost.toFixed(1)} เท่า` : "ยอดกำลังขึ้น"}${p.category ? ` · ${p.category}` : ""}`, size: "xxs", color: "#E5480A", weight: "bold", wrap: true }] : []),
-      { type: "text", text: p.name || "-", weight: "bold", size: "sm", wrap: true, maxLines: 2 },
-      { type: "text", text: `${baht(effPrice(p))} · คอม ${(+p.commission || 0).toFixed(0)}% · ได้ ~${baht(p._perOrder)}/ออเดอร์`, size: "xs", color: "#555555", wrap: true },
-      { type: "text", text: `ขายแล้ว ${(+p.sold || 0).toLocaleString("en-US")} · ⭐ ${(+p.rating || 0).toFixed(1)}${p.affLink ? " · มีลิงก์" : ""}`, size: "xs", color: "#888888", wrap: true },
-      ...(!p.affLink && p.url ? [{ type: "box", layout: "vertical", margin: "sm", paddingAll: "8px", cornerRadius: "8px", backgroundColor: "#FFF1E7", contents: [
-        { type: "text", text: "✓ ปั๊กปักเลือกตะกร้าให้แล้ว", size: "xxs", color: "#333333", weight: "bold", wrap: true },
-        { type: "text", text: "ลิงก์แอฟของคุณ = ต้องมี Affiliate ID เท่านั้น", size: "xxs", color: "#E5480A", wrap: true },
-      ] }] : []),
-    ] },
-    footer: { type: "box", layout: "vertical", spacing: "xs", contents: buttons },
-  };
-}
-
-const thDate = (t) => new Date(t).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
-
-// Plan picker. Shown from the rich menu ("อัปเกรด Pro"), typed keywords, or Free-only features.
-function buyCard(m, why, lock = false) {
-  const isProNow = isPro(m);
-  const head = why || (isProNow ? "ต่ออายุ Pro" : "อัปเกรดเป็น Pro");
-  const sub = isProNow
-    ? (m.proUntil ? `Pro ของคุณใช้ได้ถึง ${thDate(m.proUntil)} ต่ออายุแล้ววันจะบวกต่อจากเดิม` : "บัญชีนี้เป็น Pro ไม่หมดอายุ")
-    : (lock ? "• ปลดล็อคตะกร้า Top 5 ทุกหมวด\n• ดูได้ทุกตัว ไม่ใช่แค่ 5 ตัว" : "• ดูได้ทุกตัว ไม่ใช่แค่ท็อป 5") + "\n• AI ไอเดียคลิปวันละ 30 ตัว (Free 3)\n• ขั้นสูง: ลิงก์อัตโนมัติ + สแกนหมวดของคุณเอง";
-  const opt = (label, price, note, p, primary) => ({
-    type: "box", layout: "horizontal", paddingAll: "12px", cornerRadius: "10px", backgroundColor: primary ? "#FFF1E7" : "#F7F7F7",
-    action: { type: "postback", label, data: `a=buy&p=${p}`, displayText: `สมัคร Pro ${label}` },
-    contents: [
-      { type: "box", layout: "vertical", flex: 3, contents: [{ type: "text", text: label, weight: "bold", size: "md" }, { type: "text", text: note, size: "xs", color: "#888888" }] },
-      { type: "text", text: price, weight: "bold", size: "lg", color: "#E5480A", align: "end", gravity: "center", flex: 2 },
-    ],
-  });
-  return { type: "flex", altText: head, contents: {
-    type: "bubble",
-    body: { type: "box", layout: "vertical", spacing: "md", contents: [
-      { type: "text", text: head, weight: "bold", size: "lg", wrap: true },
-      { type: "text", text: sub, size: "sm", color: "#666666", wrap: true },
-      { type: "text", text: "เลือกแพ็ก", size: "xs", color: "#999999", margin: "lg" },
-      opt("รายเดือน", `฿${PRICE.month}`, "ใช้ได้ 30 วัน", "month", false),
-      opt("รายปี", `฿${PRICE.year.toLocaleString("en-US")}`, "ใช้ได้ 1 ปี · ได้ฟรี 2 เดือน", "year", true),
-    ] },
-  } };
-}
-
-function payInfo(plan) {
-  const amount = (plan === "year" ? PRICE.year : PRICE.month).toLocaleString("en-US");
-  return [
-    text(`แพ็ก Pro ${plan === "year" ? "รายปี" : "รายเดือน"} ยอด ฿${amount}\n\n1) สแกน QR พร้อมเพย์ด้านล่าง ร้าน ปั๊กปัก รับได้ทุกธนาคาร\n2) โอน ฿${amount} แล้วส่งรูปสลิปในแชทนี้ภายใน ${ORDER_TTL_H} ชม. (เกินเวลาคำสั่งซื้อจะถูกยกเลิก เลือกแพ็กใหม่ได้ตลอด)\n\nแอดมินตรวจแล้วเปิดสิทธิ์ให้ ระบบจะแจ้งในแชทนี้ทันที`),
-    { type: "image", originalContentUrl: `${APP}/pay-qr.jpg`, previewImageUrl: `${APP}/pay-qr-preview.jpg` },
-  ];
-}
 
 async function notifyAdmins(m) {
   const r = await roster();
-  const msg = text(`💰 มีสลิปใหม่\n${m.name} · Pro ${m.pendingOrder.plan === "year" ? "รายปี ฿" + PRICE.year.toLocaleString("en-US") : "รายเดือน ฿" + PRICE.month}\nตรวจสลิปในแชท OA แล้วกดอนุมัติที่ ${APP}/admin`);
+  const msg = text(`💰 มีสลิปใหม่\n${m.name} · Pro ${orderOf(m.pendingOrder.plan).label} ฿${orderOf(m.pendingOrder.plan).price.toLocaleString("en-US")}\nตรวจสลิปในแชท OA แล้วกดอนุมัติที่ ${APP}/admin`);
   await Promise.all(r.admins.map((id) => push(id, msg)));
 }
 
@@ -488,7 +330,7 @@ function links(all) {
 }
 
 function status(all, cats, state, m, pro) {
-  const plan = pro ? `แพ็ก Pro${m.earlyAccess ? " (Early Access)" : ""}${m.proUntil ? ` ถึง ${new Date(m.proUntil).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}` : ""}` : "แพ็ก Free · ดูท็อป 5 จากคลังกลาง";
+  const plan = pro ? `แพ็ก Pro${m.earlyAccess ? " (Early Access)" : ""}${m.proUntil ? ` ถึง ${new Date(m.proUntil).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}` : ""}` : `แพ็ก Free · คลังกลาง ${FREE_PER_CAT} ตัว/หมวด`;
   if (state.shared) return text(`${plan}\nหมวดในคลังกลาง: ${cats.join(", ")}\n\n${pro ? "อยากได้ลิงก์อัตโนมัติหรือสแกนหมวดเอง กด \"วิธีใช้\" → ขั้นสูง (คอม)" : "พิมพ์ \"อัปเกรด\" เพื่อดูสิทธิ์ Pro"}`, HELP_QR());
   const newest = Math.max(0, ...all.map((p) => p.fetchedAt || 0));
   const lines = cats.map((c) => { const ps = all.filter((p) => p.category === c); return `• ${c}: ${ps.length} ตัว · ลิงก์ ${ps.filter((p) => p.affLink).length} · ${ago(Math.max(...ps.map((p) => p.fetchedAt || 0)))}`; });

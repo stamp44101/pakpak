@@ -2,7 +2,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { readJSON, writeJSON, updateJSON, listPaths } from "./store";
 import { notifyDiscord } from "./discord";
-import { grantPro, TRIAL_DAYS, expireOrder } from "./plan";
+import { grantPro, EA_DAYS, expireOrder } from "./plan";
 
 const COOKIE = "pp_session";
 const MAX_AGE = 60 * 60 * 24 * 30; // 30 days
@@ -46,7 +46,7 @@ export async function getMember(sub) {
   if (m && m.status === "waitlist") await openFree(m); // the old waitlist now gets Free right away
   if (m && m.plan === undefined && m.status === "active") {
     const r = await roster();
-    grantPro(m, r.admins.includes(m.id) ? null : TRIAL_DAYS, { early: true });
+    grantPro(m, r.admins.includes(m.id) ? null : EA_DAYS, { early: true });
     await writeJSON(memberPath(m.id), m);
   }
   return m;
@@ -85,7 +85,7 @@ async function restoreLegacy(m) {
   await mutateRoster((r) => { r.restored ||= []; taken = r.restored.includes(m.name); if (!taken) r.restored.push(m.name); });
   if (taken) return true;
   m.welcomeFree = false; m.freeSince = null; m.plan = undefined; m.proUntil = undefined;
-  grantPro(m, TRIAL_DAYS, { early: true });
+  grantPro(m, EA_DAYS, { early: true });
   return true;
 }
 
@@ -134,7 +134,7 @@ export async function joinOrUpdate(profile) {
       if (early) x.early.push(profile.sub);
     });
     m = { id: profile.sub, name: profile.name, picture: profile.picture || "", status: "active", joinedAt: Date.now(), ai: { day: "", count: 0 } };
-    if (early) grantPro(m, TRIAL_DAYS, { early: true });
+    if (early) grantPro(m, EA_DAYS, { early: true });
     else { m.plan = "free"; m.proUntil = null; m.freeSince = Date.now(); m.welcomeFree = true; }
     m.isNew = true;
   } else {

@@ -4,9 +4,15 @@ export const PLANS = {
   pro: { name: "Pro", aiPerDay: 30, scan: true, autoLinks: true, topPerCat: Infinity },
 };
 export const PRICE = { month: 199, year: 1990, early: 99 };
-export const TRIAL_DAYS = 30;
-// Admin-granted free trial (once per member, from /admin).
-export const TRIAL7_DAYS = 7;
+export const EA_DAYS = 30; // Early Access: Pro free for this long
+export const ADMIN_TRIAL_DAYS = 7; // "🎁 ทดลองฟรี" button in /admin, once per member
+
+// The two paid plans, so price / length / wording come from one place.
+export const ORDERS = {
+  month: { price: PRICE.month, days: 30, label: "รายเดือน", span: "1 เดือน" },
+  year: { price: PRICE.year, days: 365, label: "รายปี", span: "1 ปี" },
+};
+export const orderOf = (plan) => ORDERS[plan === "year" ? "year" : "month"];
 // A chosen plan with no slip after this long is cancelled (a late slip still revives it, see webhook).
 export const ORDER_TTL_H = 24;
 export function expireOrder(m) {
@@ -29,5 +35,8 @@ export function grantPro(m, days, { early = false } = {}) {
   m.proUntil = days == null ? null : Math.max(Date.now(), isPro(m) && m.proUntil ? m.proUntil : 0) + days * 864e5;
   return m;
 }
+
+// Admins (owner + co-admins) are Pro with no expiry.
+export function makeAdminPro(m) { m.plan = "pro"; m.proUntil = null; m.pendingOrder = null; return m; }
 
 export const planInfo = (m) => ({ plan: planOf(m), proUntil: isPro(m) ? m.proUntil || null : null, earlyAccess: !!m?.earlyAccess, limits: { ...limits(m), topPerCat: limits(m).topPerCat === Infinity ? null : limits(m).topPerCat } });

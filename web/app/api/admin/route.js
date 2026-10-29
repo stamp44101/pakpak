@@ -1,6 +1,7 @@
 // Admin: list members, activate / move to waitlist / revoke.
 import { requireMember, isAdmin, roster, mutateRoster, getMember, saveMember, seats, earlyTaken, openFree } from "../../../lib/auth";
-import { planInfo, grantPro, TRIAL_DAYS, TRIAL7_DAYS, PRICE } from "../../../lib/plan";
+import { planInfo, grantPro, makeAdminPro, orderOf, EA_DAYS, ADMIN_TRIAL_DAYS } from "../../../lib/plan";
+import { thDate } from "../../../lib/fmt";
 import { push } from "../../../lib/line";
 import { readJSON } from "../../../lib/store";
 import { freeWelcome } from "../../../lib/welcome";
@@ -49,21 +50,20 @@ export async function POST(req) {
   }
   const m = await getMember(String(id || ""));
   if (!m) return Response.json({ error: "ไม่พบสมาชิก" }, { status: 404 });
-  const thDate = (t) => new Date(t).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
   if (approve || reject) {
-    const order = m.pendingOrder;
+    const order = m.pendingOrder, o = orderOf(order?.plan);
     if (!order) return Response.json({ error: "ไม่มีคำสั่งซื้อที่รอตรวจ" }, { status: 400 });
     m.pendingOrder = null;
     if (approve) {
-      grantPro(m, order.plan === "year" ? 365 : 30);
-      m.payments = [...(m.payments || []), { plan: order.plan, amount: order.plan === "year" ? PRICE.year : PRICE.month, at: Date.now() }];
+      grantPro(m, o.days);
+      m.payments = [...(m.payments || []), { plan: order.plan, amount: o.price, at: Date.now() }];
       if (m.status !== "active") {
         await mutateRoster((r) => { for (const k of ["active", "waitlist", "revoked"]) r[k] = (r[k] || []).filter((x) => x !== m.id); r.active.push(m.id); });
         m.status = "active";
       }
     }
     await saveMember(m);
-    notifyDiscord(approve ? "approved" : "rejected", { title: approve ? `✅ อนุมัติ Pro ${order.plan === "year" ? "รายปี" : "รายเดือน"}` : "❌ สลิปไม่ผ่าน", lines: [`**${m.name}** · โดย ${g.member.name}`] }).catch(() => {});
+    notifyDiscord(approve ? "approved" : "rejected", { title: approve ? `✅ อนุมัติ Pro ${o.label}` : "❌ สลิปไม่ผ่าน", lines: [`**${m.name}** · โดย ${g.member.name}`] }).catch(() => {});
     await push(m.id, { type: "text", text: approve
       ? `เปิดสิทธิ์ Pro ให้แล้ว 🎉 ใช้ได้ถึง ${thDate(m.proUntil)}\nกด "ท็อป 5 วันนี้" ที่เมนูด้านล่างเพื่อเริ่มได้เลย`
       : "สลิปยังตรวจสอบไม่ผ่าน รบกวนส่งสลิปใหม่ หรือพิมพ์รายละเอียดในแชทนี้ แอดมินจะช่วยดูให้ค่ะ" }).catch(() => {});
@@ -74,8 +74,8 @@ export async function POST(req) {
     if ((await roster()).admins[0] === m.id) return Response.json({ error: "เปลี่ยนสิทธิ์เจ้าของไม่ได้" }, { status: 400 });
     if (m.status !== "active") return Response.json({ error: "ต้องเป็นสมาชิกที่ใช้งานอยู่" }, { status: 400 });
     await mutateRoster((r) => { r.admins = r.admins.filter((x, i) => i === 0 || x !== m.id); if (admin) r.admins.push(m.id); });
-    if (admin) { m.plan = "pro"; m.proUntil = null; m.pendingOrder = null; }
-    else { m.plan = "pro"; m.proUntil = Date.now() + 30 * 864e5; } // was Pro forever as admin: back to 30 days
+    if (admin) makeAdminPro(m);
+    else { m.plan = "pro"; m.proUntil = Date.now() + EA_DAYS * 864e5; } // was Pro forever as admin: back to 30 days
     await saveMember(m);
     return Response.json({ ok: true });
   }
@@ -83,11 +83,11 @@ export async function POST(req) {
   if (trial) {
     if (m.status !== "active") return Response.json({ error: "ต้องเป็นสมาชิกที่ใช้งานอยู่" }, { status: 400 });
     if (m.trialAt) return Response.json({ error: `${m.name} เคยได้ทดลองใช้แล้ว (${thDate(m.trialAt)})` }, { status: 400 });
-    grantPro(m, TRIAL7_DAYS);
+    grantPro(m, ADMIN_TRIAL_DAYS);
     m.trialAt = Date.now();
     await saveMember(m);
-    notifyDiscord("trial", { title: `🎁 ทดลอง Pro ${TRIAL7_DAYS} วัน`, lines: [`**${m.name}** · โดย ${g.member.name}`] }).catch(() => {});
-    await push(m.id, { type: "text", text: `🎁 แอดมินเปิดให้ทดลองใช้ Pro ฟรี ${TRIAL7_DAYS} วัน ใช้ได้ถึง ${thDate(m.proUntil)}\nดูตะกร้าได้ทุกตัว + AI ไอเดียคลิปวันละ 30 ครั้ง\nกด "ท็อป 5 วันนี้" ที่เมนูด้านล่างเพื่อเริ่มได้เลยค่ะ` }).catch(() => {});
+    notifyDiscord("trial", { title: `🎁 ทดลอง Pro ${ADMIN_TRIAL_DAYS} วัน`, lines: [`**${m.name}** · โดย ${g.member.name}`] }).catch(() => {});
+    await push(m.id, { type: "text", text: `🎁 แอดมินเปิดให้ทดลองใช้ Pro ฟรี ${ADMIN_TRIAL_DAYS} วัน ใช้ได้ถึง ${thDate(m.proUntil)}\nดูตะกร้าได้ทุกตัว + AI ไอเดียคลิปวันละ 30 ครั้ง\nกด "ท็อป 5 วันนี้" ที่เมนูด้านล่างเพื่อเริ่มได้เลยค่ะ` }).catch(() => {});
     return Response.json({ ok: true });
   }
   if (plan) {
@@ -100,7 +100,7 @@ export async function POST(req) {
   if (!["active", "waitlist", "revoked"].includes(status)) return Response.json({ error: "สถานะไม่ถูกต้อง" }, { status: 400 });
   await mutateRoster((r) => { r.revoked ||= []; for (const k of ["active", "waitlist", "revoked"]) r[k] = r[k].filter((x) => x !== m.id); r[status].push(m.id); });
   m.status = status;
-  if (status === "active" && m.plan === undefined) grantPro(m, TRIAL_DAYS, { early: true });
+  if (status === "active" && m.plan === undefined) grantPro(m, EA_DAYS, { early: true });
   await saveMember(m);
   return Response.json({ ok: true });
 }
