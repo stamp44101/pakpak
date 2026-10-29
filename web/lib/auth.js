@@ -59,20 +59,27 @@ export const saveMember = (m) => writeJSON(memberPath(m.id), m);
 const freshRoster = () => ({ active: [], waitlist: [], admins: [], early: Array(10).fill("legacy") });
 // "active" is derived from the member documents themselves (one row per member, no hot shared list);
 // the roster document only keeps the rarely-changing parts: admins, early seats, restored EA names.
+// Cached per server instance for 60s (it lists every member row): fewer queries lets Neon sleep.
+// Changes made through this instance clear it right away; other instances catch up within a minute.
+let rosterCache = { at: 0, r: null };
+export const dropRosterCache = () => { rosterCache = { at: 0, r: null }; };
+const copyRoster = (r) => ({ ...r, active: [...r.active], admins: [...r.admins], early: [...r.early], waitlist: [], revoked: [] });
 export async function roster() {
+  if (rosterCache.r && Date.now() - rosterCache.at < 60e3) return copyRoster(rosterCache.r);
   const [doc, paths] = await Promise.all([readJSON("meta/roster.json"), listPaths("members/")]);
   const r = { ...freshRoster(), ...(doc || {}) };
   r.active = paths.map((p) => p.slice(8, -5));
   r.waitlist = []; r.revoked = [];
-  return r;
+  rosterCache = { at: Date.now(), r };
+  return copyRoster(r);
 }
 // Changes to admins / early / restored. fn may run more than once; active/waitlist/revoked edits are ignored.
-export const mutateRoster = (fn) => updateJSON("meta/roster.json", async (r) => {
+export const mutateRoster = (fn) => (dropRosterCache(), updateJSON("meta/roster.json", async (r) => {
   r.admins ||= []; r.early ||= Array(10).fill("legacy");
   const view = { ...r, active: [], waitlist: [], revoked: [] };
   await fn(view);
   return { admins: view.admins, early: view.early, restored: view.restored || r.restored || [] };
-}, freshRoster);
+}, freshRoster).finally(dropRosterCache));
 const addTo = (arr, id) => { if (!arr.includes(id)) arr.push(id); };
 
 // Early Access members from before the move get their Pro back when they show up again (matched by LINE name).

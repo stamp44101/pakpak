@@ -33,6 +33,9 @@ export async function addViews(n) {
   s.views = (s.views || 0) + add;
   await writeJSON("meta/stats.json", s);
 }
+// Landing counter: cached 5 min per instance (plus what this instance has counted since).
+let viewsCache = { at: 0, v: 0 };
 export async function views() {
-  return ((await readJSON("meta/stats.json")) || { views: SEED_VIEWS }).views || 0;
+  if (Date.now() - viewsCache.at > 5 * 60e3) viewsCache = { at: Date.now(), v: ((await readJSON("meta/stats.json")) || { views: SEED_VIEWS }).views || 0 };
+  return viewsCache.v + pending;
 }
