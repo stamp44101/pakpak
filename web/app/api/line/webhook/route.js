@@ -110,7 +110,7 @@ async function handle(e) {
   if (pw) {
     if (pw[1]) await setFlag("paywallV2", { เปิด: "on", ปิด: "off" }[pw[1]] || pw[1], uid);
     const f = await flags();
-    return reply(e.replyToken, text(`💰 Paywall V2: ${paywallLabel(f.paywallV2)}${f.paywallV2At ? `\nเปลี่ยนล่าสุด ${ago(f.paywallV2At)}` : ""}\n\nFree V2 = วันละ 1 หมวด เห็น #6–8 · AI 1/วัน · ลิงก์ Aff ID 3/วัน\nสั่งได้: "paywall admin" (ทดสอบเอง + "ดูแบบ free") · "paywall on" · "paywall off" (ย้อนกลับทันที) · "paywall auto" (เปิดเองวันที่ 4 พ.ย.)\nมีผลกับทุกคนภายใน ~30 วิ`, HELP_QR()));
+    return reply(e.replyToken, text(`💰 Paywall V2: ${paywallLabel(f.paywallV2)}${f.paywallV2At ? `\nเปลี่ยนล่าสุด ${ago(f.paywallV2At)}` : ""}\n\nFree V2 = วันละ 1 หมวด เห็น #6–8 · AI 1/วัน · ลิงก์ Aff ID 3/วัน\nสั่งได้: "paywall admin" (ทดสอบเอง + "ดูแบบ free") · "paywall on" · "paywall off" (ย้อนกลับทันที) · "paywall auto" (เปิดเองคืนนี้เที่ยงคืน)\nมีผลกับทุกคนภายใน ~30 วิ`, HELP_QR()));
   }
   // What this member may see (lib/access.js). Pro with own scans uses them; everyone else the shared catalog.
   const view = await viewOf(m, { admin });

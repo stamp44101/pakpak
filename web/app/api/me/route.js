@@ -1,6 +1,6 @@
 // Who am I + how many Early Access seats are left.
 import { readSession, getMember, ensureMember, saveMember, roster, seats, seatsLeft } from "../../../lib/auth";
-import { planInfo, PRICE, ORDERS, makeAdminPro, foundingOpen, FOUNDING_UNTIL } from "../../../lib/plan";
+import { planInfo, PRICE, ORDERS, makeAdminPro, foundingOpen } from "../../../lib/plan";
 import { viewOf, countdownLine, todayCat, PAYWALL_AT } from "../../../lib/access";
 import { views } from "../../../lib/activity";
 
@@ -29,7 +29,7 @@ export async function GET(req) {
       freeSince: m.freeSince || null, joinedAt: m.joinedAt, botSeenAt: m.botSeenAt || null, pendingOrder: m.pendingOrder || null, payments: m.payments || [],
       aiToday: m.ai?.day === new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10) ? m.ai.count : 0 },
     seats: seats(), left, users: Math.max(LEGACY_USERS, r.active.length), views: await views(), loginReady: true, price: PRICE,
-    offer: { founding: foundingOpen(m), foundingUntil: FOUNDING_UNTIL, month: (foundingOpen(m) ? ORDERS.fmonth : ORDERS.month).price, year: (foundingOpen(m) ? ORDERS.fyear : ORDERS.year).price },
+    offer: { founding: foundingOpen(m), month: (foundingOpen(m) ? ORDERS.fmonth : ORDERS.month).price, year: (foundingOpen(m) ? ORDERS.fyear : ORDERS.year).price },
     paywall: { v2: view.v2, at: PAYWALL_AT, countdown: await countdownLine(view) },
   });
 }

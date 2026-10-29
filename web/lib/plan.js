@@ -7,16 +7,16 @@ export const PRICE = { month: 199, year: 1990, early: 99 };
 export const EA_DAYS = 30; // Early Access: Pro free for this long
 export const ADMIN_TRIAL_DAYS = 7; // "🎁 ทดลองฟรี" button in /admin, once per member
 
-// Paid plans, so price / length / wording come from one place. f* = Founding member price, kept forever once bought.
-export const FOUNDING_UNTIL = Date.parse("2026-11-03T23:59:59+07:00");
+// Paid plans, so price / length / wording come from one place. f* = Founding price: offered per member by an admin
+// (m.foundingOffer, from /admin) and kept forever once bought (m.founding).
 export const ORDERS = {
   month: { price: PRICE.month, days: 30, label: "รายเดือน", span: "1 เดือน" },
   year: { price: PRICE.year, days: 365, label: "รายปี", span: "1 ปี" },
   fmonth: { price: 99, days: 30, label: "Founding รายเดือน", span: "1 เดือน", founding: true },
   fyear: { price: 990, days: 365, label: "Founding รายปี", span: "1 ปี", founding: true },
 };
-// Founding prices: open to everyone until FOUNDING_UNTIL, and forever to whoever bought one.
-export const foundingOpen = (m) => !!m?.founding || Date.now() <= FOUNDING_UNTIL;
+// Founding prices: only for members an admin offered them to, or who already bought one.
+export const foundingOpen = (m) => !!(m?.founding || m?.foundingOffer);
 // What a member is allowed to pick: a founding plan only while foundingOpen, else the matching regular one.
 export const pickOrder = (m, p) => (ORDERS[p]?.founding && !foundingOpen(m) ? (p === "fyear" ? "year" : "month") : ORDERS[p] ? p : "month");
 export const orderOf = (plan) => ORDERS[plan] || ORDERS.month;

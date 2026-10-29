@@ -1,6 +1,7 @@
 // Admin: list members, activate / move to waitlist / revoke.
 import { requireMember, isAdmin, roster, mutateRoster, getMember, saveMember, seats, earlyTaken, openFree } from "../../../lib/auth";
-import { planInfo, grantPro, makeAdminPro, orderOf, EA_DAYS, ADMIN_TRIAL_DAYS } from "../../../lib/plan";
+import { planInfo, grantPro, makeAdminPro, orderOf, ORDERS, EA_DAYS, ADMIN_TRIAL_DAYS } from "../../../lib/plan";
+import { buyCard } from "../../../lib/bot/ui";
 import { thDate } from "../../../lib/fmt";
 import { push } from "../../../lib/line";
 import { readJSON } from "../../../lib/store";
@@ -24,7 +25,7 @@ export async function GET(req) {
   const r = await roster();
   const ids = [...r.active, ...r.waitlist, ...(r.revoked || [])];
   const members = (await Promise.all(ids.map(getMember))).filter(Boolean).map((m) => ({
-    id: m.id, name: m.name, picture: m.picture, status: m.status, joinedAt: m.joinedAt, admin: r.admins.includes(m.id), owner: r.admins[0] === m.id, aiToday: m.ai?.count || 0, aiDay: m.ai?.day || "", onboarding: m.onboarding?.done || [], ...planInfo(m), pendingOrder: m.pendingOrder || null, freeSince: m.freeSince || null, welcomeFree: !!m.welcomeFree, welcomePushedAt: m.welcomePushedAt || null, trialAt: m.trialAt || null, founding: !!m.founding,
+    id: m.id, name: m.name, picture: m.picture, status: m.status, joinedAt: m.joinedAt, admin: r.admins.includes(m.id), owner: r.admins[0] === m.id, aiToday: m.ai?.count || 0, aiDay: m.ai?.day || "", onboarding: m.onboarding?.done || [], ...planInfo(m), pendingOrder: m.pendingOrder || null, freeSince: m.freeSince || null, welcomeFree: !!m.welcomeFree, welcomePushedAt: m.welcomePushedAt || null, trialAt: m.trialAt || null, founding: !!m.founding, foundingOffer: !!m.foundingOffer,
   }));
   const toWelcome = members.filter((m) => m.status === "active" && m.plan !== "pro" && m.welcomeFree && !m.welcomePushedAt).length;
   const req0 = (await readJSON("meta/requests.json")) || {};
@@ -35,7 +36,7 @@ export async function GET(req) {
 export async function POST(req) {
   const g = await guard(req);
   if (g.error) return g.error;
-  const { id, status, plan, days, approve, reject, welcomeFree, admin, trial } = (await req.json().catch(() => ({}))) || {};
+  const { id, status, plan, days, approve, reject, welcomeFree, admin, trial, founding } = (await req.json().catch(() => ({}))) || {};
   // One-time LINE push to everyone moved from the waitlist to Free who hasn't been told yet.
   if (welcomeFree) {
     const r = await roster();
@@ -79,6 +80,17 @@ export async function POST(req) {
     if (admin) makeAdminPro(m);
     else { m.plan = "pro"; m.proUntil = Date.now() + EA_DAYS * 864e5; } // was Pro forever as admin: back to 30 days
     await saveMember(m);
+    return Response.json({ ok: true });
+  }
+  // Founding price, offered one member at a time: their buy card then shows ฿99/฿990, with a LINE push when offered.
+  if (founding !== undefined) {
+    if (m.founding && !founding) return Response.json({ error: `${m.name} ซื้อราคา Founding ไปแล้ว ยกเลิกไม่ได้` }, { status: 400 });
+    m.foundingOffer = !!founding;
+    await saveMember(m);
+    if (founding) {
+      notifyDiscord("trial", { title: "🎁 เสนอราคา Founding", lines: [`**${m.name}** · โดย ${g.member.name}`] }).catch(() => {});
+      await push(m.id, [{ type: "text", text: `🎁 ข้อเสนอพิเศษจากปั๊กปักสำหรับคุณ${m.name}\nแพ็ก Pro ราคา Founding ฿${ORDERS.fmonth.price}/เดือน (ปกติ ฿${ORDERS.month.price}) หรือ ฿${ORDERS.fyear.price}/ปี ราคานี้ล็อกไว้ตลอดไปค่ะ` }, buyCard(m)]).catch(() => {});
+    }
     return Response.json({ ok: true });
   }
   // Free trial: Pro for 7 days (stacks on time left), once per member, with a LINE push.

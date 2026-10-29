@@ -88,7 +88,7 @@ export default function Settings() {
           <a className="btn primary" href={UPGRADE_URL} target="_blank" rel="noopener">{pro ? (m.proUntil ? "ต่ออายุ Pro" : "ติดต่อแอดมิน") : "อัปเกรดเป็น Pro"}</a>
         </div>
         {m.pendingOrder && <p className="hint pending">{m.pendingOrder.slipAt ? "ส่งสลิปแล้ว แอดมินกำลังตรวจสอบ" : "เลือกแพ็กแล้ว รอส่งสลิปในแชท LINE"} · {orderOf(m.pendingOrder.plan).label}</p>}
-        {!pro && me.offer?.founding && <p className="hint founding">🎁 ราคา Founding ฿{me.offer.month}/เดือน หรือ ฿{me.offer.year.toLocaleString("en-US")}/ปี ล็อกไว้ตลอดไป{m.founding ? "" : ` · สมัครได้ถึง ${thDate(me.offer.foundingUntil)}`}</p>}
+        {!pro && me.offer?.founding && <p className="hint founding">🎁 ราคา Founding ฿{me.offer.month}/เดือน หรือ ฿{me.offer.year.toLocaleString("en-US")}/ปี ล็อกไว้ตลอดไป{m.founding ? "" : " · ข้อเสนอพิเศษสำหรับคุณ"}</p>}
         {!pro && me.paywall?.countdown && <p className="hint pending">{me.paywall.countdown}</p>}
         <div className="usage">
           <span>AI วันนี้</span>

@@ -26,8 +26,8 @@ export const RULES = {
 export const FREE_PER_CAT = RULES.free.show; // v1 number, for copy that predates V2
 
 // ---- Paywall V2 timeline (pakpak-paywall-plan.md) ----
-export const ANNOUNCE_FROM = Date.parse("2026-10-30T00:00:00+07:00"); // countdown line + banner
-export const PAYWALL_AT = Date.parse("2026-11-04T00:00:00+07:00"); // D0: V2 turns on by itself
+export const ANNOUNCE_FROM = Date.parse("2026-10-29T00:00:00+07:00"); // countdown line + banner
+export const PAYWALL_AT = Date.parse("2026-10-30T00:00:00+07:00"); // D0: V2 turns on by itself (midnight 29→30 Oct)
 
 // paywallV2 flag: "auto" (default — on from PAYWALL_AT) | "on" | "off" | "admin" (only admins previewing "ดูแบบ free").
 // Env PAYWALL_V2=off is the emergency kill switch (needs a redeploy).
@@ -43,14 +43,14 @@ export const paywallLabel = (v) => ({ on: "เปิดแล้ว (ทุก�
 // Free rules right now, for copy that has no member (welcome, sign-up card).
 export async function freeRulesNow() { return paywallFor(await flags()) ? RULES.freeV2 : RULES.free; }
 
-// D-5 → D-1: one line for Free replies/pages announcing the change. Empty outside the window or when V2 is off.
+// Before D0: one line for Free replies/pages announcing the change. Empty outside the window or when V2 is off.
 export async function countdownLine(view) {
   const now = Date.now();
   if (view?.pro || now < ANNOUNCE_FROM || now >= PAYWALL_AT) return "";
   const v = (await flags()).paywallV2;
   if (v === "off" || process.env.PAYWALL_V2 === "off") return "";
   const d = Math.ceil((PAYWALL_AT - now) / 864e5);
-  return `⏳ อีก ${d} วันแพ็ก Free เหลือวันละ 1 หมวด ${RULES.freeV2.show} ตัว · ล็อกราคา Founding ฿99 ตลอดไปได้ถึง 3 พ.ย.`;
+  return `⏳ ${d <= 1 ? "คืนนี้เที่ยงคืน" : `อีก ${d} วัน`} แพ็ก Free เปลี่ยนเป็นดูได้วันละ 1 หมวด · AI ${RULES.freeV2.aiPerDay} ครั้ง · ลิงก์ ${RULES.freeV2.linksPerDay} ลิงก์/วัน · อยากดูครบทุกหมวด อัปเกรด Pro`;
 }
 
 // lockTop5 switch (v1 only): "off" | "admin" | 1–100 (% of Free members). Env LOCK_TOP5=off is the kill switch.

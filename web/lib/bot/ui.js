@@ -2,7 +2,7 @@
 import { LIFF_URL } from "../line";
 import { affLink, SHORT_NOTE } from "../afflink";
 import { effPrice } from "../score";
-import { isPro, ORDERS, orderOf, ORDER_TTL_H, PLANS, foundingOpen, FOUNDING_UNTIL } from "../plan";
+import { isPro, ORDERS, orderOf, ORDER_TTL_H, PLANS, foundingOpen } from "../plan";
 import { baht, thDate } from "../fmt";
 
 export const APP = process.env.APP_URL || "https://pakpak-two.vercel.app";
@@ -133,7 +133,7 @@ export function buyCard(m, why) {
       { type: "text", text: sub, size: "sm", color: "#666666", wrap: true },
       { type: "text", text: "เลือกแพ็ก", size: "xs", color: "#999999", margin: "lg" },
       ...(founding ? [
-        { type: "text", text: m?.founding ? "🎁 ราคา Founding ของคุณ ใช้ได้ตลอดไป" : `🎁 ราคา Founding ล็อกไว้ตลอดไป · สมัครได้ถึง ${thDate(FOUNDING_UNTIL)}`, size: "xs", color: "#E5480A", weight: "bold", wrap: true },
+        { type: "text", text: m?.founding ? "🎁 ราคา Founding ของคุณ ใช้ได้ตลอดไป" : "🎁 ข้อเสนอพิเศษสำหรับคุณ: ราคา Founding ล็อกไว้ตลอดไป", size: "xs", color: "#E5480A", weight: "bold", wrap: true },
         opt(ORDERS.fmonth.label, baht(ORDERS.fmonth.price), `ปกติ ${baht(ORDERS.month.price)} · ใช้ได้ ${ORDERS.fmonth.days} วัน`, "fmonth", false),
         opt(ORDERS.fyear.label, baht(ORDERS.fyear.price), `ปกติ ${baht(ORDERS.year.price)} · ใช้ได้ ${ORDERS.fyear.span}`, "fyear", true),
       ] : [
