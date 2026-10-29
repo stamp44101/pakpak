@@ -24,10 +24,14 @@ async function guard(req) {
 }
 
 export async function GET(req) {
+  const t0 = Date.now();
   const g = await guard(req);
   if (g.error) return g.error;
+  const t1 = Date.now();
   const r = await roster();
-  const [all, campaigns] = await Promise.all([allMembers(r), loadCampaigns()]);
+  const t2 = Date.now();
+  // Everything that doesn't depend on the members runs alongside the big read.
+  const [all, campaigns, req0, qt, tm] = await Promise.all([allMembers(r).then((x) => [x, Date.now()]), loadCampaigns(), readJSON("meta/requests.json"), quota()]).then(([[a, t], c, q0, q]) => [a, c, q0 || {}, q, t]);
   const members = all.map((m) => ({
     id: m.id, name: m.name, picture: m.picture, status: m.status, joinedAt: m.joinedAt, admin: r.admins.includes(m.id), owner: r.admins[0] === m.id, aiToday: m.ai?.count || 0, aiDay: m.ai?.day || "", onboarding: m.onboarding?.done || [], ...planInfo(m), pendingOrder: m.pendingOrder || null, freeSince: m.freeSince || null, welcomeFree: !!m.welcomeFree, welcomePushedAt: m.welcomePushedAt || null, trialAt: m.trialAt || null, grants: grantsOf(m), freeDays: freeDaysOf(m), founding: !!m.founding, foundingOffer: !!m.foundingOffer, promo: m.promo || null, promoLive: promoLive(m),
     payments: m.payments || [],
@@ -37,9 +41,8 @@ export async function GET(req) {
     return { key, label: a.label, left: target.filter((m) => !m.news?.[key]).length, sent: target.filter((m) => m.news?.[key]).length };
   });
   const toWelcome = members.filter((m) => m.status === "active" && m.plan !== "pro" && m.welcomeFree && !m.welcomePushedAt).length;
-  const req0 = (await readJSON("meta/requests.json")) || {};
   const requests = Object.entries(req0).map(([kw, x]) => ({ kw, count: x.count, people: x.users?.length || 0, last: x.last })).sort((a, b) => b.people - a.people || b.count - a.count).slice(0, 20);
-  return Response.json({ members, campaigns: Object.values(campaigns).filter((c) => isLive(c)).map((c) => ({ key: c.key, label: c.label, days: c.days, who: c.who, perMember: c.perMember, proof: c.proof || "" })), freeDaysCap: FREE_DAYS_CAP, seats: seats(), active: earlyTaken(r), toWelcome, requests, announce, quota: await quota() });
+  return Response.json({ members, campaigns: Object.values(campaigns).filter((c) => isLive(c)).map((c) => ({ key: c.key, label: c.label, days: c.days, who: c.who, perMember: c.perMember, proof: c.proof || "" })), freeDaysCap: FREE_DAYS_CAP, seats: seats(), active: earlyTaken(r), toWelcome, requests, announce, quota: qt }, { headers: { "Server-Timing": `auth;dur=${t1 - t0}, roster;dur=${t2 - t1}, members;dur=${tm - t2}, total;dur=${Date.now() - t0}` } });
 }
 
 // Group pushes stop before they start if the month's push quota can't cover them.
