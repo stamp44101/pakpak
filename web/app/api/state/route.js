@@ -2,6 +2,8 @@
 import { readJSON, writeJSON } from "../../../lib/store";
 import { requireMember } from "../../../lib/auth";
 import { isPro } from "../../../lib/plan";
+import { roster } from "../../../lib/auth";
+import { recordSold } from "../../../lib/trending";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,5 +35,7 @@ export async function PUT(req) {
   const cur = (await readJSON(path(member))) || {};
   const state = { ...cur, products: body.products, account: body.account || cur.account || null, updatedAt: Date.now() };
   await writeJSON(path(member), state);
+  // the owner's scans are the shared catalog: keep a daily sales snapshot for "มาแรงวันนี้"
+  if ((await roster()).admins[0] === member.id) await recordSold(body.products).catch((e) => console.error("recordSold", e));
   return Response.json({ ok: true, updatedAt: state.updatedAt });
 }

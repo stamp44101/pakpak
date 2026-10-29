@@ -11,6 +11,7 @@ import { scoreItem } from "../../../../lib/ai";
 import { isPro, PRICE, ORDER_TTL_H } from "../../../../lib/plan";
 import { catalog, freeCatalog, publicProduct, ownerProducts } from "../../../../lib/catalog";
 import { flags, setFlag, lockTop5For, lockLabel, bucket } from "../../../../lib/flags";
+import { trending } from "../../../../lib/trending";
 import { parseAffId, affLink, cleanProductUrl, isShortLink, resolveShortLink, AFF_ID_HOW, SHORT_NOTE } from "../../../../lib/afflink";
 
 export const runtime = "nodejs";
@@ -23,7 +24,7 @@ const baht = (n) => "฿" + Math.round(+n || 0).toLocaleString("en-US");
 const ago = (t) => { const h = (Date.now() - t) / 3600e3; return h < 1 ? "ไม่ถึงชั่วโมงก่อน" : h < 24 ? `${Math.floor(h)} ชม.ก่อน` : `${Math.floor(h / 24)} วันก่อน`; };
 const text = (t, quick) => ({ type: "text", text: t, ...(quick ? { quickReply: { items: quick } } : {}) });
 const qr = (label, txt) => ({ type: "action", action: { type: "message", label: label.slice(0, 20), text: txt } });
-const HELP_QR = () => [qr("ท็อป 5", "ท็อป"), qr("เลือกหมวด", "หมวด"), qr("ลิงก์ของฉัน", "ลิงก์"), qr("สถานะ", "สถานะ")];
+const HELP_QR = () => [qr("🔥 มาแรง", "มาแรง"), qr("ท็อป 5", "ท็อป"), qr("เลือกหมวด", "หมวด"), qr("ลิงก์ของฉัน", "ลิงก์"), qr("สถานะ", "สถานะ")];
 // LINE opens links in its own browser; this makes it hand off to Safari/Chrome, which then opens the Shopee app.
 const external = (u) => { try { const x = new URL(u); x.searchParams.set("openExternalBrowser", "1"); return x.toString(); } catch { return u; } };
 const openApp = (label = "เปิดปั๊กปัก") => ({ type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "uri", label, uri: LIFF_URL } });
@@ -157,6 +158,7 @@ async function handle(e) {
 
   const pasted = await pastedLink(t, m);
   if (pasted) return reply(e.replyToken, pasted);
+  if (/^(🔥\s*)?มาแรง/.test(t)) return reply(e.replyToken, await hot(state, pro));
   const cm = t.match(/^(?:ท็อป|top|ท๊อป)\s*\d*\s*(.*)$/i);
   if (cm) return reply(e.replyToken, await top(all, cm[1].trim(), cats, { m, pro, state }));
   if (cats.includes(t)) return reply(e.replyToken, await top(all, t, cats, { m, pro, state }));
@@ -170,10 +172,10 @@ async function handle(e) {
     const hit = all.find((p) => (p.name || "").toLowerCase().startsWith(head) || (p.name || "").toLowerCase().includes(head));
     if (hit?.url && !hit.affLink) return reply(e.replyToken, await askAffId(m, hit.url, hit.name));
   }
-  return reply(e.replyToken, text(`พิมพ์ได้แบบนี้ค่ะ\n• ท็อป — 5 ตะกร้าน่าทำคลิปที่สุด\n• ท็อป ห้องครัว — เฉพาะหมวด\n• หมวด — เลือกหมวด\n• หา สายนาฬิกา — ค้นสินค้าที่อยากทำ\n• ลิงก์ — ลิงก์ affiliate ที่สร้างแล้ว\n• สถานะ — ข้อมูลอัปเดตล่าสุดเมื่อไร`, HELP_QR()));
+  return reply(e.replyToken, text(`พิมพ์ได้แบบนี้ค่ะ\n• มาแรง — ตะกร้าที่ยอดขายกำลังพุ่ง ทุกหมวด\n• ท็อป — 5 ตะกร้าน่าทำคลิปที่สุด\n• ท็อป ห้องครัว — เฉพาะหมวด\n• หมวด — เลือกหมวด\n• หา สายนาฬิกา — ค้นสินค้าที่อยากทำ\n• ลิงก์ — ลิงก์ affiliate ที่สร้างแล้ว\n• สถานะ — ข้อมูลอัปเดตล่าสุดเมื่อไร`, HELP_QR()));
 }
 
-const COMMAND = /^(ท็อป|top|ท๊อป|หมวด|หา|ค้น|search|ลิงก์|ลิ้ง|link|สถานะ|วิธี|ช่วยเหลือ|help|ติดต่อ|แอดมิน|อัปเกรด|อัพเกรด|ซื้อ|สมัคร|ต่ออายุ|ราคา|แพ็ก|ดูแบบ)/i;
+const COMMAND = /^(🔥|มาแรง|ท็อป|top|ท๊อป|หมวด|หา|ค้น|search|ลิงก์|ลิ้ง|link|สถานะ|วิธี|ช่วยเหลือ|help|ติดต่อ|แอดมิน|อัปเกรด|อัพเกรด|ซื้อ|สมัคร|ต่ออายุ|ราคา|แพ็ก|ดูแบบ)/i;
 const NEED_ID = `อยากได้ลิงก์ affiliate ของตัวเอง ต้องมี Affiliate ID เท่านั้นค่ะ\n\nกด "เอาลิงก์ของฉัน" ใต้สินค้าที่อยากได้ หรือวางลิงก์สินค้า Shopee ในแชทนี้ แล้วส่ง Affiliate ID มา บอทแปลงเป็นลิงก์ของคุณให้ทันที\n\n${AFF_ID_HOW}`;
 const idQR = (m) => [...(m.affId ? [qr(`ใช้ ${m.affId}`, m.affId)] : []), qr("ท็อป 5", "ท็อป")];
 
@@ -293,6 +295,25 @@ async function top(all, want, cats, ctx = {}) {
   ];
 }
 
+// "มาแรงวันนี้": across all categories, products selling faster than their own 30-day average.
+// Free: top 3 (never the locked top-5 of the lock test). Pro: top 10. Owner links only for the member's own scans.
+async function hot(state, pro) {
+  const { items } = await trending(await ownerProducts(), 20);
+  const pool = state.lockedIds ? items.filter((p) => !state.lockedIds.has(p.id)) : items;
+  const n = pro ? 10 : 3;
+  const list = pool.slice(0, n).map((p) => ({
+    ...publicProduct(p), _t: p._t, _a: p._a, _perOrder: p._perOrder, _perDay: p._perDay, _boost: p._boost,
+    ...(!state.shared && state.products?.[p.id]?.affLink ? { affLink: state.products[p.id].affLink } : {}),
+  }));
+  if (!list.length) return text("🔥 มาแรงวันนี้ยังไม่พร้อมค่ะ ต้องมีข้อมูลยอดขายอย่างน้อย 2 วันเพื่อเทียบกัน\nระหว่างนี้ดูท็อปรายหมวดไปก่อนได้เลย", HELP_QR());
+  addViews(list.length).catch(() => {});
+  const more = pool.length - list.length;
+  return [
+    text(`🔥 มาแรงวันนี้ · ${list.length} ตะกร้าที่ยอดขายกำลังพุ่ง จากทุกหมวด\nเทียบกับยอดขายปกติของตัวมันเอง ไม่ใช่ยอดรวม${!pro && more > 0 ? `\n\nแพ็ก Pro ดูได้อีก ${more} ตัว` : ""}`),
+    { type: "flex", altText: "🔥 มาแรงวันนี้", contents: { type: "carousel", contents: list.map((p, i) => bubble(p, i + 1)) }, quickReply: { items: HELP_QR().slice(1) } },
+  ];
+}
+
 // Asked for a category the catalog doesn't have (e.g. "ท็อป สายนาฬิกา"):
 // log the demand for the admin, show any matching products we do have, and point to Pro's own search.
 async function notInCatalog(want, cats, { m, pro, state } = {}) {
@@ -376,6 +397,7 @@ function bubble(p, n) {
         { type: "text", text: `#${n}`, weight: "bold", color: "#FE6A0E", size: "sm", flex: 0 },
         { type: "text", text: `คะแนน ${score}/${max}${p._a ? "" : " · ยังไม่มี AI"}`, size: "xs", color: "#888888", align: "end" },
       ] },
+      ...(p._perDay ? [{ type: "text", text: `🔥 ขายวันละ ~${Math.round(p._perDay).toLocaleString("en-US")} ชิ้น · ${p._boost >= 1.5 ? `เร็วกว่าปกติ ${p._boost.toFixed(1)} เท่า` : "ยอดกำลังขึ้น"}${p.category ? ` · ${p.category}` : ""}`, size: "xxs", color: "#E5480A", weight: "bold", wrap: true }] : []),
       { type: "text", text: p.name || "-", weight: "bold", size: "sm", wrap: true, maxLines: 2 },
       { type: "text", text: `${baht(effPrice(p))} · คอม ${(+p.commission || 0).toFixed(0)}% · ได้ ~${baht(p._perOrder)}/ออเดอร์`, size: "xs", color: "#555555", wrap: true },
       { type: "text", text: `ขายแล้ว ${(+p.sold || 0).toLocaleString("en-US")} · ⭐ ${(+p.rating || 0).toFixed(1)}${p.affLink ? " · มีลิงก์" : ""}`, size: "xs", color: "#888888", wrap: true },

@@ -298,6 +298,16 @@ export default function Home({ signedIn = false }) {
     const stale = Object.entries(newestBy).filter(([c, t]) => c && t && Date.now() - t > STALE_MS).sort((a, b) => a[1] - b[1]).slice(0, 2);
     (async () => { for (const [c] of stale) await pull(keywordsFor(c), c, { silent: true }); })();
   }, [account, ready]);
+  // "🔥 มาแรง": cross-category products selling faster than their own usual pace (/api/trending).
+  // Opens as the first view when there is something to show.
+  const [hot, setHot] = useState(null);
+  useEffect(() => {
+    if (!active || !ready || hot) return;
+    api("/api/trending").then((r) => {
+      setHot(r && r.items ? r : { items: [], more: 0 });
+      if (r?.items?.length) setCat((c) => c || HOT);
+    });
+  }, [active, ready]);
   const pickCat = (c) => { setOpen(null); setLimit(40); startTransition(() => setCat(c)); };
   const viewOnly = active && !account && extOk === false;
   const [editCats, setEditCats] = useState(false);
@@ -503,6 +513,7 @@ export default function Home({ signedIn = false }) {
       {(
         <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div className="bar" id="cats">
+            {hot?.items?.length > 0 && <button className={"chip hot" + (cat === HOT ? " on" : "")} onClick={() => pickCat(HOT)}>🔥 มาแรง</button>}
             <button className={"chip" + (!cat ? " on" : "")} onClick={() => pickCat("")}>ทุกหมวด <span className="num">{all.length}</span></button>
             {cats.map((c) => (
               <span key={c} className={"chip-wrap" + (editCats ? " editing" : "")}>
@@ -528,6 +539,7 @@ export default function Home({ signedIn = false }) {
             </div>
           )}
           {busy && <p className="hint">{busy}</p>}
+          {cat === HOT ? <HotList hot={hot} open={open} setOpen={setOpen} shared={shared} usedAppLink={usedAppLink} say={say} /> : <>
           <details className="explain">
             <summary>คะแนนคิดยังไง?</summary>
             <div className="explain-body">
@@ -587,6 +599,7 @@ export default function Home({ signedIn = false }) {
             ))}
           </div>
           {ranked.length > limit && <button className="btn" style={{ alignSelf: "center" }} onClick={() => setLimit(limit + 40)}>แสดงเพิ่มอีก {Math.min(40, ranked.length - limit)} ตัว (จาก {ranked.length})</button>}
+          </>}
         </section>
       )}
       </>}
@@ -597,6 +610,44 @@ export default function Home({ signedIn = false }) {
 }
 
 // Stored rank (6–10 while top 5 is locked) wins over re-ranking a partial list.
+const HOT = "__hot";
+
+// "🔥 มาแรง": cross-category list from /api/trending (Free: 3, Pro: 20).
+function HotList({ hot, open, setOpen, shared, usedAppLink, say }) {
+  const items = hot?.items || [];
+  return (
+    <>
+      <p className="hint" style={{ margin: 0 }}>ตะกร้าจากทุกหมวดที่ขายเร็วกว่าปกติของตัวเอง{hot?.since ? ` · เทียบกับ${ago(hot.since)}` : ""} — ไม่ใช่ยอดขายรวม เลยไม่ซ้ำกับท็อปรายหมวด</p>
+      <div className="list">
+        {items.map((p, i) => (
+          <div key={p.id} className="row hot top10" onClick={(e) => { if (!e.target.closest(".detail")) setOpen(open === p.id ? null : p.id); }}>
+            <div className="rank">{i + 1}</div>
+            {p.image ? <img className="thumb" src={img(p.image)} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <div className="thumb" />}
+            <div style={{ minWidth: 0 }}>
+              <div className="name">{p.name}</div>
+              <div className="meta">
+                <span>฿<span className="num">{fmt(effPrice(p))}</span></span>
+                <span>คอม <span className="num">{fmt(p.commission)}%</span> ≈ ฿<span className="num">{fmt(p.perOrder)}</span>/ชิ้น</span>
+                {p.category && <span className="tag">{p.category}</span>}
+              </div>
+            </div>
+            <div className="hot-num"><b className="num">~{fmt(p.perDay)}</b><small>ชิ้น/วัน</small>{p.boost >= 1.5 && <small className="up">เร็วขึ้น {fmt(p.boost)} เท่า</small>}</div>
+            {open === p.id && (
+              <div className="detail">
+                <div className="bar">
+                  {shared && p.url && <AffLinkBox key={p.id} url={p.url} onDone={usedAppLink} say={say} />}
+                  {p.url && <a className="btn" href={p.url} target="_blank" rel="noopener">หน้าสินค้า ↗</a>}
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      {hot?.more > 0 && <a className="btn primary" style={{ alignSelf: "center" }} href={UPGRADE_URL} target="_blank" rel="noopener">ดูอีก {hot.more} ตัวด้วย Pro</a>}
+    </>
+  );
+}
+
 const byRank = (list) => (list.some((p) => p._rank) ? [...list].sort((a, b) => (a._rank || 99) - (b._rank || 99)) : list);
 
 // Lock test: blurred rows for ranks 1–5 with one call to action on top.
