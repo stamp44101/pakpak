@@ -8,10 +8,10 @@ import { addViews } from "../../../../lib/activity";
 import { readJSON, writeJSON } from "../../../../lib/store";
 import { rank, effPrice } from "../../../../lib/score";
 import { scoreItem } from "../../../../lib/ai";
-import { isPro, orderOf, makeAdminPro, PLANS } from "../../../../lib/plan";
+import { isPro, orderOf, pickOrder, makeAdminPro } from "../../../../lib/plan";
 import { ownerProducts, publicProduct } from "../../../../lib/catalog";
 import { flags, setFlag, bucket } from "../../../../lib/flags";
-import { viewOf, sharedCatalog, topAll, hotView, lockTop5For, lockLabel, FREE_PER_CAT } from "../../../../lib/access";
+import { viewOf, sharedCatalog, topAll, hotView, lockTop5For, lockLabel, paywallLabel, freeRulesNow, countdownLine, chooseCat, todayCat, useLink } from "../../../../lib/access";
 import { parseAffId, cleanProductUrl, isShortLink, resolveShortLink, AFF_ID_HOW } from "../../../../lib/afflink";
 import { ago } from "../../../../lib/fmt";
 import { APP, text, qr, HELP_QR, openApp, card, bubble, lockBubble, buyCard, payInfo, howto, affResult } from "../../../../lib/bot/ui";
@@ -46,7 +46,7 @@ async function handle(e) {
   // ---- buying Pro: choose plan → send slip → admin approves in /admin ----
   if (m && m.status !== "revoked") {
     if (e.type === "postback" && e.postback.data.startsWith("a=buy")) {
-      const plan = new URLSearchParams(e.postback.data).get("p") === "year" ? "year" : "month", o = orderOf(plan);
+      const plan = pickOrder(m, new URLSearchParams(e.postback.data).get("p")), o = orderOf(plan);
       const lockGroup = lockTop5For(await flags(), m);
       m.pendingOrder = { plan, at: Date.now(), ...(lockGroup ? { lockGroup: true } : {}) };
       await saveMember(m);
@@ -80,7 +80,7 @@ async function handle(e) {
   // First contact after moving from the waitlist to Free: say so once, with the limits.
   if (m.welcomeFree && !isPro(m)) {
     m.welcomeFree = false; await saveMember(m);
-    return reply(e.replyToken, freeWelcome(m));
+    return reply(e.replyToken, freeWelcome(m, await freeRulesNow()));
   }
   if (e.type === "follow") return reply(e.replyToken, text(`ยินดีต้อนรับ คุณ${m.name} 🐶\nกด "ท็อป 5 วันนี้" ที่เมนูด้านล่าง ได้ตะกร้าน่าทำคลิปทันที ใช้บนมือถือได้เลยไม่ต้องเปิดคอม`, HELP_QR()));
 
@@ -105,6 +105,13 @@ async function handle(e) {
     const f = await flags();
     return reply(e.replyToken, text(`🔒 ล็อกท็อป 5: ${lockLabel(f.lockTop5)}${f.lockTop5At ? `\nเปลี่ยนล่าสุด ${ago(f.lockTop5At)}` : ""}\n\nสั่งได้: "ล็อกท็อป admin" (ทดสอบเอง + "ดูแบบ free") · "ล็อกท็อป 20" (20% ของ Free) · "ล็อกท็อป 100" · "ล็อกท็อป off" (ย้อนกลับทันที)\nมีผลกับทุกคนภายใน ~30 วิ`, HELP_QR()));
   }
+  // Paywall V2 switch: "paywall" (status) · "paywall on" · "paywall off" · "paywall admin" · "paywall auto" (on from D0)
+  const pw = admin && tt.match(/^(?:paywall|เพย์วอลล์)\s*(on|off|admin|auto|เปิด|ปิด)?$/);
+  if (pw) {
+    if (pw[1]) await setFlag("paywallV2", { เปิด: "on", ปิด: "off" }[pw[1]] || pw[1], uid);
+    const f = await flags();
+    return reply(e.replyToken, text(`💰 Paywall V2: ${paywallLabel(f.paywallV2)}${f.paywallV2At ? `\nเปลี่ยนล่าสุด ${ago(f.paywallV2At)}` : ""}\n\nFree V2 = วันละ 1 หมวด เห็น #6–8 · AI 1/วัน · ลิงก์ Aff ID 3/วัน\nสั่งได้: "paywall admin" (ทดสอบเอง + "ดูแบบ free") · "paywall on" · "paywall off" (ย้อนกลับทันที) · "paywall auto" (เปิดเองวันที่ 4 พ.ย.)\nมีผลกับทุกคนภายใน ~30 วิ`, HELP_QR()));
+  }
   // What this member may see (lib/access.js). Pro with own scans uses them; everyone else the shared catalog.
   const view = await viewOf(m, { admin });
   const { pro } = view;
@@ -119,8 +126,8 @@ async function handle(e) {
   if (e.type === "postback") {
     const q = new URLSearchParams(e.postback.data);
     if (q.get("a") === "ai") return aiIdea(e, m, state, q.get("id"));
-    if (q.get("a") === "top") return reply(e.replyToken, await top(all, q.get("c"), cats, { m, pro, state }));
-    if (q.get("a") === "link") { const p = state.products?.[q.get("id")]; return reply(e.replyToken, await askAffId(m, p?.url, p?.name)); }
+    if (q.get("a") === "top") return reply(e.replyToken, await top(all, q.get("c"), cats, { m, view, state }));
+    if (q.get("a") === "link") { const p = await shownProduct(state, q.get("id")); return reply(e.replyToken, await askAffId(m, p?.url, p?.name)); }
     return;
   }
   if (e.type !== "message" || e.message.type !== "text") return;
@@ -131,8 +138,10 @@ async function handle(e) {
     const id = parseAffId(t);
     if (!id) return reply(e.replyToken, text(`ถ้าอยากได้ลิงก์แอฟของตัวเอง ต้องทราบ Affiliate ID ของตัวเองก่อนค่ะ\n\n${AFF_ID_HOW}\n\nพิมพ์เฉพาะตัวเลขส่งมาได้เลย`, idQR(m)));
     const { url, name } = m.awaitAff;
+    const quota = useLink(m, view);
     m.affId = id; m.awaitAff = null; await saveMember(m);
-    return reply(e.replyToken, affResult(url, name, id));
+    if (!quota.ok) return reply(e.replyToken, [text(`แพ็ก Free ทำลิงก์ได้วันละ ${quota.limit} ลิงก์ ครบแล้ววันนี้ค่ะ พรุ่งนี้ทำต่อได้ หรืออัปเกรด Pro ทำได้ไม่จำกัด`), buyCard(m)]);
+    return reply(e.replyToken, affResult(url, name, id, quota.left));
   }
   if (m.awaitAff) { m.awaitAff = null; await saveMember(m); }
 
@@ -144,17 +153,17 @@ async function handle(e) {
 
   const pasted = await pastedLink(t, m);
   if (pasted) return reply(e.replyToken, pasted);
-  if (/^(🔥\s*)?มาแรง/.test(t)) return reply(e.replyToken, await hot(state, pro));
+  if (/^(🔥\s*)?มาแรง/.test(t)) return reply(e.replyToken, await hot(state, view));
   const cm = t.match(/^(?:ท็อป|top|ท๊อป)\s*\d*\s*(.*)$/i);
   // plain "ท็อป" (rich menu): one cross-category list — มาแรง when there is data, else each category's #1
-  if (cm && !cleanWant(cm[1].trim())) return reply(e.replyToken, await hot(state, pro, true));
-  if (cm) return reply(e.replyToken, await top(all, cm[1].trim(), cats, { m, pro, state }));
-  if (cats.includes(t)) return reply(e.replyToken, await top(all, t, cats, { m, pro, state }));
+  if (cm && !cleanWant(cm[1].trim())) return reply(e.replyToken, await hot(state, view, true));
+  if (cm) return reply(e.replyToken, await top(all, cm[1].trim(), cats, { m, view, state }));
+  if (cats.includes(t)) return reply(e.replyToken, await top(all, t, cats, { m, view, state }));
   const sm = t.match(/^(?:หา|ค้นหา|ค้น|search)\s+(.+)$/i);
-  if (sm) return reply(e.replyToken, await top(all, sm[1].trim(), cats, { m, pro, state }));
+  if (sm) return reply(e.replyToken, await top(all, sm[1].trim(), cats, { m, view, state }));
   if (/^หมวด/.test(t)) return reply(e.replyToken, text("เลือกหมวดที่อยากดูท็อป 5", cats.slice(0, 13).map((c) => qr(c, "ท็อป " + c))));
   if (/^(ลิงก์|ลิ้ง|link)/i.test(t)) return reply(e.replyToken, links(all));
-  if (/^สถานะ/.test(t)) return reply(e.replyToken, status(all, cats, state, m, pro));
+  if (/^สถานะ/.test(t)) return reply(e.replyToken, status(all, cats, state, m, view));
   if (t.length >= 12) {
     const head = t.toLowerCase().slice(0, 18);
     const hit = all.find((p) => (p.name || "").toLowerCase().startsWith(head) || (p.name || "").toLowerCase().includes(head));
@@ -198,7 +207,8 @@ async function gate(m, isFollow) {
   if (m?.status === "revoked") return text("บัญชีนี้ถูกระงับการใช้งาน หากคิดว่าผิดพลาด พิมพ์ \"ติดต่อแอดมิน\" ได้เลยค่ะ");
   const r = await roster();
   const left = seatsLeft(r);
-  const body = left > 0 ? `Early Access เหลือ ${left} ที่ สมัครด้วย LINE แล้วใช้งานได้ทันที` : `สมัครด้วย LINE แล้วใช้ฟรีได้ทันที (ท็อป ${FREE_PER_CAT}/หมวด · AI ${PLANS.free.aiPerDay} ครั้ง/วัน)`;
+  const fr = await freeRulesNow();
+  const body = left > 0 ? `Early Access เหลือ ${left} ที่ สมัครด้วย LINE แล้วใช้งานได้ทันที` : `สมัครด้วย LINE แล้วใช้ฟรีได้ทันที (${fr.oneCat ? `วันละ 1 หมวด ${fr.show} ตะกร้า` : `ท็อป ${fr.show}/หมวด`} · AI ${fr.aiPerDay} ครั้ง/วัน)`;
   return { type: "flex", altText: "สมัครใช้ปั๊กปัก", contents: card(isFollow ? "ยินดีต้อนรับสู่ปั๊กปัก 🐶" : "ใช้งานได้หลังสมัครสมาชิก", `ปักตะกร้าให้ปัง ต้องเริ่มจากเลือกตะกร้าให้เป็น\n${body}`, [openApp(left > 0 ? "สมัคร Early Access" : "สมัครใช้ฟรี")]) };
 }
 
@@ -227,21 +237,40 @@ function pickCat(all, want, cats, uid) {
 }
 
 async function top(all, want, cats, ctx = {}) {
-  const c = pickCat(all, want, cats, ctx.m?.id);
+  const { m, view } = ctx;
+  const c = (!cleanWant(want) && view?.rules.oneCat && todayCat(m) && cats.includes(todayCat(m))) ? todayCat(m) : pickCat(all, want, cats, m?.id);
   if (!c) return notInCatalog(want, cats, ctx);
+  // Free V2: one category a day — the first one opened today
+  const day = await chooseCat(m, c, view);
+  if (!day.ok) return [
+    text(`วันนี้คุณเลือกหมวด "${day.cat}" แล้วค่ะ แพ็ก Free ดูได้วันละ 1 หมวด พรุ่งนี้เลือกหมวดใหม่ได้\nอยากดู "${c}" ตอนนี้เลย อัปเกรด Pro ดูได้ทุกหมวด`, [qr(`ดู ${day.cat}`, `ท็อป ${day.cat}`), qr("🔥 มาแรง", "มาแรง")]),
+    buyCard(m),
+  ];
   const list = byRank(rank(all.filter((p) => p.category === c))).slice(0, 5);
   addViews(list.length).catch(() => {});
   const newest = Math.max(...all.filter((p) => p.category === c).map((p) => p.fetchedAt || 0));
-  const others = cats.filter((x) => x !== c).slice(0, 12).map((x) => qr(x, "ท็อป " + x));
+  const others = view?.rules.oneCat ? HELP_QR().slice(0, 1) : cats.filter((x) => x !== c).slice(0, 12).map((x) => qr(x, "ท็อป " + x));
   const locked = ctx.state?.locked?.[c];
+  const cd = await countdownLine(view);
   const head = locked?.length
     ? `🔒 ท็อป 1–${locked.length} หมวด "${c}" ปลดล็อคได้เฉพาะผู้ใช้งาน Pro\nด้านล่างคืออันดับ ${list[0]?._rank || 6}–${list[list.length - 1]?._rank || 10} · ข้อมูล ${ago(newest)}`
     : `ท็อป 5 หมวด "${c}" · ข้อมูล ${ago(newest)}`;
+  const note = (day.first ? `\n📌 หมวดของวันนี้ (แพ็ก Free ดูได้วันละ 1 หมวด)` : "") + (cd ? `\n\n${cd}` : "");
   const bubbles = [...(locked?.length ? [lockBubble(locked)] : []), ...list.map((p, i) => bubble(p, p._rank || i + 1))];
   return [
-    text(`${head}${list.some((p) => p.affLink) ? "" : "\nอยากได้ลิงก์แอฟของคุณ: กด \"เอาลิงก์ของฉัน\" แล้วส่ง Affiliate ID มา"}`),
+    text(`${head}${note}${list.some((p) => p.affLink) ? "" : "\nอยากได้ลิงก์แอฟของคุณ: กด \"เอาลิงก์ของฉัน\" แล้วส่ง Affiliate ID มา"}`),
     { type: "flex", altText: locked?.length ? `ท็อป ${c} (ท็อป 5 ล็อกไว้สำหรับ Pro)` : `ท็อป 5 ${c}`, contents: { type: "carousel", contents: bubbles }, ...(others.length ? { quickReply: { items: others } } : {}) },
   ];
+}
+
+const tail = async (view) => { const cd = await countdownLine(view); return cd ? `\n\n${cd}` : ""; };
+
+// A product the member was shown (cards in มาแรง / ท็อปรวม can come from outside their category list).
+async function shownProduct(state, id) {
+  if (state.products?.[id]) return state.products[id];
+  if (!state.shared) return null;
+  const p = (await ownerProducts()).find((x) => x.id === id);
+  return p ? publicProduct(p) : null;
 }
 
 // Carousel with the locked teaser card first (Free) — used by มาแรง and ท็อปรวม.
@@ -251,39 +280,42 @@ const lockHead = (locked, items) => `🔒 อันดับ 1–${locked.length
 
 // "มาแรงวันนี้" (rules: lib/access.js hotView). Owner links only for the member's own scans.
 // fallbackTop: plain "ท็อป" shows ท็อปรวมวันนี้ instead while มาแรง has no data yet.
-async function hot(state, pro, fallbackTop) {
-  const { locked, items: raw, more } = await hotView({ pro });
+async function hot(state, view, fallbackTop) {
+  const { pro } = view;
+  const { locked, items: raw, more } = await hotView(view);
   if (!raw.length && !locked.length) {
-    if (fallbackTop) return topToday(state, pro);
+    if (fallbackTop) return topToday(state, view);
     return text("🔥 มาแรงวันนี้ยังไม่พร้อมค่ะ ต้องมีข้อมูลยอดขายอย่างน้อย 2 วันเพื่อเทียบกัน\nระหว่างนี้ดูท็อปรายหมวดไปก่อนได้เลย", HELP_QR());
   }
   const items = raw.map((p) => ({ ...p, ...(!state.shared && state.products?.[p.id]?.affLink ? { affLink: state.products[p.id].affLink } : {}) }));
   addViews(items.length).catch(() => {});
   const head = locked.length ? `🔥 มาแรงวันนี้ · ${lockHead(locked, items)}` : `🔥 มาแรงวันนี้ · ${items.length} ตะกร้าที่ยอดขายกำลังพุ่ง จากทุกหมวด`;
   return [
-    text(`${head}\nเทียบกับยอดขายปกติของตัวมันเอง ไม่ใช่ยอดรวม${!pro && more > 0 ? `\n\nแพ็ก Pro ดูได้อีก ${more} ตัว` : ""}`),
+    text(`${head}\nเทียบกับยอดขายปกติของตัวมันเอง ไม่ใช่ยอดรวม${!pro && more > 0 ? `\n\nแพ็ก Pro ดูได้อีก ${more} ตัว` : ""}${await tail(view)}`),
     lockedCarousel("🔥 มาแรงวันนี้", locked, items, HELP_QR().slice(1)),
   ];
 }
 
 // "ท็อปรวมวันนี้": the #1 of every category (rules: lib/access.js topAll).
-async function topToday(state, pro) {
-  const { locked, items, cats } = await topAll({ pro, own: state.shared ? null : Object.values(state.products || {}) });
+async function topToday(state, view) {
+  const { locked, items, cats } = await topAll({ ...view, own: state.shared ? null : Object.values(state.products || {}) });
   addViews(items.length).catch(() => {});
   const head = locked.length ? `ท็อปรวมวันนี้ · ${lockHead(locked, items)} จากอันดับ 1 ของแต่ละหมวด` : `ท็อปรวมวันนี้ · อันดับ 1 ของแต่ละหมวด ${items.length} หมวด`;
   return [
-    text(`${head}\nอยากดูลึกหมวดไหน กดชื่อหมวดด้านล่าง${items.some((p) => p.affLink) ? "" : "\nอยากได้ลิงก์แอฟของคุณ: กด \"เอาลิงก์ของฉัน\" แล้วส่ง Affiliate ID มา"}`),
+    text(`${head}\n${view.rules.oneCat ? "แพ็ก Free เลือกดูลึกได้วันละ 1 หมวด" : "อยากดูลึกหมวดไหน กดชื่อหมวดด้านล่าง"}${await tail(view)}${items.some((p) => p.affLink) ? "" : "\nอยากได้ลิงก์แอฟของคุณ: กด \"เอาลิงก์ของฉัน\" แล้วส่ง Affiliate ID มา"}`),
     lockedCarousel("ท็อปรวมวันนี้", locked, items.map((p) => ({ ...p, _cat: p.category })), cats.slice(0, 12).map((x) => qr(x, "ท็อป " + x))),
   ];
 }
 
 // Asked for a category the catalog doesn't have (e.g. "ท็อป สายนาฬิกา"):
 // log the demand for the admin, show any matching products we do have, and point to Pro's own search.
-async function notInCatalog(want, cats, { m, pro, state } = {}) {
+async function notInCatalog(want, cats, { m, view, state } = {}) {
+  const pro = !!view?.pro;
   want = cleanWant(want);
   const kw = want.toLowerCase().replace(/\s+/g, " ").trim().slice(0, 40);
   logRequest(kw, m?.id).catch(() => {});
-  const pool = state?.shared ? (await ownerProducts()).filter((p) => !state.lockedIds?.has(p.id)).map(publicProduct) : Object.values(state?.products || {});
+  // Free V2: searching across categories is a Pro thing
+  const pool = view?.rules.oneCat ? [] : state?.shared ? (await ownerProducts()).filter((p) => !state.lockedIds?.has(p.id)).map(publicProduct) : Object.values(state?.products || {});
   const words = kw.split(" ").filter((w) => w.length > 1);
   const hits = rank(pool.filter((p) => { const n = (p.name || "").toLowerCase(); return words.length && words.every((w) => n.includes(w)); })).slice(0, pro ? 5 : 3);
   const pick = cats.slice(0, 13).map((x) => qr(x, "ท็อป " + x));
@@ -298,7 +330,7 @@ async function notInCatalog(want, cats, { m, pro, state } = {}) {
       [{ type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "uri", label: "วิธีตั้งค่าบนคอม", uri: `${APP}/connector` } }]), quickReply: { items: pick } });
   } else {
     out.push({ ...buyCard(m, `ค้นหา "${want}" เองได้ใน Pro`), quickReply: { items: pick } });
-    out.splice(out.length - 1, 0, text(`${hits.length ? "" : `ตอนนี้คลังกลางยังไม่มี "${want}" `}แพ็ก Free ดูได้ ${FREE_PER_CAT} ตัวต่อหมวดที่มีอยู่ ส่วน Pro ค้นสินค้าเฉพาะตัวที่คุณทำเองได้ จัดอันดับ + สร้างลิงก์ให้ทุกตัว\nแจ้งทีมไว้แล้วว่ามีคนอยากได้หมวดนี้ 🙏`));
+    out.splice(out.length - 1, 0, text(`${hits.length ? "" : `ตอนนี้คลังกลางยังไม่มี "${want}" `}แพ็ก Free ดูได้เฉพาะหมวดที่มีอยู่${view?.rules.oneCat ? " วันละ 1 หมวด" : ""} ส่วน Pro ค้นสินค้าเฉพาะตัวที่คุณทำเองได้ จัดอันดับ + สร้างลิงก์ให้ทุกตัว\nแจ้งทีมไว้แล้วว่ามีคนอยากได้หมวดนี้ 🙏`));
   }
   return out.slice(0, 5);
 }
@@ -329,8 +361,9 @@ function links(all) {
   return text(`ลิงก์ล่าสุด ${ls.length} อัน\n\n` + ls.map((p, i) => `${i + 1}. ${(p.name || "").slice(0, 40)}\n${p.affLink}`).join("\n\n"), HELP_QR());
 }
 
-function status(all, cats, state, m, pro) {
-  const plan = pro ? `แพ็ก Pro${m.earlyAccess ? " (Early Access)" : ""}${m.proUntil ? ` ถึง ${new Date(m.proUntil).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}` : ""}` : `แพ็ก Free · คลังกลาง ${FREE_PER_CAT} ตัว/หมวด`;
+function status(all, cats, state, m, view) {
+  const { pro } = view;
+  const plan = pro ? `แพ็ก Pro${m.earlyAccess ? " (Early Access)" : ""}${m.proUntil ? ` ถึง ${new Date(m.proUntil).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}` : ""}` : (view.rules.oneCat ? `แพ็ก Free · วันละ 1 หมวด${todayCat(m) ? ` (วันนี้: ${todayCat(m)})` : ""} · AI ${view.rules.aiPerDay}/วัน · ลิงก์ ${view.rules.linksPerDay}/วัน` : `แพ็ก Free · คลังกลาง ${view.rules.show} ตัว/หมวด · AI ${view.rules.aiPerDay}/วัน`);
   if (state.shared) return text(`${plan}\nหมวดในคลังกลาง: ${cats.join(", ")}\n\n${pro ? "อยากได้ลิงก์อัตโนมัติหรือสแกนหมวดเอง กด \"วิธีใช้\" → ขั้นสูง (คอม)" : "พิมพ์ \"อัปเกรด\" เพื่อดูสิทธิ์ Pro"}`, HELP_QR());
   const newest = Math.max(0, ...all.map((p) => p.fetchedAt || 0));
   const lines = cats.map((c) => { const ps = all.filter((p) => p.category === c); return `• ${c}: ${ps.length} ตัว · ลิงก์ ${ps.filter((p) => p.affLink).length} · ${ago(Math.max(...ps.map((p) => p.fetchedAt || 0)))}`; });
@@ -338,7 +371,7 @@ function status(all, cats, state, m, pro) {
 }
 
 async function aiIdea(e, m, state, id) {
-  const p = state.products?.[id];
+  const p = await shownProduct(state, id);
   if (!p) return reply(e.replyToken, text("ไม่พบสินค้านี้แล้ว ลองพิมพ์ \"ท็อป\" ใหม่ค่ะ"));
   let s = p.ai;
   if (!s) {

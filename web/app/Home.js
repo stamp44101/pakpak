@@ -84,7 +84,8 @@ export default function Home({ signedIn = false }) {
   const active = member && member.status === "active";
   const pro = active && member.plan === "pro";
   const [catalogMode, setCatalogMode] = useState(false); // showing the shared catalog (no own data yet)
-  const [locked, setLocked] = useState({}); // Free + lock test: { category: [{ rank, image, perOrder }] } for ranks 1–5
+  const [locked, setLocked] = useState({}); // Free with locked tops: { category: [{ rank, image, perOrder }] } for ranks 1–5
+  const [oneCat, setOneCat] = useState(null); // Free V2: { dayCat, cats: [{ name, count }] } — one category a day
   const shared = !pro || catalogMode;
 
   // ---- who am I ----
@@ -116,14 +117,25 @@ export default function Home({ signedIn = false }) {
   }, []);
   useEffect(() => { if (active) (pro ? pullState() : pullCatalog()); }, [active, pro]);
 
-  // Free: browse the shared catalog (top 5 per category), nothing to save
-  async function pullCatalog() {
-    const r = await api("/api/catalog");
+  // Free: browse the shared catalog (rules in lib/access.js), nothing to save.
+  // Free V2: `pick` chooses today's one category.
+  async function pullCatalog(pick) {
+    const r = await api("/api/catalog" + (pick ? "?cat=" + encodeURIComponent(pick) : ""));
     skipSave.current = true;
     setCatalogMode(true);
     setLocked(r.locked || {});
     setProducts(r.products || {});
+    setOneCat(r.oneCat ? { dayCat: r.dayCat || "", cats: r.cats || [] } : null);
+    if (r.msg) say(r.msg);
+    if (r.oneCat && r.dayCat) setCat((c) => (c === HOT ? c : r.dayCat));
     setReady(true);
+  }
+  // Free V2 category chip: the first pick is today's category, others wait until tomorrow (or Pro).
+  function pickDayCat(c) {
+    if (oneCat.dayCat === c) return pickCat(c);
+    if (oneCat.dayCat) return say(`วันนี้คุณเลือกหมวด "${oneCat.dayCat}" แล้ว แพ็ก Free ดูได้วันละ 1 หมวด พรุ่งนี้เลือกใหม่ได้ หรืออัปเกรด Pro ดูทุกหมวด`);
+    if (!confirm(`เลือก "${c}" เป็นหมวดของวันนี้?\nแพ็ก Free ดูได้วันละ 1 หมวด เลือกแล้วเปลี่ยนได้พรุ่งนี้`)) return;
+    pullCatalog(c);
   }
 
   // ---- load: server copy if newer, else upload what this device has ----
@@ -486,7 +498,7 @@ export default function Home({ signedIn = false }) {
           <div className="bar"><button className="btn primary" onClick={connectShopee}>เชื่อม Shopee Affiliate ↗</button></div>
         </section>
       )}
-      {active && !pro && <Upgrade price={me.price} lock={Object.keys(locked).length > 0} />}
+      {active && !pro && <Upgrade offer={me.offer} paywall={me.paywall} lim={member.limits || {}} />}
       {pro && viewOnly && !catalogMode && (
         <section className="panel">
           <p className="hint" style={{ margin: 0 }}>เครื่องนี้ดูคะแนนและก๊อปลิงก์ได้ ส่วนการสแกนใหม่และสร้างลิงก์ ใช้คอมที่ติดตั้ง <a href="/connector" target="_blank" rel="noopener">ปั๊กปัก Connector</a> (ขั้นสูง)</p>
@@ -515,7 +527,9 @@ export default function Home({ signedIn = false }) {
           <div className="bar" id="cats">
             {(hot?.items?.length > 0 || hot?.locked?.length > 0) && <button className={"chip hot" + (cat === HOT ? " on" : "")} onClick={() => pickCat(HOT)}>🔥 มาแรง</button>}
             <button className={"chip" + (!cat ? " on" : "")} onClick={() => pickCat("")}>ทุกหมวด <span className="num">{all.length}</span></button>
-            {cats.map((c) => (
+            {oneCat ? oneCat.cats.map(({ name: c, count }) => (
+              <button key={c} className={"chip" + (cat === c ? " on" : "") + (oneCat.dayCat && oneCat.dayCat !== c ? " off" : "")} onClick={() => pickDayCat(c)}>{oneCat.dayCat && oneCat.dayCat !== c ? "🔒 " : ""}{c} <span className="num">{count}</span></button>
+            )) : cats.map((c) => (
               <span key={c} className={"chip-wrap" + (editCats ? " editing" : "")}>
                 <button className={"chip" + (cat === c ? " on" : "")} onClick={() => (editCats ? setDelCat(c) : pickCat(c))}>{c} <span className="num">{countBy[c]}</span>{editCats && <span className="chip-x" aria-label={"ลบหมวด " + c}>×</span>}</button>
               </span>
@@ -551,7 +565,8 @@ export default function Home({ signedIn = false }) {
           </details>
           {lockedRows.length > 0 && <LockedTop rows={lockedRows} cat={cat} />}
           <div className="list">
-            {!ranked.length && <div className="empty"><strong>ยังไม่มีสินค้า</strong><span>{ready ? (account ? "กดเลือกหมวดด้านบนเพื่อดึงสินค้า" : "เชื่อม Shopee Affiliate บนคอมเพื่อดึงสินค้า") : "กำลังโหลด…"}</span></div>}
+            {!ranked.length && oneCat && !oneCat.dayCat && <div className="empty"><strong>เลือก 1 หมวดของวันนี้</strong><span>แพ็ก Free ดูได้วันละ 1 หมวด กดชื่อหมวดด้านบนได้เลย</span></div>}
+            {!ranked.length && !(oneCat && !oneCat.dayCat) && <div className="empty"><strong>ยังไม่มีสินค้า</strong><span>{ready ? (account ? "กดเลือกหมวดด้านบนเพื่อดึงสินค้า" : "เชื่อม Shopee Affiliate บนคอมเพื่อดึงสินค้า") : "กำลังโหลด…"}</span></div>}
             {ranked.slice(0, limit).map((p, i) => (
               <div key={p.id} id={"row-" + p.id} className={"row" + (i < 10 ? " top10" : "")} onClick={(e) => { if (!e.target.closest(".detail")) setOpen(open === p.id ? null : p.id); }}>
                 <div className="rank">{p._rank || i + 1}</div>
@@ -693,12 +708,14 @@ function PlanBadge({ member }) {
   return <a className="plan free" href={UPGRADE_URL} target="_blank" rel="noopener">Free <small>อัปเกรด</small></a>;
 }
 
-function Upgrade({ price, lock }) {
+function Upgrade({ offer, paywall, lim }) {
+  const month = offer?.month || 199, year = offer?.year || 1990;
   return (
     <section className="panel upgrade">
+      {paywall?.countdown && <p className="countdown">{paywall.countdown}</p>}
       <div>
         <h2>คุณใช้แพ็ก Free อยู่</h2>
-        <p className="hint">{lock ? "ดูอันดับ 6–10 ของแต่ละหมวด (ท็อป 1–5 ล็อกไว้สำหรับ Pro)" : "ดูท็อป 5 ของแต่ละหมวด"}จากคลังกลาง และให้ AI ดูได้วันละ 3 ตัว ใช้บนมือถืออย่างเดียวได้ ไม่ต้องยุ่งกับคอม</p>
+        <p className="hint">{lim.oneCat ? `ดูได้วันละ 1 หมวด ${lim.topPerCat} ตะกร้า (ท็อป 1–5 ล็อกไว้สำหรับ Pro) · AI วันละ ${lim.aiPerDay} ตัว · ลิงก์วันละ ${lim.linksPerDay} ลิงก์` : `ดูได้ ${lim.topPerCat || 5} ตะกร้าต่อหมวดจากคลังกลาง · AI วันละ ${lim.aiPerDay || 3} ตัว`} ใช้บนมือถืออย่างเดียวได้ ไม่ต้องยุ่งกับคอม</p>
       </div>
       <div className="howlink">
         <b>อยากได้ลิงก์แอฟของตัวเอง ต้องมี Affiliate ID เท่านั้น</b>
@@ -709,14 +726,14 @@ function Upgrade({ price, lock }) {
         </ol>
       </div>
       <ul className="upgrade-list">
-        {lock && <li>ปลดล็อคตะกร้า Top 5 ทุกหมวด</li>}
-        <li>ดูได้ทุกตัว ไม่ใช่แค่ 5 ตัว</li>
-        <li>AI ไอเดียคลิปวันละ 30 ตัว</li>
+        <li>ปลดล็อคตะกร้า Top 5 (ท็อปรวม · มาแรง · รายหมวด)</li>
+        <li>ดูได้ทุกตัว ทุกหมวด{lim.oneCat ? " ไม่จำกัดวันละ 1 หมวด" : ""}</li>
+        <li>AI ไอเดียคลิปวันละ 30 ตัว · ทำลิงก์ไม่จำกัด</li>
         <li>ขั้นสูง: ลิงก์อัตโนมัติ Top 20 และสแกนหมวดของคุณเอง (ใช้คอม)</li>
       </ul>
       <div className="bar">
-        <a className="btn primary" href={UPGRADE_URL} target="_blank" rel="noopener">อัปเกรดเป็น Pro ฿{price?.month || 199}/เดือน</a>
-        <span className="hint">หรือ ฿{(price?.year || 1990).toLocaleString("en-US")}/ปี · ทักแอดมินใน LINE เพื่อชำระเงิน</span>
+        <a className="btn primary" href={UPGRADE_URL} target="_blank" rel="noopener">{offer?.founding ? `รับราคา Founding ฿${month}/เดือน` : `อัปเกรดเป็น Pro ฿${month}/เดือน`}</a>
+        <span className="hint">หรือ ฿{year.toLocaleString("en-US")}/ปี{offer?.founding ? " · ราคานี้ล็อกไว้ตลอดไป (ปกติ ฿199)" : ""} · ชำระผ่าน LINE</span>
       </div>
     </section>
   );

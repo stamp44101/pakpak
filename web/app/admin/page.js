@@ -1,4 +1,5 @@
 "use client";
+import { orderOf } from "../../lib/plan";
 import { useEffect, useState } from "react";
 
 const STATUS = { active: "ใช้งานได้", waitlist: "รอคิว", revoked: "ระงับ" };
@@ -76,7 +77,7 @@ export default function Admin() {
             <div key={m.id} className="mrow">
               {m.picture ? <img className="avatar" src={m.picture} alt="" referrerPolicy="no-referrer" /> : <span className="avatar" />}
               <div className="mrow-main">
-                <div className="mrow-name">{m.name}{m.pendingOrder && <span className={"tag order" + (m.pendingOrder.slipAt ? " slip" : "")}>{m.pendingOrder.slipAt ? "ส่งสลิปแล้ว" : "เลือกแพ็กแล้ว รอสลิป"} · {m.pendingOrder.plan === "year" ? "รายปี" : "รายเดือน"}</span>}{m.admin && <span className="tag">{m.owner ? "เจ้าของ" : "ผู้ดูแล"}</span>}{m.status !== "active" && <span className={"tag" + (m.status === "waitlist" ? " b" : "")}>{STATUS[m.status]}</span>}</div>
+                <div className="mrow-name">{m.name}{m.pendingOrder && <span className={"tag order" + (m.pendingOrder.slipAt ? " slip" : "")}>{m.pendingOrder.slipAt ? "ส่งสลิปแล้ว" : "เลือกแพ็กแล้ว รอสลิป"} · {orderOf(m.pendingOrder.plan).label} ฿{orderOf(m.pendingOrder.plan).price.toLocaleString("en-US")}</span>}{m.admin && <span className="tag">{m.owner ? "เจ้าของ" : "ผู้ดูแล"}</span>}{m.status !== "active" && <span className={"tag" + (m.status === "waitlist" ? " b" : "")}>{STATUS[m.status]}</span>}</div>
                 <div className="mrow-sub">
                   สมัคร {short(m.joinedAt)} · เริ่มต้น {STEPS.filter(([k]) => k === "line" || m.onboarding.includes(k)).length}/3{m.status === "active" && STEPS.some(([k]) => k !== "line" && !m.onboarding.includes(k)) ? ` (ติดที่ ${nextStep(["line", ...m.onboarding])})` : ""}{m.onboarding.includes("scan") ? " · ขั้นสูง ✓" : m.onboarding.includes("connector") ? " · ขั้นสูง: ติดตั้งแล้ว" : ""} · AI วันนี้ {m.aiToday}/{m.limits?.aiPerDay}
                 </div>
@@ -90,7 +91,7 @@ export default function Admin() {
               {!m.owner ? <button className={"btn act-btn" + (openId === m.id ? " on" : "")} aria-expanded={openId === m.id} onClick={() => setOpenId(openId === m.id ? null : m.id)}>จัดการ</button> : <span />}
               {m.pendingOrder && (
                 <div className="act-row order-row">
-                  <button className="btn primary" onClick={() => set(m.id, null, { approve: true })}>อนุมัติ · เปิด Pro {m.pendingOrder.plan === "year" ? "1 ปี" : "30 วัน"}</button>
+                  <button className="btn primary" onClick={() => set(m.id, null, { approve: true })}>อนุมัติ · เปิด Pro {orderOf(m.pendingOrder.plan).span}</button>
                   <button className="btn" onClick={() => set(m.id, null, { reject: true })}>สลิปไม่ผ่าน</button>
                   <span className="hint">ดูสลิปในแชท LINE OA ก่อนกดอนุมัติ ระบบจะแจ้งลูกค้าในแชทให้เอง</span>
                 </div>

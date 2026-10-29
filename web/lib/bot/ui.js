@@ -2,7 +2,7 @@
 import { LIFF_URL } from "../line";
 import { affLink, SHORT_NOTE } from "../afflink";
 import { effPrice } from "../score";
-import { isPro, ORDERS, orderOf, ORDER_TTL_H, PLANS } from "../plan";
+import { isPro, ORDERS, orderOf, ORDER_TTL_H, PLANS, foundingOpen, FOUNDING_UNTIL } from "../plan";
 import { baht, thDate } from "../fmt";
 
 export const APP = process.env.APP_URL || "https://pakpak-two.vercel.app";
@@ -14,10 +14,10 @@ export const HELP_QR = () => [qr("🔥 มาแรง", "มาแรง"), qr(
 export const external = (u) => { try { const x = new URL(u); x.searchParams.set("openExternalBrowser", "1"); return x.toString(); } catch { return u; } };
 export const openApp = (label = "เปิดปั๊กปัก") => ({ type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "uri", label, uri: LIFF_URL } });
 
-export function affResult(url, name, id) {
+export function affResult(url, name, id, left = null) {
   const link = affLink(url, id);
   return [
-    text(`✅ ลิงก์แอฟของคุณ (ID ${id})${name ? `\n${name.slice(0, 60)}` : ""}\n\n${link}\n\n${SHORT_NOTE}`, HELP_QR()),
+    text(`✅ ลิงก์แอฟของคุณ (ID ${id})${name ? `\n${name.slice(0, 60)}` : ""}\n\n${link}\n\n${SHORT_NOTE}${left != null ? `\n\nวันนี้ทำลิงก์ได้อีก ${left} ลิงก์ (แพ็ก Free)` : ""}`, HELP_QR()),
     { type: "flex", altText: "ลิงก์แอฟของคุณ", contents: { type: "bubble", size: "kilo", body: { type: "box", layout: "vertical", spacing: "sm", contents: [
       { type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "clipboard", label: "คัดลอกลิงก์", clipboardText: link } },
       { type: "button", style: "secondary", height: "sm", action: { type: "uri", label: "ลองเปิดลิงก์", uri: external(link) } },
@@ -116,7 +116,8 @@ export function buyCard(m, why) {
   const head = why || (isProNow ? "ต่ออายุ Pro" : "อัปเกรดเป็น Pro");
   const sub = isProNow
     ? (m.proUntil ? `Pro ของคุณใช้ได้ถึง ${thDate(m.proUntil)} ต่ออายุแล้ววันจะบวกต่อจากเดิม` : "บัญชีนี้เป็น Pro ไม่หมดอายุ")
-    : `• ปลดล็อคตะกร้า Top 5 ที่ล็อกไว้ (ท็อปรวม · มาแรง · รายหมวด)\n• ดูได้ทุกตัว ทุกหมวด\n• AI ไอเดียคลิปวันละ ${PLANS.pro.aiPerDay} ตัว (Free ${PLANS.free.aiPerDay})\n• ขั้นสูง: ลิงก์อัตโนมัติ + สแกนหมวดของคุณเอง`;
+    : `• ปลดล็อคตะกร้า Top 5 ที่ล็อกไว้ (ท็อปรวม · มาแรง · รายหมวด)\n• ดูได้ทุกตัว ทุกหมวด ไม่จำกัดวันละ 1 หมวด\n• ทำลิงก์ด้วย Affiliate ID ไม่จำกัด\n• AI ไอเดียคลิปวันละ ${PLANS.pro.aiPerDay} ตัว\n• ขั้นสูง: ลิงก์อัตโนมัติ + สแกนหมวดของคุณเอง`;
+  const founding = foundingOpen(m);
   const opt = (label, price, note, p, primary) => ({
     type: "box", layout: "horizontal", paddingAll: "12px", cornerRadius: "10px", backgroundColor: primary ? "#FFF1E7" : "#F7F7F7",
     action: { type: "postback", label, data: `a=buy&p=${p}`, displayText: `สมัคร Pro ${label}` },
@@ -131,8 +132,14 @@ export function buyCard(m, why) {
       { type: "text", text: head, weight: "bold", size: "lg", wrap: true },
       { type: "text", text: sub, size: "sm", color: "#666666", wrap: true },
       { type: "text", text: "เลือกแพ็ก", size: "xs", color: "#999999", margin: "lg" },
-      opt(ORDERS.month.label, baht(ORDERS.month.price), `ใช้ได้ ${ORDERS.month.days} วัน`, "month", false),
-      opt(ORDERS.year.label, baht(ORDERS.year.price), `ใช้ได้ ${ORDERS.year.span} · ได้ฟรี 2 เดือน`, "year", true),
+      ...(founding ? [
+        { type: "text", text: m?.founding ? "🎁 ราคา Founding ของคุณ ใช้ได้ตลอดไป" : `🎁 ราคา Founding ล็อกไว้ตลอดไป · สมัครได้ถึง ${thDate(FOUNDING_UNTIL)}`, size: "xs", color: "#E5480A", weight: "bold", wrap: true },
+        opt(ORDERS.fmonth.label, baht(ORDERS.fmonth.price), `ปกติ ${baht(ORDERS.month.price)} · ใช้ได้ ${ORDERS.fmonth.days} วัน`, "fmonth", false),
+        opt(ORDERS.fyear.label, baht(ORDERS.fyear.price), `ปกติ ${baht(ORDERS.year.price)} · ใช้ได้ ${ORDERS.fyear.span}`, "fyear", true),
+      ] : [
+        opt(ORDERS.month.label, baht(ORDERS.month.price), `ใช้ได้ ${ORDERS.month.days} วัน`, "month", false),
+        opt(ORDERS.year.label, baht(ORDERS.year.price), `ใช้ได้ ${ORDERS.year.span} · ได้ฟรี 2 เดือน`, "year", true),
+      ]),
     ] },
   } };
 }

@@ -5,6 +5,7 @@ import { thDate } from "../../../lib/fmt";
 import { push } from "../../../lib/line";
 import { readJSON } from "../../../lib/store";
 import { freeWelcome } from "../../../lib/welcome";
+import { freeRulesNow } from "../../../lib/access";
 import { notifyDiscord } from "../../../lib/discord";
 
 export const runtime = "nodejs";
@@ -23,7 +24,7 @@ export async function GET(req) {
   const r = await roster();
   const ids = [...r.active, ...r.waitlist, ...(r.revoked || [])];
   const members = (await Promise.all(ids.map(getMember))).filter(Boolean).map((m) => ({
-    id: m.id, name: m.name, picture: m.picture, status: m.status, joinedAt: m.joinedAt, admin: r.admins.includes(m.id), owner: r.admins[0] === m.id, aiToday: m.ai?.count || 0, aiDay: m.ai?.day || "", onboarding: m.onboarding?.done || [], ...planInfo(m), pendingOrder: m.pendingOrder || null, freeSince: m.freeSince || null, welcomeFree: !!m.welcomeFree, welcomePushedAt: m.welcomePushedAt || null, trialAt: m.trialAt || null,
+    id: m.id, name: m.name, picture: m.picture, status: m.status, joinedAt: m.joinedAt, admin: r.admins.includes(m.id), owner: r.admins[0] === m.id, aiToday: m.ai?.count || 0, aiDay: m.ai?.day || "", onboarding: m.onboarding?.done || [], ...planInfo(m), pendingOrder: m.pendingOrder || null, freeSince: m.freeSince || null, welcomeFree: !!m.welcomeFree, welcomePushedAt: m.welcomePushedAt || null, trialAt: m.trialAt || null, founding: !!m.founding,
   }));
   const toWelcome = members.filter((m) => m.status === "active" && m.plan !== "pro" && m.welcomeFree && !m.welcomePushedAt).length;
   const req0 = (await readJSON("meta/requests.json")) || {};
@@ -39,12 +40,12 @@ export async function POST(req) {
   if (welcomeFree) {
     const r = await roster();
     for (const wid of [...r.waitlist]) { const w = await getMember(wid); if (w && w.status === "waitlist") await openFree(w); }
-    const ids = (await roster()).active;
+    const ids = (await roster()).active, rules = await freeRulesNow();
     let sent = 0;
     for (const mid of ids) {
       const w = await getMember(mid);
       if (!w || !w.welcomeFree || w.welcomePushedAt || w.plan === "pro") continue;
-      try { await push(w.id, freeWelcome(w)); w.welcomePushedAt = Date.now(); await saveMember(w); sent++; } catch {}
+      try { await push(w.id, freeWelcome(w, rules)); w.welcomePushedAt = Date.now(); await saveMember(w); sent++; } catch {}
     }
     return Response.json({ ok: true, sent });
   }
@@ -56,6 +57,7 @@ export async function POST(req) {
     m.pendingOrder = null;
     if (approve) {
       grantPro(m, o.days);
+      if (o.founding) m.founding = true; // keeps the founding price on renewals
       m.payments = [...(m.payments || []), { plan: order.plan, amount: o.price, at: Date.now() }];
       if (m.status !== "active") {
         await mutateRoster((r) => { for (const k of ["active", "waitlist", "revoked"]) r[k] = (r[k] || []).filter((x) => x !== m.id); r.active.push(m.id); });

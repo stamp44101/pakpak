@@ -1,6 +1,7 @@
 "use client";
 // "บัญชีของฉัน": what this member has set up, what is missing, and what their plan includes.
 import { useEffect, useState } from "react";
+import { orderOf } from "../../lib/plan";
 
 const EXT_ID = process.env.NEXT_PUBLIC_EXT_ID || "oemnhmceapililgkfdfjamhbdpkkjbbm";
 const OA_ADD = "https://line.me/R/ti/p/@979soyth";
@@ -86,14 +87,17 @@ export default function Settings() {
           </div>
           <a className="btn primary" href={UPGRADE_URL} target="_blank" rel="noopener">{pro ? (m.proUntil ? "ต่ออายุ Pro" : "ติดต่อแอดมิน") : "อัปเกรดเป็น Pro"}</a>
         </div>
-        {m.pendingOrder && <p className="hint pending">{m.pendingOrder.slipAt ? "ส่งสลิปแล้ว แอดมินกำลังตรวจสอบ" : "เลือกแพ็กแล้ว รอส่งสลิปในแชท LINE"} · {m.pendingOrder.plan === "year" ? "รายปี" : "รายเดือน"}</p>}
+        {m.pendingOrder && <p className="hint pending">{m.pendingOrder.slipAt ? "ส่งสลิปแล้ว แอดมินกำลังตรวจสอบ" : "เลือกแพ็กแล้ว รอส่งสลิปในแชท LINE"} · {orderOf(m.pendingOrder.plan).label}</p>}
+        {!pro && me.offer?.founding && <p className="hint founding">🎁 ราคา Founding ฿{me.offer.month}/เดือน หรือ ฿{me.offer.year.toLocaleString("en-US")}/ปี ล็อกไว้ตลอดไป{m.founding ? "" : ` · สมัครได้ถึง ${thDate(me.offer.foundingUntil)}`}</p>}
+        {!pro && me.paywall?.countdown && <p className="hint pending">{me.paywall.countdown}</p>}
         <div className="usage">
           <span>AI วันนี้</span>
           <div className="track"><div className="fill ai" style={{ width: `${Math.min(100, ((m.aiToday || 0) / (lim.aiPerDay || 1)) * 100)}%` }} /></div>
           <b className="num">{m.aiToday || 0}/{lim.aiPerDay}</b>
         </div>
         <ul className="feat">
-          <li className="y">{lim.topPerCat ? `ท็อป ${lim.topPerCat} ต่อหมวดจากคลังกลาง` : "ดูได้ทุกตัว ทุกหมวด"}</li>
+          <li className="y">{lim.oneCat ? `วันละ 1 หมวด ${lim.topPerCat} ตะกร้า (ท็อป 1–5 ล็อก)` : lim.topPerCat ? `ท็อป ${lim.topPerCat} ต่อหมวดจากคลังกลาง` : "ดูได้ทุกตัว ทุกหมวด"}</li>
+          {lim.linksPerDay && <li className="y">ลิงก์ด้วย Affiliate ID วันละ {lim.linksPerDay} ลิงก์</li>}
           <li className="y">AI ไอเดียคลิป วันละ {lim.aiPerDay} ตัว</li>
           <li className="y">ใช้งานในแชท LINE + เอาลิงก์ผ่านแอป Shopee</li>
           <li className={lim.autoLinks ? "y" : "n"}>ขั้นสูง: ลิงก์อัตโนมัติ Top 20</li>
