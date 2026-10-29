@@ -4,6 +4,8 @@ import { effPrice, rank } from "../lib/score";
 import Landing from "./Landing";
 import AffLinkBox from "./AffLinkBox";
 
+const bkkToday = () => new Date(Date.now() + 7 * 36e5).toISOString().slice(0, 10);
+
 const LIFF_ID = process.env.NEXT_PUBLIC_LIFF_ID || "2012241865-bvKNVlJR";
 const inLine = () => typeof navigator !== "undefined" && /\bLine\//i.test(navigator.userAgent);
 function loadScript(src) { return new Promise((ok, no) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = no; document.head.appendChild(s); }); }
@@ -118,10 +120,23 @@ export default function Home({ signedIn = false }) {
     })();
   }, []);
   useEffect(() => { if (active) (pro ? pullState() : pullCatalog()); }, [active, pro]);
+  // Free: what the catalog shows depends on the Bangkok day (one category a day, AI quota, Paywall switch at midnight).
+  // A page left open across midnight keeps yesterday's data, so reload it when the day changes.
+  const catDay = useRef("");
+  const pullRef = useRef(null);
+  useEffect(() => {
+    if (!active || pro) return;
+    const check = () => { if (document.visibilityState === "visible" && catDay.current && catDay.current !== bkkToday()) pullRef.current?.(); };
+    const t = setInterval(check, 60e3);
+    document.addEventListener("visibilitychange", check);
+    window.addEventListener("focus", check);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", check); window.removeEventListener("focus", check); };
+  }, [active, pro]);
 
   // Free: browse the shared catalog (rules in lib/access.js), nothing to save.
   // Free V2: `pick` chooses today's one category.
   async function pullCatalog(pick) {
+    catDay.current = bkkToday();
     const r = await api("/api/catalog" + (pick ? "?cat=" + encodeURIComponent(pick) : ""));
     skipSave.current = true;
     setCatalogMode(true);
@@ -132,6 +147,7 @@ export default function Home({ signedIn = false }) {
     if (r.oneCat && r.dayCat) setCat((c) => (c === HOT ? c : r.dayCat));
     setReady(true);
   }
+  pullRef.current = () => { setOpen(null); pullCatalog(); };
   // Free V2 category chip: the first pick is today's category, others wait until tomorrow (or Pro).
   function pickDayCat(c) {
     if (oneCat.dayCat === c) return pickCat(c);
