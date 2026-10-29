@@ -12,6 +12,7 @@ import { ANNOUNCE } from "../../../lib/announce";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60; // group pushes (announce, ฿99 offer) go one member at a time
 
 async function guard(req) {
   const { member, error } = await requireMember(req);
