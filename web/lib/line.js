@@ -81,4 +81,24 @@ export async function push(to, messages) {
   }
   return call("message/push", { to, messages: list });
 }
-export const loading = (chatId, seconds = 20) => call("chat/loading/start", { chatId, loadingSeconds: seconds });
+// Monthly push quota of the OA. Replies are free and unlimited; push / multicast count here.
+// → { type: "limited" | "none", value: number|null, used: number, left: number|null }, null when LINE can't be reached.
+// Cached 60 s per instance; markPushed() keeps the cache honest after a group send.
+let q = { v: null, at: 0 };
+export async function quota({ fresh = false } = {}) {
+  if (!fresh && q.v && Date.now() - q.at < 60e3) return q.v;
+  try {
+    const [a, b] = await Promise.all(["message/quota", "message/quota/consumption"].map((p) => botFetch(p, { method: "GET" }).then((r) => (r.ok ? r.json() : Promise.reject(new Error(`${p} ${r.status}`))))));
+    const value = a.type === "limited" ? a.value : null, used = b.totalUsage || 0;
+    q = { v: { type: a.type, value, used, left: value == null ? null : Math.max(0, value - used) }, at: Date.now() };
+    return q.v;
+  } catch (err) {
+    console.error("LINE quota", err);
+    return null;
+  }
+}
+export function markPushed(n) {
+  if (q.v) q.v = { ...q.v, used: q.v.used + n, left: q.v.left == null ? null : Math.max(0, q.v.left - n) };
+}
+
+export const loading =(chatId, seconds = 20) => call("chat/loading/start", { chatId, loadingSeconds: seconds });

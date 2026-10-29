@@ -3,11 +3,11 @@ import { requireMember, isAdmin, roster, mutateRoster, getMember, saveMember, se
 import { planInfo, grantPro, makeAdminPro, orderOf, ORDERS, EA_DAYS, ADMIN_TRIAL_DAYS, PROMO_HOURS, promoLive } from "../../../lib/plan";
 import { offerCard } from "../../../lib/bot/ui";
 import { thDate } from "../../../lib/fmt";
-import { push } from "../../../lib/line";
+import { push, quota, markPushed } from "../../../lib/line";
 import { readJSON } from "../../../lib/store";
 import { freeWelcome } from "../../../lib/welcome";
 import { freeRulesNow } from "../../../lib/access";
-import { notifyDiscord } from "../../../lib/discord";
+import { notifyDiscord, notifyError } from "../../../lib/discord";
 import { ANNOUNCE } from "../../../lib/announce";
 
 export const runtime = "nodejs";
@@ -37,7 +37,18 @@ export async function GET(req) {
   const toWelcome = members.filter((m) => m.status === "active" && m.plan !== "pro" && m.welcomeFree && !m.welcomePushedAt).length;
   const req0 = (await readJSON("meta/requests.json")) || {};
   const requests = Object.entries(req0).map(([kw, x]) => ({ kw, count: x.count, people: x.users?.length || 0, last: x.last })).sort((a, b) => b.people - a.people || b.count - a.count).slice(0, 20);
-  return Response.json({ members, seats: seats(), active: earlyTaken(r), toWelcome, requests, announce });
+  return Response.json({ members, seats: seats(), active: earlyTaken(r), toWelcome, requests, announce, quota: await quota() });
+}
+
+// Group pushes stop before they start if the month's push quota can't cover them.
+// RESERVE keeps room for the one-off pushes that matter most (Pro approved, slip alerts to admins).
+const RESERVE = 20;
+async function quotaBlock(n, what) {
+  if (n <= 0) return null;
+  const qt = await quota({ fresh: true });
+  if (!qt) { notifyError("⚠️ อ่านโควตา push ไม่ได้", [`กำลังส่ง ${what} ${n} คน — ส่งต่อโดยไม่เช็ก`]).catch(() => {}); return null; }
+  if (qt.left == null || qt.left >= n + RESERVE) return null;
+  return Response.json({ error: `โควตา push เหลือ ${qt.left} ข้อความ (ใช้ไป ${qt.used}/${qt.value} เดือนนี้) ไม่พอส่ง ${what} ${n} คน + สำรอง ${RESERVE} สำหรับแจ้งอนุมัติ Pro`, quota: qt }, { status: 409 });
 }
 
 export async function POST(req) {
@@ -46,6 +57,10 @@ export async function POST(req) {
   const { id, ids: offerIds, announce, status, plan, days, approve, reject, welcomeFree, admin, trial, founding } = (await req.json().catch(() => ({}))) || {};
   // One-time LINE push to everyone moved from the waitlist to Free who hasn't been told yet.
   if (welcomeFree) {
+    const r0 = await roster();
+    const est = (await Promise.all(r0.active.map(getMember))).filter((w) => w && w.welcomeFree && !w.welcomePushedAt && w.plan !== "pro").length + r0.waitlist.length;
+    const blocked = await quotaBlock(est, "แจ้งคน Free");
+    if (blocked) return blocked;
     const r = await roster();
     for (const wid of [...r.waitlist]) { const w = await getMember(wid); if (w && w.status === "waitlist") await openFree(w); }
     const ids = (await roster()).active, rules = await freeRulesNow();
@@ -53,8 +68,9 @@ export async function POST(req) {
     for (const mid of ids) {
       const w = await getMember(mid);
       if (!w || !w.welcomeFree || w.welcomePushedAt || w.plan === "pro") continue;
-      try { await push(w.id, freeWelcome(w, rules)); w.welcomePushedAt = Date.now(); await saveMember(w); sent++; } catch {}
+      try { if (await push(w.id, freeWelcome(w, rules))) { w.welcomePushedAt = Date.now(); await saveMember(w); sent++; } } catch {}
     }
+    markPushed(sent);
     return Response.json({ ok: true, sent });
   }
   // One-time announcement (lib/announce.js) to its target group; each member gets it once.
@@ -62,17 +78,23 @@ export async function POST(req) {
     const a = ANNOUNCE[announce];
     if (!a) return Response.json({ error: "ไม่พบประกาศนี้" }, { status: 400 });
     const r = await roster();
+    const targets = (await Promise.all(r.active.map(getMember))).filter((w) => w && a.to(w, r.admins) && !w.news?.[announce]);
+    const blocked = await quotaBlock(targets.length, `"${a.label}"`);
+    if (blocked) return blocked;
     let sent = 0, failed = 0;
-    for (const mid of [...r.active]) {
+    for (const mid of targets.map((w) => w.id)) {
       const w = await getMember(mid);
       if (!w || !a.to(w, r.admins) || w.news?.[announce]) continue;
       if (await push(w.id, a.message(w))) { w.news = { ...(w.news || {}), [announce]: Date.now() }; await saveMember(w); sent++; } else failed++;
     }
+    markPushed(sent);
     notifyDiscord("trial", { title: `📣 ${a.label}`, lines: [`ส่ง ${sent} คน${failed ? ` · ไม่สำเร็จ ${failed}` : ""} · โดย ${g.member.name}`] }).catch(() => {});
     return Response.json({ ok: true, sent, failed });
   }
   // ฿99 promo to a group the admin picked in /admin (e.g. the "สนใจ Pro" filter). Skips anyone who can't or needn't get it.
   if (Array.isArray(offerIds)) {
+    const blocked = await quotaBlock(Math.min(offerIds.length, 200), `ข้อเสนอ ฿${ORDERS.fmonth.price}`);
+    if (blocked) return blocked;
     const r = await roster();
     let sent = 0, skipped = 0;
     for (const oid of offerIds.slice(0, 200)) {
@@ -80,6 +102,7 @@ export async function POST(req) {
       if (!w || w.status !== "active" || r.admins.includes(w.id) || w.founding || promoLive(w)) { skipped++; continue; }
       try { await sendOffer(w, g.member); sent++; } catch { skipped++; }
     }
+    markPushed(sent);
     notifyDiscord("trial", { title: `🎁 ส่งข้อเสนอ ฿${ORDERS.fmonth.price} ทั้งกลุ่ม`, lines: [`ส่ง ${sent} คน · ข้าม ${skipped} คน · โดย ${g.member.name}`] }).catch(() => {});
     return Response.json({ ok: true, sent, skipped });
   }

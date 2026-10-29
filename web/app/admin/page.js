@@ -72,6 +72,9 @@ export default function Admin() {
           <span><b className="num">{stats.wait}</b> รอคิว</span>
           {data.members.some((m) => m.pendingOrder?.slipAt) && <span className="stat-alert"><b className="num">{data.members.filter((m) => m.pendingOrder?.slipAt).length}</b> สลิปรอตรวจ</span>}
           <span>Early Access เหลือ <b className="num">{Math.max(0, data.seats - data.active)}</b>/{data.seats}</span>
+          {data.quota
+            ? <span className={data.quota.left != null && data.quota.left < 50 ? "stat-alert" : ""} title="โควตา push ของ LINE OA เดือนนี้ (reply ไม่นับ)">push เหลือ <b className="num">{data.quota.left == null ? "∞" : data.quota.left.toLocaleString("en-US")}</b>{data.quota.value != null && <>/{data.quota.value.toLocaleString("en-US")}</>}</span>
+            : <span className="hint">push: อ่านโควตาไม่ได้</span>}
         </div>
         <div className="bar" style={{ flexWrap: "wrap", gap: 6, margin: "10px 0" }}>
           {FILTERS.map(([k, label, fn]) => {
