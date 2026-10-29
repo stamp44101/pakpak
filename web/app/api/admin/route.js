@@ -1,10 +1,10 @@
 // Admin: list members, activate / move to waitlist / revoke.
-import { requireMember, isAdmin, roster, mutateRoster, getMember, saveMember, seats, earlyTaken, openFree } from "../../../lib/auth";
+import { requireMember, isAdmin, roster, mutateRoster, getMember, saveMember, memberPath, seats, earlyTaken, openFree } from "../../../lib/auth";
 import { planInfo, grantPro, makeAdminPro, orderOf, ORDERS, EA_DAYS, ADMIN_TRIAL_DAYS, PROMO_HOURS, promoLive } from "../../../lib/plan";
 import { offerCard } from "../../../lib/bot/ui";
 import { thDate } from "../../../lib/fmt";
 import { push, quota, markPushed } from "../../../lib/line";
-import { readJSON } from "../../../lib/store";
+import { readJSON, updateJSON } from "../../../lib/store";
 import { freeWelcome } from "../../../lib/welcome";
 import { freeRulesNow } from "../../../lib/access";
 import { notifyDiscord, notifyError } from "../../../lib/discord";
@@ -29,6 +29,7 @@ export async function GET(req) {
   const all = (await Promise.all(ids.map(getMember))).filter(Boolean);
   const members = all.map((m) => ({
     id: m.id, name: m.name, picture: m.picture, status: m.status, joinedAt: m.joinedAt, admin: r.admins.includes(m.id), owner: r.admins[0] === m.id, aiToday: m.ai?.count || 0, aiDay: m.ai?.day || "", onboarding: m.onboarding?.done || [], ...planInfo(m), pendingOrder: m.pendingOrder || null, freeSince: m.freeSince || null, welcomeFree: !!m.welcomeFree, welcomePushedAt: m.welcomePushedAt || null, trialAt: m.trialAt || null, founding: !!m.founding, foundingOffer: !!m.foundingOffer, promo: m.promo || null, promoLive: promoLive(m),
+    payments: m.payments || [],
   }));
   const announce = Object.entries(ANNOUNCE).map(([key, a]) => {
     const target = all.filter((m) => a.to(m, r.admins));
@@ -109,20 +110,27 @@ export async function POST(req) {
   const m = await getMember(String(id || ""));
   if (!m) return Response.json({ error: "ไม่พบสมาชิก" }, { status: 404 });
   if (approve || reject) {
-    const order = m.pendingOrder, o = orderOf(order?.plan);
-    if (!order) return Response.json({ error: "ไม่มีคำสั่งซื้อที่รอตรวจ" }, { status: 400 });
-    m.pendingOrder = null;
-    if (approve) {
-      grantPro(m, o.days);
-      if (o.founding) m.founding = true; // keeps the founding price on renewals
-      if (o.founding && m.promo && !m.promo.paidAt) m.promo.paidAt = Date.now();
-      m.payments = [...(m.payments || []), { plan: order.plan, amount: o.price, at: Date.now() }];
-      if (m.status !== "active") {
-        await mutateRoster((r) => { for (const k of ["active", "waitlist", "revoked"]) r[k] = (r[k] || []).filter((x) => x !== m.id); r.active.push(m.id); });
-        m.status = "active";
+    // Version-checked write: a slip or plan tap landing at the same moment can't wipe the approval (or vice versa).
+    let order, o;
+    const saved = await updateJSON(memberPath(m.id), (cur) => {
+      order = cur.pendingOrder; o = orderOf(order?.plan);
+      if (!order) return cur;
+      cur.pendingOrder = null;
+      if (approve) {
+        grantPro(cur, o.days);
+        if (o.founding) cur.founding = true; // keeps the founding price on renewals
+        if (o.founding && cur.promo && !cur.promo.paidAt) cur.promo.paidAt = Date.now();
+        cur.payments = [...(cur.payments || []), { plan: order.plan, amount: o.price, at: Date.now(), by: g.member.name }];
       }
+      return cur;
+    }, () => m);
+    if (!order) return Response.json({ error: "ไม่มีคำสั่งซื้อที่รอตรวจ" }, { status: 400 });
+    Object.assign(m, saved);
+    if (approve && m.status !== "active") {
+      await mutateRoster((r) => { for (const k of ["active", "waitlist", "revoked"]) r[k] = (r[k] || []).filter((x) => x !== m.id); r.active.push(m.id); });
+      m.status = "active";
+      await updateJSON(memberPath(m.id), (cur) => ({ ...cur, status: "active" }), () => m);
     }
-    await saveMember(m);
     notifyDiscord(approve ? "approved" : "rejected", { title: approve ? `✅ อนุมัติ Pro ${o.label}` : "❌ สลิปไม่ผ่าน", lines: [`**${m.name}** · โดย ${g.member.name}`] }).catch(() => {});
     await push(m.id, { type: "text", text: approve
       ? `เปิดสิทธิ์ Pro ให้แล้ว 🎉 ใช้ได้ถึง ${thDate(m.proUntil)}\nกด "ท็อป 5 วันนี้" ที่เมนูด้านล่างเพื่อเริ่มได้เลย`

@@ -13,6 +13,7 @@ const FILTERS = [
   ["interest", "สนใจ Pro", (m) => !!m.pendingOrder && !m.pendingOrder.slipAt],
   ["promo", "โปร ฿99", (m) => !!m.promo?.at],
   ["heavy", "ใช้ AI ครบโควตาวันนี้", (m) => m.plan !== "pro" && m.aiDay === today() && m.aiToday >= (m.limits?.aiPerDay || 3)],
+  ["paid", "จ่ายจริง", (m) => m.plan === "pro" && !m.admin && m.payments?.length > 0],
   ["pro", "Pro", (m) => m.plan === "pro" && !m.admin],
   ["free", "Free", (m) => m.plan !== "pro"],
   ["admin", "ผู้ดูแล", (m) => m.admin],
@@ -68,6 +69,11 @@ export default function Admin() {
       {data && <>
         <div className="stats">
           <span><b className="num">{stats.pro}</b> Pro</span>
+          {(() => {
+            const paying = data.members.filter((m) => m.plan === "pro" && !m.admin && m.payments?.length > 0);
+            const total = data.members.reduce((t, m) => t + (m.payments || []).reduce((a, p) => a + (p.amount || 0), 0), 0);
+            return <span title="Pro ที่อนุมัติสลิปแล้วและยังไม่หมดอายุ · ยอดรวมทุกสลิปที่อนุมัติ">จ่ายจริง <b className="num">{paying.length}</b> · ฿<b className="num">{total.toLocaleString("en-US")}</b></span>;
+          })()}
           <span><b className="num">{stats.free}</b> Free</span>
           <span><b className="num">{stats.wait}</b> รอคิว</span>
           {data.members.some((m) => m.pendingOrder?.slipAt) && <span className="stat-alert"><b className="num">{data.members.filter((m) => m.pendingOrder?.slipAt).length}</b> สลิปรอตรวจ</span>}
@@ -118,7 +124,7 @@ export default function Admin() {
             <div key={m.id} className="mrow">
               {m.picture ? <img className="avatar" src={m.picture} alt="" referrerPolicy="no-referrer" /> : <span className="avatar" />}
               <div className="mrow-main">
-                <div className="mrow-name">{m.name}{m.pendingOrder && <span className={"tag order" + (m.pendingOrder.slipAt ? " slip" : "")}>{m.pendingOrder.slipAt ? "ส่งสลิปแล้ว" : "เลือกแพ็กแล้ว รอสลิป"} · {orderOf(m.pendingOrder.plan).label} ฿{orderOf(m.pendingOrder.plan).price.toLocaleString("en-US")}</span>}{promoStage(m) && <span className={"tag order" + (promoStage(m)[1] === "slip" || promoStage(m)[1] === "pro" ? " slip" : "")}>฿99 · {promoStage(m)[0]}</span>}{m.admin && <span className="tag">{m.owner ? "เจ้าของ" : "ผู้ดูแล"}</span>}{m.status !== "active" && <span className={"tag" + (m.status === "waitlist" ? " b" : "")}>{STATUS[m.status]}</span>}</div>
+                <div className="mrow-name">{m.name}{m.pendingOrder && <span className={"tag order" + (m.pendingOrder.slipAt ? " slip" : "")}>{m.pendingOrder.slipAt ? "ส่งสลิปแล้ว" : "เลือกแพ็กแล้ว รอสลิป"} · {orderOf(m.pendingOrder.plan).label} ฿{orderOf(m.pendingOrder.plan).price.toLocaleString("en-US")}</span>}{promoStage(m) && <span className={"tag order" + (promoStage(m)[1] === "slip" || promoStage(m)[1] === "pro" ? " slip" : "")}>฿99 · {promoStage(m)[0]}</span>}{m.payments?.length > 0 && <span className="tag order slip" title={m.payments.map((p) => `${new Date(p.at).toLocaleDateString("th-TH")} ${orderOf(p.plan).label} ฿${p.amount}`).join("\n")}>จ่ายแล้ว ฿{m.payments.reduce((a, p) => a + (p.amount || 0), 0).toLocaleString("en-US")}{m.payments.length > 1 ? ` · ${m.payments.length} ครั้ง` : ""}</span>}{m.admin && <span className="tag">{m.owner ? "เจ้าของ" : "ผู้ดูแล"}</span>}{m.status !== "active" && <span className={"tag" + (m.status === "waitlist" ? " b" : "")}>{STATUS[m.status]}</span>}</div>
                 <div className="mrow-sub">
                   สมัคร {short(m.joinedAt)} · เริ่มต้น {STEPS.filter(([k]) => k === "line" || m.onboarding.includes(k)).length}/3{m.status === "active" && STEPS.some(([k]) => k !== "line" && !m.onboarding.includes(k)) ? ` (ติดที่ ${nextStep(["line", ...m.onboarding])})` : ""}{m.onboarding.includes("scan") ? " · ขั้นสูง ✓" : m.onboarding.includes("connector") ? " · ขั้นสูง: ติดตั้งแล้ว" : ""} · AI วันนี้ {m.aiToday}/{m.limits?.aiPerDay}
                 </div>
