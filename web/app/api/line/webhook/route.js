@@ -102,6 +102,9 @@ async function handle(e) {
     if (e.type === "message" && e.message.type === "text" && /^(อัปเกรด|อัพเกรด|ซื้อ|สมัคร pro|ต่ออายุ|pro$|แพ็ก|ราคา)/i.test(e.message.text.trim())) return reply(e.replyToken, buyCard(m));
   }
 
+  // Suspended members are told to type "ติดต่อแอดมิน" — let that through instead of repeating the suspension notice.
+  if (m?.status === "revoked" && e.type === "message" && e.message.type === "text" && /^(ติดต่อแอดมิน|แอดมิน)/.test(e.message.text.trim()))
+    return reply(e.replyToken, text("รับเรื่องแล้วค่ะ พิมพ์รายละเอียดทิ้งไว้ได้เลย แอดมินจะตอบกลับในแชทนี้ 🙏"));
   if (!m || m.status !== "active") return reply(e.replyToken, await gate(m, e.type === "follow"));
   // First contact after moving from the waitlist to Free: say so once, with the limits.
   if (m.welcomeFree && !isPro(m)) {
