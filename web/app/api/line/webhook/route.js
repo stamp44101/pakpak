@@ -14,7 +14,7 @@ import { flags, setFlag, bucket } from "../../../../lib/flags";
 import { viewOf, sharedCatalog, topAll, hotView, lockTop5For, lockLabel, paywallLabel, freeRulesNow, countdownLine, chooseCat, todayCat, useLink } from "../../../../lib/access";
 import { parseAffId, cleanProductUrl, isShortLink, resolveShortLink, AFF_ID_HOW } from "../../../../lib/afflink";
 import { ago, thDateTime } from "../../../../lib/fmt";
-import { APP, text, qr, HELP_QR, openApp, card, bubble, lockBubble, buyCard, payInfo, howto, affResult } from "../../../../lib/bot/ui";
+import { APP, text, qr, HELP_QR, openApp, card, bubble, lockBubble, buyCard, payInfo, howto, affResult, moreBubble } from "../../../../lib/bot/ui";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -284,8 +284,9 @@ async function top(all, want, cats, ctx = {}) {
     : `ท็อป 5 หมวด "${c}" · ข้อมูล ${ago(newest)}`;
   const note = (day.first ? `\n📌 หมวดของวันนี้ (แพ็ก Free ดูได้วันละ 1 หมวด)` : "") + (cd ? `\n\n${cd}` : "");
   const total = Math.min(TOP_MAX, all.filter((p) => p.category === c).length);
+  const peek = (from) => byRank(rank(all.filter((p) => p.category === c))).slice(from, from + 3).map((p, i) => ({ ...p, _rank: p._rank || from + i + 1 }));
   const moreCard = view?.pro && total > TOP_FIRST
-    ? [{ ...card("อยากเห็นตะกร้าเพิ่ม?", `หมวด "${c}" มีให้ดูอีก ${total - TOP_FIRST} ตัว (ถึงอันดับ ${total})`, [{ type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: morePostback(c, TOP_FIRST, Math.min(total, TOP_FIRST + TOP_PAGE)) }]), size: "kilo" }]
+    ? [moreBubble("อยากเห็นตะกร้าเพิ่ม?", `หมวด "${c}" มีอีก ${total - TOP_FIRST} ตัว (ถึงอันดับ ${total})`, peek(TOP_FIRST), morePostback(c, TOP_FIRST, Math.min(total, TOP_FIRST + TOP_PAGE)))]
     : [];
   const bubbles = [...(locked?.length ? [lockBubble(locked)] : []), ...list.map((p, i) => bubble(p, p._rank || i + 1)), ...moreCard];
   return [
@@ -305,7 +306,7 @@ async function topMore(all, want, cats, { m, view, from }) {
   addViews(list.length).catch(() => {});
   const end = start + list.length, next = end < ranked.length;
   const bubbles = [...list.map((p, i) => bubble(p, p._rank || start + i + 1)),
-    ...(next ? [{ ...card("ดูต่อ?", `อีก ${ranked.length - end} ตัวในหมวด "${c}"`, [{ type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: morePostback(c, end, Math.min(ranked.length, end + TOP_PAGE)) }]), size: "kilo" }] : [])];
+    ...(next ? [moreBubble("ดูต่อ?", `อีก ${ranked.length - end} ตัวในหมวด "${c}"`, ranked.slice(end, end + 3).map((p, i) => ({ ...p, _rank: p._rank || end + i + 1 })), morePostback(c, end, Math.min(ranked.length, end + TOP_PAGE)))] : [])];
   return [
     text(`หมวด "${c}" อันดับ ${start + 1}–${end} จาก ${ranked.length}${next ? "" : "\nครบแล้วสำหรับหมวดนี้ค่ะ"}`),
     { type: "flex", altText: `${c} อันดับ ${start + 1}–${end}`, contents: { type: "carousel", contents: bubbles }, quickReply: { items: next ? [{ type: "action", action: { ...morePostback(c, end, Math.min(ranked.length, end + TOP_PAGE)), label: "➡️ ดูต่อ" } }, ...HELP_QR().slice(0, 4)] : HELP_QR() } },

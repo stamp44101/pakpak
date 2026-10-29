@@ -78,6 +78,30 @@ export function lockBubble(rows) {
   };
 }
 
+// Last card of a Pro carousel: teaser of the next ranks + button to page on.
+export function moreBubble(title, sub, next, action) {
+  return {
+    type: "bubble", size: "kilo",
+    styles: { body: { backgroundColor: "#2B1E16" }, footer: { backgroundColor: "#2B1E16" } },
+    body: { type: "box", layout: "vertical", spacing: "sm", paddingAll: "16px", justifyContent: "center", contents: [
+      { type: "text", text: "🛒", size: "3xl", align: "center" },
+      { type: "text", text: title, weight: "bold", size: "lg", color: "#FFFFFF", align: "center", wrap: true },
+      { type: "text", text: sub, size: "sm", color: "#FFC9A6", align: "center", wrap: true },
+      ...(next.length ? [{ type: "separator", margin: "lg", color: "#4A382C" }] : []),
+      ...next.map((p) => ({ type: "box", layout: "vertical", margin: "md", contents: [
+        { type: "box", layout: "horizontal", contents: [
+          { type: "text", text: `#${p._rank}`, weight: "bold", size: "sm", color: "#FE6A0E", flex: 0 },
+          { type: "text", text: p.name || "-", size: "sm", color: "#FFFFFF", flex: 5, margin: "md", maxLines: 1 },
+        ] },
+        { type: "text", text: `ได้ ~${baht(p._perOrder)}/ออเดอร์`, size: "xxs", color: "#FFC9A6", margin: "xs" },
+      ] })),
+    ] },
+    footer: { type: "box", layout: "vertical", contents: [
+      { type: "button", style: "primary", color: "#FE6A0E", height: "sm", action },
+    ] },
+  };
+}
+
 export function bubble(p, n) {
   const score = Math.round(p._t), max = p._a ? 100 : 60;
   const link = p.affLink || p.url;
