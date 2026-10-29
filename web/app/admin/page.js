@@ -71,7 +71,7 @@ export default function Admin() {
           <span><b className="num">{stats.pro}</b> Pro</span>
           {(() => {
             const paying = data.members.filter((m) => m.plan === "pro" && !m.admin && m.payments?.length > 0);
-            const total = data.members.reduce((t, m) => t + (m.payments || []).reduce((a, p) => a + (p.amount || 0), 0), 0);
+            const total = data.members.filter((m) => !m.admin).reduce((t, m) => t + (m.payments || []).reduce((a, p) => a + (p.amount || 0), 0), 0);
             return <span title="Pro ที่อนุมัติสลิปแล้วและยังไม่หมดอายุ · ยอดรวมทุกสลิปที่อนุมัติ">จ่ายจริง <b className="num">{paying.length}</b> · ฿<b className="num">{total.toLocaleString("en-US")}</b></span>;
           })()}
           <span><b className="num">{stats.free}</b> Free</span>
