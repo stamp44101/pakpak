@@ -98,6 +98,26 @@ export function useLink(m, view) {
   return { ok: true, left: lim === Infinity ? null : lim - used - 1 };
 }
 
+// AI ideas opened today: distinct baskets, cached or not (reopening one already opened today is free).
+// Pro and V1 Free are unlimited here — V1 only ever capped fresh AI calls (lib/ai.js), not views.
+export function aiAllowed(m, view, id) {
+  const lim = view.v2 && !view.pro ? view.rules.aiPerDay : Infinity;
+  if (lim === Infinity) return { ok: true, limit: lim, left: null };
+  const ids = m.aiSeen?.day === bkkDay() ? m.aiSeen.ids : [];
+  if (ids.includes(id)) return { ok: true, limit: lim, left: Math.max(0, lim - ids.length), seen: true };
+  return ids.length >= lim ? { ok: false, limit: lim, left: 0 } : { ok: true, limit: lim, left: lim - ids.length - 1 };
+}
+// Record the basket as opened. Returns true when the member changed (caller saves).
+export function markAi(m, view, id) {
+  if (!(view.v2 && !view.pro)) return false;
+  const ids = m.aiSeen?.day === bkkDay() ? m.aiSeen.ids : [];
+  if (ids.includes(id)) return false;
+  m.aiSeen = { day: bkkDay(), ids: [...ids, id] };
+  return true;
+}
+// Free V2 doesn't get the shared AI score in the catalog — it opens one a day through aiAllowed.
+const noAi = ({ ai, ...p }) => p;
+
 // Why a locked product ranks high, in words — the score's own signals that are strong (≥70% of their weight),
 // in order of how much they say about a clip: sales speeding up, AI clip-ability, demand, commission, trust, then price/shop.
 // Shows the reason without the name, price or commission %, so it sells Pro without giving the product away.
@@ -127,7 +147,8 @@ const categories = (all) => [...new Set(all.map((p) => p.category).filter(Boolea
 // Pro: every product. Free: `rules.show` per category, starting after LOCK_N when lockCat.
 // `only`: restrict to one category (Free V2 on the web). `cats` lists every category with its size.
 // `lockedIds` stays on the server so searches can't surface the locked products.
-export async function sharedCatalog({ pro, lockCat, rules = RULES.free }, { only } = {}) {
+export async function sharedCatalog({ pro, v2, lockCat, rules = RULES.free }, { only } = {}) {
+  const cut = v2 && !pro ? noAi : (p) => p;
   const all = await ownerProducts();
   const products = {}, locked = {}, lockedIds = new Set();
   const cats = categories(all).map((c) => ({ name: c, count: all.filter((p) => p.category === c).length }));
@@ -137,26 +158,26 @@ export async function sharedCatalog({ pro, lockCat, rules = RULES.free }, { only
     const start = lockCat ? LOCK_N : 0;
     if (lockCat) r.slice(0, LOCK_N).forEach((p) => lockedIds.add(p.id));
     if (only !== undefined && c !== only) continue;
-    r.slice(start, start + rules.show).forEach((p, i) => { products[p.id] = { ...publicProduct(p), _rank: start + i + 1 }; });
+    r.slice(start, start + rules.show).forEach((p, i) => { products[p.id] = { ...cut(publicProduct(p)), _rank: start + i + 1 }; });
     if (lockCat) locked[c] = lockRows(r.slice(0, LOCK_N));
   }
   return { products, locked, lockedIds, cats };
 }
 
 // ท็อปรวมวันนี้: the #1 of every category, best first. Pro ranks its own products (`own`, e.g. its scans).
-export async function topAll({ pro, rules = RULES.free, own }) {
+export async function topAll({ pro, v2, rules = RULES.free, own }) {
   const mine = pro && own?.length > 0;
   const src = mine ? own : await ownerProducts();
   const firsts = categories(src).map((c) => rank(src.filter((p) => p.category === c))[0]).filter(Boolean).sort((a, b) => b._t - a._t).slice(0, TOP_ALL_N);
   const n = pro ? 0 : Math.min(LOCK_N, firsts.length);
   const shown = firsts.slice(n, n + rules.show);
-  return { locked: lockRows(firsts.slice(0, n)), items: shown.map((p, i) => ({ ...(mine ? p : forCard(p)), _n: n + i + 1 })), cats: categories(src) };
+  return { locked: lockRows(firsts.slice(0, n)), items: shown.map((p, i) => ({ ...(mine ? p : v2 && !pro ? noAi(forCard(p)) : forCard(p)), _n: n + i + 1 })), cats: categories(src) };
 }
 
 // มาแรงวันนี้: products selling faster than their own 30-day average, across categories.
-export async function hotView({ pro, rules = RULES.free, proShow }) {
+export async function hotView({ pro, v2, rules = RULES.free, proShow }) {
   const { items, since } = await trending(await ownerProducts(), 20);
   const n = pro ? 0 : Math.min(LOCK_N, items.length);
   const shown = items.slice(n, n + (pro ? proShow || rules.hot : rules.hot));
-  return { since, locked: lockRows(items.slice(0, n)), items: shown.map((p, i) => ({ ...forCard(p), _n: n + i + 1 })), more: items.length - n - shown.length };
+  return { since, locked: lockRows(items.slice(0, n)), items: shown.map((p, i) => ({ ...(v2 && !pro ? noAi(forCard(p)) : forCard(p)), _n: n + i + 1 })), more: items.length - n - shown.length };
 }

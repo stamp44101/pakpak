@@ -277,7 +277,7 @@ export default function Home({ signedIn = false }) {
     if (r.error) return say(r.error);
     patch(p.id, { ai: { ...r.score, cached: r.cached } });
     if (!pro) api("/api/me").then((x) => !x.error && x.member && setMe(x));
-    say(r.cached ? "ได้คะแนนจากคลัง ไม่เสียโควต้า AI" : "AI ให้คะแนนแล้ว");
+    say(r.cached ? (pro ? "ได้คะแนนจากคลัง ไม่เสียโควต้า AI" : "ได้ไอเดียจาก AI แล้ว · ตะกร้านี้กดดูซ้ำได้ทั้งวัน") : "AI ให้คะแนนแล้ว");
   }
 
   // Pro: load this product's personal ideas when its detail opens (once per product per session).
