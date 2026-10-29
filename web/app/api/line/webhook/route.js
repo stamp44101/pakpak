@@ -160,6 +160,8 @@ async function handle(e) {
   if (pasted) return reply(e.replyToken, pasted);
   if (/^(🔥\s*)?มาแรง/.test(t)) return reply(e.replyToken, await hot(state, pro));
   const cm = t.match(/^(?:ท็อป|top|ท๊อป)\s*\d*\s*(.*)$/i);
+  // plain "ท็อป" (rich menu): one cross-category list — มาแรง when there is data, else each category's #1
+  if (cm && !cleanWant(cm[1].trim())) return reply(e.replyToken, await hot(state, pro, { all, cats }));
   if (cm) return reply(e.replyToken, await top(all, cm[1].trim(), cats, { m, pro, state }));
   if (cats.includes(t)) return reply(e.replyToken, await top(all, t, cats, { m, pro, state }));
   const sm = t.match(/^(?:หา|ค้นหา|ค้น|search)\s+(.+)$/i);
@@ -297,7 +299,7 @@ async function top(all, want, cats, ctx = {}) {
 
 // "มาแรงวันนี้": across all categories, products selling faster than their own 30-day average.
 // Free: top 3 (never the locked top-5 of the lock test). Pro: top 10. Owner links only for the member's own scans.
-async function hot(state, pro) {
+async function hot(state, pro, mixFrom) {
   const { items } = await trending(await ownerProducts(), 20);
   const pool = state.lockedIds ? items.filter((p) => !state.lockedIds.has(p.id)) : items;
   const n = pro ? 10 : 3;
@@ -305,12 +307,24 @@ async function hot(state, pro) {
     ...publicProduct(p), _t: p._t, _a: p._a, _perOrder: p._perOrder, _perDay: p._perDay, _boost: p._boost,
     ...(!state.shared && state.products?.[p.id]?.affLink ? { affLink: state.products[p.id].affLink } : {}),
   }));
+  if (!list.length && mixFrom) return mix(mixFrom.all, mixFrom.cats);
   if (!list.length) return text("🔥 มาแรงวันนี้ยังไม่พร้อมค่ะ ต้องมีข้อมูลยอดขายอย่างน้อย 2 วันเพื่อเทียบกัน\nระหว่างนี้ดูท็อปรายหมวดไปก่อนได้เลย", HELP_QR());
   addViews(list.length).catch(() => {});
   const more = pool.length - list.length;
   return [
     text(`🔥 มาแรงวันนี้ · ${list.length} ตะกร้าที่ยอดขายกำลังพุ่ง จากทุกหมวด\nเทียบกับยอดขายปกติของตัวมันเอง ไม่ใช่ยอดรวม${!pro && more > 0 ? `\n\nแพ็ก Pro ดูได้อีก ${more} ตัว` : ""}`),
     { type: "flex", altText: "🔥 มาแรงวันนี้", contents: { type: "carousel", contents: list.map((p, i) => bubble(p, i + 1)) }, quickReply: { items: HELP_QR().slice(1) } },
+  ];
+}
+
+// "ท็อปรวมวันนี้": the #1 of every category in one carousel (until มาแรง has two days of data).
+function mix(all, cats) {
+  const list = cats.map((c) => byRank(rank(all.filter((p) => p.category === c)))[0]).filter(Boolean).sort((a, b) => b._t - a._t).slice(0, 10);
+  addViews(list.length).catch(() => {});
+  const others = cats.slice(0, 12).map((x) => qr(x, "ท็อป " + x));
+  return [
+    text(`ท็อปรวมวันนี้ · อันดับ 1 ของแต่ละหมวด ${list.length} หมวด\nอยากดูลึกหมวดไหน กดชื่อหมวดด้านล่าง${list.some((p) => p.affLink) ? "" : "\nอยากได้ลิงก์แอฟของคุณ: กด \"เอาลิงก์ของฉัน\" แล้วส่ง Affiliate ID มา"}`),
+    { type: "flex", altText: "ท็อปรวมวันนี้", contents: { type: "carousel", contents: list.map((p, i) => bubble({ ...p, _cat: p.category }, i + 1)) }, ...(others.length ? { quickReply: { items: others } } : {}) },
   ];
 }
 
@@ -397,6 +411,7 @@ function bubble(p, n) {
         { type: "text", text: `#${n}`, weight: "bold", color: "#FE6A0E", size: "sm", flex: 0 },
         { type: "text", text: `คะแนน ${score}/${max}${p._a ? "" : " · ยังไม่มี AI"}`, size: "xs", color: "#888888", align: "end" },
       ] },
+      ...(p._cat && !p._perDay ? [{ type: "text", text: `หมวด ${p._cat}`, size: "xxs", color: "#E5480A", weight: "bold" }] : []),
       ...(p._perDay ? [{ type: "text", text: `🔥 ขายวันละ ~${Math.round(p._perDay).toLocaleString("en-US")} ชิ้น · ${p._boost >= 1.5 ? `เร็วกว่าปกติ ${p._boost.toFixed(1)} เท่า` : "ยอดกำลังขึ้น"}${p.category ? ` · ${p.category}` : ""}`, size: "xxs", color: "#E5480A", weight: "bold", wrap: true }] : []),
       { type: "text", text: p.name || "-", weight: "bold", size: "sm", wrap: true, maxLines: 2 },
       { type: "text", text: `${baht(effPrice(p))} · คอม ${(+p.commission || 0).toFixed(0)}% · ได้ ~${baht(p._perOrder)}/ออเดอร์`, size: "xs", color: "#555555", wrap: true },
