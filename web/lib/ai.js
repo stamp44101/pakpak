@@ -69,3 +69,55 @@ export async function scoreItem(member, item, refresh = false) {
   await saveMember(member);
   return { score, cached: false };
 }
+
+// ---- Pro: personal extra ideas per product (up to IDEA_EXTRA on top of the shared one) ----
+// The shared score above is the same for everyone who opens a product; these are private to one member,
+// stored at ideas/<memberId>/<productId>.json, and each one is told to avoid every hook/angle already given.
+export const IDEA_EXTRA = 4;
+const ideasPath = (m, id) => `ideas/${m.id}/${id}.json`;
+
+export async function myIdeas(member, id) {
+  if (!/^\d+_\d+$/.test(String(id || ""))) return [];
+  return ((await readJSON(ideasPath(member, id))) || {}).list || [];
+}
+
+// Returns { idea, list, left } or { error, status, upgrade }.
+export async function moreIdea(member, item) {
+  const id = String(item?.id || "");
+  if (!/^\d+_\d+$/.test(id) || !item.name) return { error: "ข้อมูลสินค้าไม่ครบ", status: 400 };
+  const view = await viewOf(member);
+  if (!view.pro) return { error: `ไอเดียส่วนตัวเพิ่มอีก ${IDEA_EXTRA} แบบต่อตะกร้า สำหรับ Pro เท่านั้น — คนอื่นจะไม่ได้ hook ซ้ำกับคุณ`, status: 403, upgrade: true };
+  const list = await myIdeas(member, id);
+  if (list.length >= IDEA_EXTRA) return { error: `ตะกร้านี้ขอไอเดียครบ ${IDEA_EXTRA + 1} แบบแล้ว`, status: 429, list, left: 0 };
+  const day = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
+  const used = member.ai?.day === day ? member.ai.count : 0;
+  if (used >= view.rules.aiPerDay) return { error: `วันนี้ใช้ AI ครบ ${view.rules.aiPerDay} ครั้งแล้ว พรุ่งนี้ขอต่อได้`, status: 429, list, left: IDEA_EXTRA - list.length };
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) return { error: "ยังไม่ได้ตั้ง ANTHROPIC_API_KEY บน server", status: 500 };
+
+  const shared = await readJSON(`ai/${id}.json`);
+  const before = [shared, ...list].filter(Boolean).map((x, i) => `${i + 1}. hook: "${x.hook}" · มุม: ${(x.angles || []).join(" / ")}`).join("\n");
+  const prompt = `คุณเป็นครีเอเตอร์ทำคลิปสั้น 9:16 ปักตะกร้า Shopee ในไทย คิดไอเดียคลิปใหม่สำหรับสินค้านี้ แล้วส่งผ่าน tool submit_idea
+สินค้า: ${JSON.stringify({ name: String(item.name).slice(0, 200), price: item.price, category: item.category || "" })}
+${before ? `ไอเดียที่ให้ไปแล้ว ห้ามซ้ำทั้ง hook และมุมเล่า ให้เปลี่ยนวิธีเปิดคลิป กลุ่มคนดู หรือสถานการณ์ใช้งานไปเลย:\n${before}\n` : ""}- hook: ประโยคภาษาไทยสำหรับ 3 วินาทีแรก
+- angles: 2-3 มุมเล่าสั้นๆ ภาษาไทย
+- why: ทำไมไอเดียนี้น่าจะหยุดนิ้ว หนึ่งประโยค`;
+  const tool = {
+    name: "submit_idea", description: "ส่งไอเดียคลิปใหม่",
+    input_schema: { type: "object", properties: { hook: { type: "string" }, angles: { type: "array", items: { type: "string" } }, why: { type: "string" } }, required: ["hook", "angles", "why"] },
+  };
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+    body: JSON.stringify({ model: MODEL, max_tokens: 600, temperature: 1, tools: [tool], tool_choice: { type: "tool", name: "submit_idea" }, messages: [{ role: "user", content: prompt }] }),
+  });
+  if (!r.ok) return { error: `AI error ${r.status}`, status: 502 };
+  const s = ((await r.json()).content || []).find((c) => c.type === "tool_use")?.input;
+  if (!s?.hook) return { error: "AI ไม่ส่งไอเดียกลับมา", status: 502 };
+  const idea = { hook: String(s.hook), angles: (s.angles || []).slice(0, 3).map(String), why: String(s.why || ""), at: Date.now() };
+  const next = [...list, idea];
+  await writeJSON(ideasPath(member, id), { list: next });
+  member.ai = { day, count: used + 1 };
+  await saveMember(member);
+  return { idea, list: next, left: IDEA_EXTRA - next.length };
+}

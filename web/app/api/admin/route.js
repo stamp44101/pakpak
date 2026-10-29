@@ -8,6 +8,7 @@ import { readJSON } from "../../../lib/store";
 import { freeWelcome } from "../../../lib/welcome";
 import { freeRulesNow } from "../../../lib/access";
 import { notifyDiscord } from "../../../lib/discord";
+import { ANNOUNCE } from "../../../lib/announce";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,19 +25,24 @@ export async function GET(req) {
   if (g.error) return g.error;
   const r = await roster();
   const ids = [...r.active, ...r.waitlist, ...(r.revoked || [])];
-  const members = (await Promise.all(ids.map(getMember))).filter(Boolean).map((m) => ({
+  const all = (await Promise.all(ids.map(getMember))).filter(Boolean);
+  const members = all.map((m) => ({
     id: m.id, name: m.name, picture: m.picture, status: m.status, joinedAt: m.joinedAt, admin: r.admins.includes(m.id), owner: r.admins[0] === m.id, aiToday: m.ai?.count || 0, aiDay: m.ai?.day || "", onboarding: m.onboarding?.done || [], ...planInfo(m), pendingOrder: m.pendingOrder || null, freeSince: m.freeSince || null, welcomeFree: !!m.welcomeFree, welcomePushedAt: m.welcomePushedAt || null, trialAt: m.trialAt || null, founding: !!m.founding, foundingOffer: !!m.foundingOffer, promo: m.promo || null, promoLive: promoLive(m),
   }));
+  const announce = Object.entries(ANNOUNCE).map(([key, a]) => {
+    const target = all.filter((m) => a.to(m, r.admins));
+    return { key, label: a.label, left: target.filter((m) => !m.news?.[key]).length, sent: target.filter((m) => m.news?.[key]).length };
+  });
   const toWelcome = members.filter((m) => m.status === "active" && m.plan !== "pro" && m.welcomeFree && !m.welcomePushedAt).length;
   const req0 = (await readJSON("meta/requests.json")) || {};
   const requests = Object.entries(req0).map(([kw, x]) => ({ kw, count: x.count, people: x.users?.length || 0, last: x.last })).sort((a, b) => b.people - a.people || b.count - a.count).slice(0, 20);
-  return Response.json({ members, seats: seats(), active: earlyTaken(r), toWelcome, requests });
+  return Response.json({ members, seats: seats(), active: earlyTaken(r), toWelcome, requests, announce });
 }
 
 export async function POST(req) {
   const g = await guard(req);
   if (g.error) return g.error;
-  const { id, ids: offerIds, status, plan, days, approve, reject, welcomeFree, admin, trial, founding } = (await req.json().catch(() => ({}))) || {};
+  const { id, ids: offerIds, announce, status, plan, days, approve, reject, welcomeFree, admin, trial, founding } = (await req.json().catch(() => ({}))) || {};
   // One-time LINE push to everyone moved from the waitlist to Free who hasn't been told yet.
   if (welcomeFree) {
     const r = await roster();
@@ -49,6 +55,20 @@ export async function POST(req) {
       try { await push(w.id, freeWelcome(w, rules)); w.welcomePushedAt = Date.now(); await saveMember(w); sent++; } catch {}
     }
     return Response.json({ ok: true, sent });
+  }
+  // One-time announcement (lib/announce.js) to its target group; each member gets it once.
+  if (announce) {
+    const a = ANNOUNCE[announce];
+    if (!a) return Response.json({ error: "ไม่พบประกาศนี้" }, { status: 400 });
+    const r = await roster();
+    let sent = 0, failed = 0;
+    for (const mid of [...r.active]) {
+      const w = await getMember(mid);
+      if (!w || !a.to(w, r.admins) || w.news?.[announce]) continue;
+      if (await push(w.id, a.message(w))) { w.news = { ...(w.news || {}), [announce]: Date.now() }; await saveMember(w); sent++; } else failed++;
+    }
+    notifyDiscord("trial", { title: `📣 ${a.label}`, lines: [`ส่ง ${sent} คน${failed ? ` · ไม่สำเร็จ ${failed}` : ""} · โดย ${g.member.name}`] }).catch(() => {});
+    return Response.json({ ok: true, sent, failed });
   }
   // ฿99 promo to a group the admin picked in /admin (e.g. the "สนใจ Pro" filter). Skips anyone who can't or needn't get it.
   if (Array.isArray(offerIds)) {

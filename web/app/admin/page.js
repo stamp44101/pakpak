@@ -38,6 +38,7 @@ export default function Admin() {
   const [menuMsg, setMenuMsg] = useState("");
   const [welcomeMsg, setWelcomeMsg] = useState("");
   const [offerMsg, setOfferMsg] = useState("");
+  const [annMsg, setAnnMsg] = useState("");
   const [filter, setFilter] = useState("all");
   const [q, setQ] = useState("");
 
@@ -164,6 +165,18 @@ export default function Admin() {
             {welcomeMsg && <span className="hint">{welcomeMsg}</span>}
           </div>
         )}
+        {data.announce?.filter((x) => x.left > 0 || x.sent > 0).map((x) => (
+          <div key={x.key} className="bar">
+            <button className="btn" disabled={!x.left || annMsg === "กำลังส่ง…"} onClick={async () => {
+              if (!confirm(`ส่ง "${x.label}" ทาง LINE ให้ ${x.left} คน? (ใช้โควตา push ${x.left} ข้อความ · คนละครั้ง)`)) return;
+              setAnnMsg("กำลังส่ง…");
+              const r = await fetch("/api/admin", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ announce: x.key }) }).then((j) => j.json()).catch(() => ({ error: "เชื่อมต่อไม่ได้" }));
+              setAnnMsg(r.ok ? `📣 ส่งแล้ว ${r.sent} คน${r.failed ? ` · ไม่สำเร็จ ${r.failed}` : ""}` : "ไม่สำเร็จ: " + (r.error || ""));
+              load();
+            }}>📣 {x.label} ({x.left ? `${x.left} คน` : `ส่งครบแล้ว ${x.sent} คน`})</button>
+            {annMsg && <span className="hint">{annMsg}</span>}
+          </div>
+        ))}
         {data.requests?.length > 0 && (
           <div className="panel" style={{ margin: "12px 0" }}>
             <h2 style={{ marginTop: 0 }}>คนค้นหาแต่ไม่มีในคลังกลาง</h2>

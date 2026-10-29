@@ -69,6 +69,8 @@ export default function Home({ signedIn = false }) {
   const [busy, setBusy] = useState("");
   const [aiBusy, setAiBusy] = useState(null);
   const [open, setOpen] = useState(null);
+  const [ideas, setIdeas] = useState({}); // Pro: personal extra ideas per product id → { list, left }
+  const [ideaBusy, setIdeaBusy] = useState(null);
   const [toast, setToast] = useState("");
   const [confirmOut, setConfirmOut] = useState(false);
   const [freeSeen, setFreeSeen] = useState(true);
@@ -276,6 +278,20 @@ export default function Home({ signedIn = false }) {
     patch(p.id, { ai: { ...r.score, cached: r.cached } });
     if (!pro) api("/api/me").then((x) => !x.error && x.member && setMe(x));
     say(r.cached ? "ได้คะแนนจากคลัง ไม่เสียโควต้า AI" : "AI ให้คะแนนแล้ว");
+  }
+
+  // Pro: load this product's personal ideas when its detail opens (once per product per session).
+  useEffect(() => {
+    if (!pro || !open || ideas[open]) return;
+    api(`/api/ideas?id=${encodeURIComponent(open)}`).then((r) => !r.error && setIdeas((x) => ({ ...x, [open]: r })));
+  }, [open, pro]);
+  async function moreIdea(p) {
+    if (!pro) return say("ขอไอเดียส่วนตัวเพิ่มอีก 4 แบบต่อตะกร้า ได้เฉพาะ Pro — คนอื่นจะไม่ได้ hook ซ้ำกับคุณ");
+    setIdeaBusy(p.id);
+    const r = await api("/api/ideas", "POST", { item: { id: p.id, name: p.name, price: effPrice(p), category: p.category } });
+    setIdeaBusy(null);
+    if (r.list) setIdeas((x) => ({ ...x, [p.id]: { list: r.list, left: r.left ?? 0 } }));
+    say(r.error || "ได้ไอเดียใหม่แล้ว เป็นของคุณคนเดียว");
   }
 
   async function makeLink(p) {
@@ -597,6 +613,18 @@ export default function Home({ signedIn = false }) {
                       {p.ai.angles?.length > 0 && <ol className="angles">{p.ai.angles.map((a, k) => <li key={k}>{a}</li>)}</ol>}
                       <div className="why">{p.ai.why}</div>
                       <div className="hint">{p.ai.cached ? "คะแนนจากคลังของปั๊กปัก" : "AI ให้คะแนนแล้ว"}</div>
+                      {(ideas[p.id]?.list || []).map((x, k) => (
+                        <div key={k} className="panel" style={{ margin: "10px 0 0", padding: 12 }}>
+                          <div className="hint">✨ ไอเดียส่วนตัว #{k + 2} · คนอื่นไม่เห็น</div>
+                          <div className="hook">“{x.hook}”</div>
+                          {x.angles?.length > 0 && <ol className="angles">{x.angles.map((a, j) => <li key={j}>{a}</li>)}</ol>}
+                          {x.why && <div className="why">{x.why}</div>}
+                        </div>
+                      ))}
+                      {(!pro || (ideas[p.id]?.left ?? 1) > 0) && <div className="bar" style={{ marginTop: 8 }}>
+                        <button className="btn" disabled={ideaBusy === p.id} onClick={() => moreIdea(p)}>{ideaBusy === p.id ? "AI กำลังคิด…" : pro ? `🔄 ขอไอเดียใหม่ (เหลือ ${ideas[p.id]?.left ?? 4})` : "🔒 ขอไอเดียใหม่ · Pro"}</button>
+                        <span className="hint">{pro ? "ไอเดียส่วนตัว ไม่ซ้ำกับที่คนอื่นได้" : "Pro ได้อีก 4 แบบต่อตะกร้า ไม่ซ้ำกับคนอื่น"}</span>
+                      </div>}
                     </> : <div className="bar">
                       <button className="btn primary" disabled={aiBusy === p.id} onClick={() => scoreOne(p)}>{aiBusy === p.id ? "AI กำลังให้คะแนน…" : "ให้ AI ให้คะแนนตัวนี้"}</button>
                       <span className="hint">ถ้ามีคนให้คะแนนสินค้านี้แล้ว จะได้คะแนนทันทีโดยไม่เสียค่า AI</span>

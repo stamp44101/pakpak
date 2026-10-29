@@ -119,7 +119,7 @@ export function buyCard(m, why) {
   const head = why || (isProNow ? "ต่ออายุ Pro" : "อัปเกรดเป็น Pro");
   const sub = isProNow
     ? (m.proUntil ? `Pro ของคุณใช้ได้ถึง ${thDate(m.proUntil)} ต่ออายุแล้ววันจะบวกต่อจากเดิม` : "บัญชีนี้เป็น Pro ไม่หมดอายุ")
-    : `• ปลดล็อคตะกร้า Top 5 ที่ล็อกไว้ (ท็อปรวม · มาแรง · รายหมวด)\n• ดูได้ทุกตัว ทุกหมวด ไม่จำกัดวันละ 1 หมวด\n• ทำลิงก์ด้วย Affiliate ID ไม่จำกัด\n• AI ไอเดียคลิปวันละ ${PLANS.pro.aiPerDay} ตัว\n• ขั้นสูง: ลิงก์อัตโนมัติ + สแกนหมวดของคุณเอง`;
+    : `• ปลดล็อคตะกร้า Top 5 ที่ล็อกไว้ (ท็อปรวม · มาแรง · รายหมวด)\n• ดูได้ทุกตัว ทุกหมวด ไม่จำกัดวันละ 1 หมวด\n• ทำลิงก์ด้วย Affiliate ID ไม่จำกัด\n• AI ไอเดียคลิปวันละ ${PLANS.pro.aiPerDay} ตัว + ไอเดียส่วนตัว 5 แบบ/ตะกร้า ไม่ซ้ำคนอื่น\n• ขั้นสูง: ลิงก์อัตโนมัติ + สแกนหมวดของคุณเอง`;
   const founding = foundingOpen(m);
   const opt = (label, price, note, p, primary) => ({
     type: "box", layout: "horizontal", paddingAll: "12px", cornerRadius: "10px", backgroundColor: primary ? "#FFF1E7" : "#F7F7F7",
@@ -162,7 +162,7 @@ export function offerCard(m) {
         { type: "text", text: `/เดือน · ปกติ ${baht(ORDERS.month.price)}`, size: "sm", color: "#888888" },
       ] },
       { type: "text", text: `หรือรายปี ${baht(ORDERS.fyear.price)} (ปกติ ${baht(ORDERS.year.price)}) · ซื้อแล้วต่ออายุราคานี้ได้ตลอดไป`, size: "xs", color: "#666666", wrap: true },
-      { type: "text", text: `• ปลดล็อคตะกร้า Top 5 ทุกหมวด\n• ทำลิงก์ Affiliate ID ไม่จำกัด\n• AI ไอเดียคลิปวันละ ${PLANS.pro.aiPerDay} ตัว`, size: "sm", color: "#444444", wrap: true },
+      { type: "text", text: `• ปลดล็อคตะกร้า Top 5 ทุกหมวด\n• ทำลิงก์ Affiliate ID ไม่จำกัด\n• ไอเดียคลิปส่วนตัว 5 แบบ/ตะกร้า ไม่ซ้ำคนอื่น`, size: "sm", color: "#444444", wrap: true },
       ...(until ? [{ type: "text", text: `⏳ ราคานี้ถึง ${thDateTime(until)}`, size: "xs", color: "#E5480A", weight: "bold", wrap: true }] : []),
     ] },
     footer: { type: "box", layout: "vertical", spacing: "sm", contents: [
