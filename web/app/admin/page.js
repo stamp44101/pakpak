@@ -81,10 +81,15 @@ export default function Admin() {
   const load = () => fetch("/api/admin").then((r) => r.json()).then((j) => (j.error ? setErr(j.error) : setData(j))).catch(() => setErr("โหลดไม่สำเร็จ"));
   useEffect(() => { load(); }, []);
 
-  async function set(id, status, extra) {
+  // patch: what the row should look like right away (optimistic), so the click answers at once; the real data
+  // reloads after the server confirms. On error the reload puts the row back and the message names what went wrong.
+  async function set(id, status, extra, patch) {
     setOpenId(null);
-    const r = await fetch("/api/admin", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(status ? { id, status } : { id, ...extra }) }).then((x) => x.json());
-    if (r.error) setErr(r.error); else load();
+    setErr("");
+    if (patch) setData((d) => d && { ...d, members: d.members.map((m) => (m.id === id ? { ...m, ...patch } : m)) });
+    const r = await fetch("/api/admin", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(status ? { id, status } : { id, ...extra }) }).then((x) => x.json()).catch(() => ({ error: "เชื่อมต่อไม่ได้ ลองใหม่อีกครั้ง" }));
+    if (r.error) setErr(r.error);
+    load();
   }
 
   const short = (t) => new Date(t).toLocaleDateString("th-TH", { day: "numeric", month: "short" });
@@ -100,7 +105,7 @@ export default function Admin() {
         <div><h1>สมาชิก</h1></div>
         <div className="bar" style={{ gap: 6 }}><a className="btn" href="/admin/campaigns">🎁 แคมเปญ</a><a className="btn" href="/">← กลับไปปั๊กปัก</a></div>
       </header>
-      {err && <p className="hint">{err}</p>}
+      {err && <p className="hint" role="alert" style={{ color: "var(--bad)", display: "flex", gap: 8, alignItems: "center" }}>{err}<button className="btn ghost" style={{ padding: "2px 8px" }} onClick={() => setErr("")} aria-label="ปิด">✕</button></p>}
       {data && <>
         <div className="stats">
           <span><b className="num">{stats.pro}</b> Pro</span>
@@ -173,10 +178,10 @@ export default function Admin() {
               {!m.owner ? <button className={"btn act-btn" + (openId === m.id ? " on" : "")} aria-expanded={openId === m.id} onClick={() => setOpenId(openId === m.id ? null : m.id)}>จัดการ</button> : <span />}
               {m.pendingOrder && (
                 <div className="act-row order-row">
-                  <button className="btn primary" onClick={() => set(m.id, null, { approve: true })}>อนุมัติ · เปิด Pro {orderOf(m.pendingOrder.plan).span}</button>
+                  <button className="btn primary" onClick={() => set(m.id, null, { approve: true }, { pendingOrder: null, plan: "pro" })}>อนุมัติ · เปิด Pro {orderOf(m.pendingOrder.plan).span}</button>
                   {m.pendingOrder.slipAt
-                    ? <button className="btn" onClick={() => set(m.id, null, { reject: true })}>สลิปไม่ผ่าน</button>
-                    : <button className="btn" onClick={() => confirm(`เอา ${m.name} ออกจาก "รอสลิป"? ไม่แจ้งลูกค้า · ถ้าเขาส่งสลิปมาภายหลัง (ภายใน 7 วัน) จะกลับมาให้ตรวจเอง`) && set(m.id, null, { cancelOrder: true })}>เอาออกจากรอสลิป</button>}
+                    ? <button className="btn" onClick={() => set(m.id, null, { reject: true }, { pendingOrder: null })}>สลิปไม่ผ่าน</button>
+                    : <button className="btn" title="ไม่แจ้งลูกค้า · ถ้าเขาส่งสลิปมาภายใน 7 วัน จะกลับมาให้ตรวจเอง" onClick={() => set(m.id, null, { cancelOrder: true }, { pendingOrder: null })}>เอาออกจากรอสลิป</button>}
                   <span className="hint">{m.pendingOrder.slipAt ? "ดูสลิปในแชท LINE OA ก่อนกดอนุมัติ ระบบจะแจ้งลูกค้าในแชทให้เอง" : `เลือกแพ็กเมื่อ ${short(m.pendingOrder.at)} · ยังไม่ส่งสลิป (ระบบเอาออกเองเมื่อครบ 24 ชม.)`}</span>
                 </div>
               )}
