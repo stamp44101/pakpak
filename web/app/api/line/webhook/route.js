@@ -146,7 +146,7 @@ async function handle(e) {
 
   if (e.type === "postback") {
     const q = new URLSearchParams(e.postback.data);
-    if (q.get("a") === "ai") return aiIdea(e, m, state, q.get("id"));
+    if (q.get("a") === "ai") return aiIdea(e, m, state, q.get("id"), view);
     if (q.get("a") === "ai2") return aiMore(e, m, state, q.get("id"), view);
     if (q.get("a") === "top") return reply(e.replyToken, await top(all, q.get("c"), cats, { m, view, state }));
     if (q.get("a") === "link") { const p = await shownProduct(state, q.get("id")); return reply(e.replyToken, await askAffId(m, p?.url, p?.name)); }
@@ -392,7 +392,7 @@ function status(all, cats, state, m, view) {
   return text(`${plan}\nบัญชี Shopee: ${state.account || "-"}\nอัปเดตล่าสุด ${newest ? ago(newest) : "-"}\n\n${lines.join("\n")}\n\nข้อมูลเกิน 3 วัน แนะนำเปิดคอมที่มี Connector แล้วกด "อัปเดตตอนนี้"`, HELP_QR());
 }
 
-async function aiIdea(e, m, state, id) {
+async function aiIdea(e, m, state, id, view) {
   const p = await shownProduct(state, id);
   if (!p) return reply(e.replyToken, text("ไม่พบสินค้านี้แล้ว ลองพิมพ์ \"ท็อป\" ใหม่ค่ะ"));
   let s = p.ai;
@@ -407,13 +407,14 @@ async function aiIdea(e, m, state, id) {
   }
   const mine = await myIdeas(m, id);
   const msg = `🎬 ${(p.name || "").slice(0, 60)}\n\nAI: โชว์ปัญหา ${s.problem}/10 · ภาพหยุดนิ้ว ${s.visual}/10 · ต่อยอดหลายคลิป ${s.multi}/10\n\nHook 3 วิแรก\n"${s.hook}"\n\nมุมเล่า\n${(s.angles || []).map((a) => "• " + a).join("\n")}\n\nเหตุผล: ${s.why}`
-    + (mine.length ? `\n\n✨ ไอเดียส่วนตัวของคุณ\n${mine.map((x, i) => `#${i + 2} "${x.hook}"`).join("\n")}` : "");
+    + (mine.length ? `\n\n✨ ไอเดียส่วนตัวของคุณ\n${mine.map((x, i) => `#${i + 2} "${x.hook}"`).join("\n")}` : "")
+    + (mine.length < IDEA_EXTRA ? `\n\n🔄 กด "ไอเดียใหม่" ด้านล่าง ขอได้อีก ${IDEA_EXTRA - mine.length} แบบ${view.pro ? "" : " (Pro)"}` : "");
   return reply(e.replyToken, [text(msg, ideaQR(id, IDEA_EXTRA - mine.length))]);
 }
 
 // Quick replies under an idea: "🔄 ไอเดียใหม่" first (Pro gets a private one, Free gets the Pro pitch).
 const ideaQR = (id, left) => [
-  ...(left > 0 ? [{ type: "action", action: { type: "postback", label: `🔄 ไอเดียใหม่ (เหลือ ${left})`.slice(0, 20), data: `a=ai2&id=${id}`, displayText: "ขอไอเดียใหม่" } }] : []),
+  ...(left > 0 ? [{ type: "action", action: { type: "postback", label: "🔄 ไอเดียใหม่", data: `a=ai2&id=${id}`, displayText: "ขอไอเดียใหม่" } }] : []),
   ...HELP_QR(),
 ].slice(0, 13);
 
@@ -425,5 +426,5 @@ async function aiMore(e, m, state, id, view) {
   const r = await moreIdea(m, { id: p.id, name: p.name, price: effPrice(p), category: p.category });
   if (r.error) return reply(e.replyToken, text(r.error, HELP_QR()));
   const x = r.idea, n = r.list.length + 1;
-  return reply(e.replyToken, text(`✨ ไอเดียส่วนตัว #${n} · ${(p.name || "").slice(0, 40)}\n(คนอื่นไม่เห็นไอเดียนี้)\n\nHook 3 วิแรก\n"${x.hook}"\n\nมุมเล่า\n${x.angles.map((a) => "• " + a).join("\n")}\n\n${x.why}${r.left ? "" : `\n\nครบ ${IDEA_EXTRA + 1} แบบสำหรับตะกร้านี้แล้วค่ะ`}`, ideaQR(id, r.left)));
+  return reply(e.replyToken, text(`✨ ไอเดียส่วนตัว #${n} · ${(p.name || "").slice(0, 40)}\n(คนอื่นไม่เห็นไอเดียนี้)\n\nHook 3 วิแรก\n"${x.hook}"\n\nมุมเล่า\n${x.angles.map((a) => "• " + a).join("\n")}\n\n${x.why}\n\n${r.left ? `🔄 ขอได้อีก ${r.left} แบบ` : `ครบ ${IDEA_EXTRA + 1} แบบสำหรับตะกร้านี้แล้วค่ะ`}`, ideaQR(id, r.left)));
 }
