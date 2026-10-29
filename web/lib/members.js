@@ -5,8 +5,15 @@ import { roster, memberPath } from "./auth";
 import { readMany } from "./store";
 import { expireOrder } from "./plan";
 
+// Fields the bulk views use (/admin list, announcements, Free welcome, campaigns). Anything else stays in the DB.
+// Add a key here when one of those views starts reading a new member field.
+// These are partial documents: never saveMember() one, re-read with getMember() before writing.
+export const LIST_KEYS = ["id", "name", "picture", "status", "joinedAt", "ai", "onboarding", "plan", "proUntil", "earlyAccess",
+  "pendingOrder", "orderExpired", "freeSince", "welcomeFree", "welcomePushedAt", "trialAt", "followReward", "grants",
+  "founding", "foundingOffer", "promo", "payments", "news"];
+
 export async function membersOf(ids) {
-  const docs = await readMany(ids.map(memberPath));
+  const docs = await readMany(ids.map(memberPath), LIST_KEYS);
   for (const m of docs) expireOrder(m);
   return docs;
 }

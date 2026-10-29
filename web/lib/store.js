@@ -50,12 +50,16 @@ export async function updateJSON(path, fn, init = () => ({})) {
 }
 
 // Many documents in one query (in input order, missing ones skipped). One round trip instead of one per path.
-export async function readMany(paths) {
+// keys: send only these top-level fields of each document (much less data for list views).
+export async function readMany(paths, keys) {
   if (!paths.length) return [];
   const s = await db();
   const out = new Map();
   for (let i = 0; i < paths.length; i += 500) {
-    const rows = await s`SELECT path, data FROM kv WHERE path = ANY(${paths.slice(i, i + 500)})`;
+    const part = paths.slice(i, i + 500);
+    const rows = keys
+      ? await s`SELECT path, (SELECT COALESCE(jsonb_object_agg(k, data -> k), '{}'::jsonb) FROM unnest(${keys}::text[]) AS k WHERE data ? k) AS data FROM kv WHERE path = ANY(${part})`
+      : await s`SELECT path, data FROM kv WHERE path = ANY(${part})`;
     for (const r of rows) out.set(r.path, r.data);
   }
   return paths.map((p) => out.get(p)).filter(Boolean);
