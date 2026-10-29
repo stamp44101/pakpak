@@ -1,5 +1,7 @@
 // LINE Messaging API helpers (bot in the ปั๊กปัก OA).
 import { createHmac, timingSafeEqual } from "crypto";
+import { notifyError } from "./discord";
+import { validateMessages } from "./bot/validate";
 
 const SECRET = () => process.env.LINE_MSG_CHANNEL_SECRET || "";
 export const LIFF_URL = `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID || "2012241865-bvKNVlJR"}`;
@@ -31,9 +33,21 @@ async function call(path, body) {
     headers: { authorization: "Bearer " + (await token()), "content-type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!r.ok) console.error("LINE", path, r.status, (await r.text()).slice(0, 500));
+  if (!r.ok) {
+    const err = (await r.text()).slice(0, 500);
+    console.error("LINE", path, r.status, err);
+    // Function logs vanish after ~1 h; Discord keeps it. 429 here = push quota exhausted.
+    if (body?.messages) notifyError(`⚠️ LINE ${path} → ${r.status}`, [err, "payload: " + summary(body.messages)]).catch(() => {});
+  }
   return r.ok;
 }
+
+// One line describing a message batch, for the error report (types + first text/altText).
+const summary = (ms) => [].concat(ms).map((m) => `${m?.type}${m?.altText || m?.text ? ` "${String(m.altText || m.text).slice(0, 60)}"` : ""}`).join(" | ").slice(0, 400);
+
+// Plain-text fallback when a reply can't be delivered as built. No Flex, so nothing left to reject.
+export const FALLBACK = { type: "text", text: "ขอโทษค่ะ ส่งข้อความชุดนี้ไม่สำเร็จ ลองกดหรือพิมพ์ใหม่อีกครั้งนะคะ 🙏",
+  quickReply: { items: [["🔥 มาแรง", "มาแรง"], ["ท็อป 5", "ท็อป"], ["เลือกหมวด", "หมวด"], ["วิธีใช้", "วิธีใช้"]].map(([label, text]) => ({ type: "action", action: { type: "message", label, text } })) } };
 
 // Raw Messaging API call (data: true → api-data.line.me for image uploads).
 export async function botFetch(path, { data, headers, ...opt } = {}) {
@@ -43,6 +57,28 @@ export async function botFetch(path, { data, headers, ...opt } = {}) {
   });
 }
 
-export const reply = (replyToken, messages) => call("message/reply", { replyToken, messages: [].concat(messages).slice(0, 5) });
-export const push = (to, messages) => call("message/push", { to, messages: [].concat(messages).slice(0, 5) });
+// Reply tokens work once, so the payload is checked first: a message LINE would reject (mixed bubble sizes,
+// altText too long, empty text…) is swapped for FALLBACK while the token is still good, and reported to Discord.
+// Returns false when LINE itself refused the send — the webhook then pushes FALLBACK to the user.
+export async function reply(replyToken, messages) {
+  const list = [].concat(messages).slice(0, 5);
+  const problems = validateMessages(list);
+  if (problems.length) {
+    console.error("LINE reply blocked by validator", problems);
+    notifyError("⚠️ LINE reply blocked (validator)", [...problems.slice(0, 8), "payload: " + summary(list)]).catch(() => {});
+    return call("message/reply", { replyToken, messages: [FALLBACK] });
+  }
+  return call("message/reply", { replyToken, messages: list });
+}
+
+export async function push(to, messages) {
+  const list = [].concat(messages).slice(0, 5);
+  const problems = validateMessages(list);
+  if (problems.length) {
+    console.error("LINE push blocked by validator", problems);
+    notifyError("⚠️ LINE push blocked (validator)", [...problems.slice(0, 8), "payload: " + summary(list)]).catch(() => {});
+    return false;
+  }
+  return call("message/push", { to, messages: list });
+}
 export const loading = (chatId, seconds = 20) => call("chat/loading/start", { chatId, loadingSeconds: seconds });

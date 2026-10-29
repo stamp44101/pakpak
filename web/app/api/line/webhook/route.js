@@ -1,9 +1,9 @@
 // LINE bot webhook: members use ปั๊กปัก from the chat (top products, links, AI ideas).
 // The LINE userId equals the member id because Login and Messaging API share the ปั๊กปัก provider.
-import { verifySignature, reply, push, loading, botFetch } from "../../../../lib/line";
+import { verifySignature, reply, push, loading, botFetch, FALLBACK } from "../../../../lib/line";
 import { getMember, ensureMember, saveMember, roster, seatsLeft, isAdmin } from "../../../../lib/auth";
 import { freeWelcome } from "../../../../lib/welcome";
-import { notifyDiscord } from "../../../../lib/discord";
+import { notifyDiscord, notifyError } from "../../../../lib/discord";
 import { addViews } from "../../../../lib/activity";
 import { readJSON, writeJSON } from "../../../../lib/store";
 import { rank, effPrice } from "../../../../lib/score";
@@ -24,10 +24,14 @@ export async function POST(req) {
   const raw = await req.text();
   if (!verifySignature(raw, req.headers.get("x-line-signature"))) return new Response("bad signature", { status: 401 });
   const { events = [] } = JSON.parse(raw || "{}");
-  await Promise.all(events.map((e) => handle(e).catch(async (err) => {
+  await Promise.all(events.map((e) => handle(e).then((ok) => {
+    // reply() returns false when LINE rejected the message after validation passed; the token is spent, so push instead.
+    if (ok === false && e.source?.userId) return push(e.source.userId, FALLBACK);
+  }).catch(async (err) => {
     console.error("event", err);
+    notifyError("🔥 bot handler threw", [String(err?.stack || err).slice(0, 800), `event: ${e.type} ${e.message?.type || ""} ${(e.message?.text || e.postback?.data || "").slice(0, 80)}`]).catch(() => {});
     // Storage down (e.g. Blob suspended): still answer, replies cost no quota.
-    if (e.replyToken && /blob/i.test(String(err?.message))) await reply(e.replyToken, text("🛠️ ปั๊กปักกำลังปรับปรุงระบบ!\n\nเนื่องจากได้รับความสนใจจากผู้ใช้งานเป็นจำนวนมาก เราจึงกำลังพัฒนาระบบให้รองรับการใช้งานได้ดียิ่งขึ้น เพื่อให้ทุกคนใช้งานสะดวกและรวดเร็วกว่าเดิม\n\nขออภัยในความไม่สะดวก และขอบคุณที่ให้การสนับสนุนปั๊กปักนะคะ 🙏")).catch(() => {});
+    if (e.replyToken && /blob|neon|postgres|ECONN|timeout/i.test(String(err?.message))) await reply(e.replyToken, text("🛠️ ปั๊กปักกำลังปรับปรุงระบบ!\n\nเนื่องจากได้รับความสนใจจากผู้ใช้งานเป็นจำนวนมาก เราจึงกำลังพัฒนาระบบให้รองรับการใช้งานได้ดียิ่งขึ้น เพื่อให้ทุกคนใช้งานสะดวกและรวดเร็วกว่าเดิม\n\nขออภัยในความไม่สะดวก และขอบคุณที่ให้การสนับสนุนปั๊กปักนะคะ 🙏")).catch(() => {});
   })));
   return Response.json({ ok: true });
 }
@@ -325,7 +329,7 @@ async function shownProduct(state, id) {
 
 // Carousel with the locked teaser card first (Free) — used by มาแรง and ท็อปรวม.
 const lockedCarousel = (alt, locked, items, quick) => ({ type: "flex", altText: locked.length ? `${alt} (ท็อป ${locked.length} ล็อกไว้สำหรับ Pro)` : alt,
-  contents: { type: "carousel", contents: [...(locked.length ? [lockBubble(locked)] : []), ...items.map((p) => bubble(p, p._n))] }, ...(quick?.length ? { quickReply: { items: quick } } : {}) });
+  contents: { type: "carousel", contents: [...(locked.length ? [lockBubble(locked)] : []), ...items.map((p) => bubble(p, p._n))].slice(0, 12) }, ...(quick?.length ? { quickReply: { items: quick } } : {}) });
 const lockHead = (locked, items) => `🔒 อันดับ 1–${locked.length} ปลดล็อคได้เฉพาะผู้ใช้งาน Pro${items.length ? `\nด้านล่างคืออันดับ ${locked.length + 1}–${locked.length + items.length}` : ""}`;
 
 // "มาแรงวันนี้" (rules: lib/access.js hotView). Owner links only for the member's own scans.

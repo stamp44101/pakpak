@@ -1,6 +1,6 @@
 // Discord notifications: new signups and sales events (plan chosen, slip received, approved).
 // Set DISCORD_WEBHOOK_URL in Vercel env; without it these calls do nothing.
-const COLORS = { signup: 0x06c755, interest: 0xf5a524, slip: 0x22c55e, approved: 0x3b82f6, rejected: 0xef4444 };
+const COLORS = { signup: 0x06c755, interest: 0xf5a524, slip: 0x22c55e, approved: 0x3b82f6, rejected: 0xef4444, error: 0xdc2626 };
 
 export async function notifyDiscord(kind, { title, lines = [], image } = {}) {
   // signups can go to their own channel (DISCORD_SIGNUP_WEBHOOK_URL), else the same one
@@ -22,4 +22,14 @@ export async function notifyDiscord(kind, { title, lines = [], image } = {}) {
   }
   if (!res.ok) console.error("discord", res.status, (await res.text()).slice(0, 200));
   return res.ok;
+}
+
+// Bot/system failures (a LINE reply rejected, a handler throwing). Function logs keep only ~1 hour, so this is the
+// record. Throttled per title (one per 15 s per instance) so a storage outage doesn't flood the channel.
+const lastErr = new Map();
+export async function notifyError(title, lines = []) {
+  const now = Date.now();
+  if (now - (lastErr.get(title) || 0) < 15e3) return false;
+  lastErr.set(title, now);
+  return notifyDiscord("error", { title, lines: lines.map((l) => String(l).slice(0, 900)) }).catch(() => false);
 }

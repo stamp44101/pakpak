@@ -67,7 +67,7 @@ export function lockBubble(rows) {
         { type: "box", layout: "horizontal", contents: [
           { type: "text", text: `#${r.rank}`, weight: "bold", size: "sm", color: "#FE6A0E", flex: 0 },
           { type: "text", text: "▒▒▒▒▒▒", size: "sm", color: "#5C4636", flex: 3, margin: "md" },
-          { type: "text", text: r.score ? `คะแนน ${r.score}/${r.max}` : "", size: "xxs", color: "#FFC9A6", align: "end", gravity: "center", flex: 3 },
+          ...(r.score ? [{ type: "text", text: `คะแนน ${r.score}/${r.max}`, size: "xxs", color: "#FFC9A6", align: "end", gravity: "center", flex: 3 }] : []),
         ] },
         ...(r.why?.length ? [{ type: "text", text: r.why.join(" · "), size: "xxs", color: "#FFC9A6", wrap: true, margin: "xs" }] : []),
       ] })),
