@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { memo, useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { effPrice, rank } from "../lib/score";
 import Landing from "./Landing";
 import AffLinkBox from "./AffLinkBox";
@@ -314,9 +314,13 @@ export default function Home({ signedIn = false }) {
     return m;
   }, [products]);
   const ranked = rankedBy[cat] || rankedBy[""];
+  const catShown = useDeferredValue(cat);
+  const rankedShown = rankedBy[catShown] || rankedBy[""];
+  const act = useRef({});
+  act.current = { moreIdea, scoreOne, copyLink, makeLink, usedAppLink, say };
   // all categories: one teaser row per category's #1; a category: its locked 1–5
   const lockedRows = shared ? (cat ? locked[cat] || [] : Object.entries(locked).map(([c, r]) => r[0] && { ...r[0], category: c }).filter(Boolean)) : [];
-  const [limit, setLimit] = useState(40);
+  const [limit, setLimit] = useState(20);
   const [, startTransition] = useTransition();
   const newestBy = useMemo(() => all.reduce((m, p) => ((m[p.category] = Math.max(m[p.category] || 0, p.fetchedAt || 0)), m), {}), [products]);
   const refreshed = useRef(false);
@@ -336,7 +340,7 @@ export default function Home({ signedIn = false }) {
       if (r?.items?.length) setCat((c) => c || HOT);
     });
   }, [active, ready]);
-  const pickCat = (c) => { setOpen(null); setLimit(40); startTransition(() => setCat(c)); };
+  const pickCat = (c) => { setOpen(null); setLimit(20); setCat(c); };
   const viewOnly = active && !account && extOk === false;
   const [editCats, setEditCats] = useState(false);
   const [delCat, setDelCat] = useState(null);
@@ -583,8 +587,30 @@ export default function Home({ signedIn = false }) {
           <div className="list">
             {!ranked.length && oneCat && !oneCat.dayCat && <div className="empty"><strong>เลือก 1 หมวดของวันนี้</strong><span>แพ็ก Free ดูได้วันละ 1 หมวด กดชื่อหมวดด้านบนได้เลย</span></div>}
             {!ranked.length && !(oneCat && !oneCat.dayCat) && <div className="empty"><strong>ยังไม่มีสินค้า</strong><span>{ready ? (account ? "กดเลือกหมวดด้านบนเพื่อดึงสินค้า" : "เชื่อม Shopee Affiliate บนคอมเพื่อดึงสินค้า") : "กำลังโหลด…"}</span></div>}
-            {ranked.slice(0, limit).map((p, i) => (
-              <div key={p.id} id={"row-" + p.id} className={"row" + (i < 10 ? " top10" : "")} onClick={(e) => { if (!e.target.closest(".detail")) setOpen(open === p.id ? null : p.id); }}>
+            <ProductList ranked={rankedShown} limit={limit} open={open} setOpen={setOpen} cat={catShown} ideas={ideas} ideaBusy={ideaBusy} aiBusy={aiBusy} pro={pro} catalogMode={catalogMode} account={account} shared={shared} act={act} />
+          </div>
+          {ranked.length > limit && <button className="btn" style={{ alignSelf: "center" }} onClick={() => setLimit(limit + 40)}>แสดงเพิ่มอีก {Math.min(40, ranked.length - limit)} ตัว (จาก {ranked.length})</button>}
+          </>}
+        </section>
+      )}
+      </>}
+
+      {toast && <div className="toast" role="status">{toast}</div>}
+    </div>
+  );
+}
+
+// Product rows are memoized: switching category renders the old list instantly (deferred value)
+// and the new one in the background; opening a row only re-renders that row.
+const ProductList = memo(function ProductList({ ranked, limit, open, ideas, ideaBusy, aiBusy, ...rest }) {
+  return ranked.slice(0, limit).map((p, i) => (
+    <ProductRow key={p.id} p={p} i={i} isOpen={open === p.id} idea={ideas[p.id]} ideaBusy={ideaBusy === p.id} aiBusy={aiBusy === p.id} {...rest} />
+  ));
+});
+
+const ProductRow = memo(function ProductRow({ p, i, isOpen, idea, ideaBusy, aiBusy, setOpen, cat, pro, catalogMode, account, shared, act }) {
+  return (
+    <div id={"row-" + p.id} className={"row" + (i < 10 ? " top10" : "")} onClick={(e) => { if (!e.target.closest(".detail")) setOpen((o) => (o === p.id ? null : p.id)); }}>
                 <div className="rank">{p._rank || i + 1}</div>
                 {p.image ? <img className="thumb" src={img(p.image)} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <div className="thumb" />}
                 <div style={{ minWidth: 0 }}>
@@ -605,7 +631,7 @@ export default function Home({ signedIn = false }) {
                   <div className="sline"><span>AI</span><div className="track"><div className="fill ai" style={{ width: `${p._a ? (p._a.total / p._a.max) * 100 : 0}%` }} /></div><span className="num">{p._a ? Math.round(p._a.total) : "–"}</span></div>
                 </div>
                 <div className="total">{Math.round(p._t)}</div>
-                {open === p.id && (
+                {isOpen && (
                   <div className="detail">
                     {p.image && <a href={p.url || img(p.image, "")} target="_blank" rel="noopener"><img className="hero" src={img(p.image, "")} alt={p.name} loading="lazy" referrerPolicy="no-referrer" /></a>}
                     {p.ai ? <>
@@ -613,7 +639,7 @@ export default function Home({ signedIn = false }) {
                       {p.ai.angles?.length > 0 && <ol className="angles">{p.ai.angles.map((a, k) => <li key={k}>{a}</li>)}</ol>}
                       <div className="why">{p.ai.why}</div>
                       <div className="hint">{p.ai.cached ? "คะแนนจากคลังของปั๊กปัก" : "AI ให้คะแนนแล้ว"}</div>
-                      {(ideas[p.id]?.list || []).map((x, k) => (
+                      {(idea?.list || []).map((x, k) => (
                         <div key={k} className="panel" style={{ margin: "10px 0 0", padding: 12 }}>
                           <div className="hint">✨ ไอเดียส่วนตัว #{k + 2} · คนอื่นไม่เห็น</div>
                           <div className="hook">“{x.hook}”</div>
@@ -621,36 +647,26 @@ export default function Home({ signedIn = false }) {
                           {x.why && <div className="why">{x.why}</div>}
                         </div>
                       ))}
-                      {(!pro || (ideas[p.id]?.left ?? 1) > 0) && <div className="bar" style={{ marginTop: 8 }}>
-                        <button className="btn" disabled={ideaBusy === p.id} onClick={() => moreIdea(p)}>{ideaBusy === p.id ? "AI กำลังคิด…" : pro ? `🔄 ขอไอเดียใหม่ (เหลือ ${ideas[p.id]?.left ?? 4})` : "🔒 ขอไอเดียใหม่ · Pro"}</button>
+                      {(!pro || (idea?.left ?? 1) > 0) && <div className="bar" style={{ marginTop: 8 }}>
+                        <button className="btn" disabled={ideaBusy} onClick={() => act.current.moreIdea(p)}>{ideaBusy ? "AI กำลังคิด…" : pro ? `🔄 ขอไอเดียใหม่ (เหลือ ${idea?.left ?? 4})` : "🔒 ขอไอเดียใหม่ · Pro"}</button>
                         <span className="hint">{pro ? "ไอเดียส่วนตัว ไม่ซ้ำกับที่คนอื่นได้" : "Pro ได้อีก 4 แบบต่อตะกร้า ไม่ซ้ำกับคนอื่น"}</span>
                       </div>}
                     </> : <div className="bar">
-                      <button className="btn primary" disabled={aiBusy === p.id} onClick={() => scoreOne(p)}>{aiBusy === p.id ? "AI กำลังให้คะแนน…" : "ให้ AI ให้คะแนนตัวนี้"}</button>
+                      <button className="btn primary" disabled={aiBusy} onClick={() => act.current.scoreOne(p)}>{aiBusy ? "AI กำลังให้คะแนน…" : "ให้ AI ให้คะแนนตัวนี้"}</button>
                       <span className="hint">ถ้ามีคนให้คะแนนสินค้านี้แล้ว จะได้คะแนนทันทีโดยไม่เสียค่า AI</span>
                     </div>}
                     {p.affLink && <div className="linkbox">{p.affLink} · Sub ID: pukpak{p.subId ? " / " + p.subId : ""}</div>}
                     <div className="bar">
-                      {p.affLink && <button className="btn primary" onClick={() => copyLink(p)}>คัดลอกลิงก์</button>}
-                      {pro && !catalogMode && account && !p.affLink && <button className="btn primary" onClick={() => makeLink(p)}>สร้างลิงก์ affiliate</button>}
-                      {shared && !p.affLink && p.url && <AffLinkBox key={p.id} url={p.url} onDone={usedAppLink} say={say} />}
+                      {p.affLink && <button className="btn primary" onClick={() => act.current.copyLink(p)}>คัดลอกลิงก์</button>}
+                      {pro && !catalogMode && account && !p.affLink && <button className="btn primary" onClick={() => act.current.makeLink(p)}>สร้างลิงก์ affiliate</button>}
+                      {shared && !p.affLink && p.url && <AffLinkBox key={p.id} url={p.url} onDone={(...a) => act.current.usedAppLink(...a)} say={(...a) => act.current.say(...a)} />}
                       {p.url && <a className="btn" href={p.url} target="_blank" rel="noopener">หน้าสินค้า ↗</a>}
                     </div>
                   </div>
                 )}
               </div>
-            ))}
-          </div>
-          {ranked.length > limit && <button className="btn" style={{ alignSelf: "center" }} onClick={() => setLimit(limit + 40)}>แสดงเพิ่มอีก {Math.min(40, ranked.length - limit)} ตัว (จาก {ranked.length})</button>}
-          </>}
-        </section>
-      )}
-      </>}
-
-      {toast && <div className="toast" role="status">{toast}</div>}
-    </div>
   );
-}
+});
 
 // Stored rank (6–10 while top 5 is locked) wins over re-ranking a partial list.
 const HOT = "__hot";
