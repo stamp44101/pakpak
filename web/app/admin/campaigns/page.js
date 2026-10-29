@@ -34,7 +34,7 @@ export default function Campaigns() {
     <div className="wrap" style={{ maxWidth: 760 }}>
       <header className="top">
         <div><h1>แคมเปญ</h1><p className="hint" style={{ margin: 0 }}>ให้ Pro ฟรีจากกิจกรรม · ให้สิทธิ์ที่หน้าสมาชิก → จัดการ → 🎁</p></div>
-        <div className="bar" style={{ gap: 6 }}><button className="btn primary" onClick={() => edit(null)}>+ แคมเปญใหม่</button><a className="btn" href="/admin">← สมาชิก</a></div>
+        <div className="bar" style={{ gap: 6 }}>{data && <button className="btn primary" onClick={() => edit(null)}>+ แคมเปญใหม่</button>}<a className="btn" href="/admin">← สมาชิก</a></div>
       </header>
       {err && <p className="hint" style={{ color: "var(--bad)" }}>{err}</p>}
       {data && <p className="hint">คนหนึ่งได้วันฟรีจากทุกแคมเปญรวมกันไม่เกิน {data.cap} วัน เพื่อไม่ให้ของฟรีแทนการจ่าย</p>}
