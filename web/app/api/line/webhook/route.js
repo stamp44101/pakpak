@@ -148,7 +148,7 @@ async function handle(e) {
     const q = new URLSearchParams(e.postback.data);
     if (q.get("a") === "ai") return aiIdea(e, m, state, q.get("id"), view);
     if (q.get("a") === "ai2") return aiMore(e, m, state, q.get("id"), view);
-    if (q.get("a") === "top") return reply(e.replyToken, await top(all, q.get("c"), cats, { m, view, state }));
+    if (q.get("a") === "top") return reply(e.replyToken, await top(all, q.get("c"), cats, { m, view, state, from: +q.get("o") || 0 }));
     if (q.get("a") === "link") { const p = await shownProduct(state, q.get("id")); return reply(e.replyToken, await askAffId(m, p?.url, p?.name)); }
     return;
   }
@@ -258,8 +258,13 @@ function pickCat(all, want, cats, uid) {
   return list[(bucket(uid) + day) % list.length];
 }
 
+// Pro can page past the first 5 ("ดูตะกร้าต่อ"): ranks 6–15, 16–25, 26–30.
+const TOP_FIRST = 5, TOP_PAGE = 10, TOP_MAX = 30;
+const morePostback = (c, from, upto) => ({ type: "postback", label: `ดูอันดับ ${from + 1}–${upto}`, data: `a=top&c=${encodeURIComponent(c)}&o=${from}`, displayText: `ดูตะกร้าหมวด ${c} อันดับ ${from + 1}–${upto}` });
+
 async function top(all, want, cats, ctx = {}) {
-  const { m, view } = ctx;
+  const { m, view, from = 0 } = ctx;
+  if (from > 0) return topMore(all, want, cats, ctx);
   const c = (!cleanWant(want) && view?.rules.oneCat && todayCat(m) && cats.includes(todayCat(m))) ? todayCat(m) : pickCat(all, want, cats, m?.id);
   if (!c) return notInCatalog(want, cats, ctx);
   // Free V2: one category a day — the first one opened today
@@ -278,10 +283,32 @@ async function top(all, want, cats, ctx = {}) {
     ? `🔒 ท็อป 1–${locked.length} หมวด "${c}" ปลดล็อคได้เฉพาะผู้ใช้งาน Pro\nด้านล่างคืออันดับ ${list[0]?._rank || 6}–${list[list.length - 1]?._rank || 10} · ข้อมูล ${ago(newest)}`
     : `ท็อป 5 หมวด "${c}" · ข้อมูล ${ago(newest)}`;
   const note = (day.first ? `\n📌 หมวดของวันนี้ (แพ็ก Free ดูได้วันละ 1 หมวด)` : "") + (cd ? `\n\n${cd}` : "");
-  const bubbles = [...(locked?.length ? [lockBubble(locked)] : []), ...list.map((p, i) => bubble(p, p._rank || i + 1))];
+  const total = Math.min(TOP_MAX, all.filter((p) => p.category === c).length);
+  const moreCard = view?.pro && total > TOP_FIRST
+    ? [card("อยากเห็นตะกร้าเพิ่ม?", `หมวด "${c}" มีให้ดูอีก ${total - TOP_FIRST} ตัว (ถึงอันดับ ${total})`, [{ type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: morePostback(c, TOP_FIRST, Math.min(total, TOP_FIRST + TOP_PAGE)) }])]
+    : [];
+  const bubbles = [...(locked?.length ? [lockBubble(locked)] : []), ...list.map((p, i) => bubble(p, p._rank || i + 1)), ...moreCard];
   return [
     text(`${head}${note}${list.some((p) => p.affLink) ? "" : "\nอยากได้ลิงก์แอฟของคุณ: กด \"เอาลิงก์ของฉัน\" แล้วส่ง Affiliate ID มา"}`),
     { type: "flex", altText: locked?.length ? `ท็อป ${c} (ท็อป 5 ล็อกไว้สำหรับ Pro)` : `ท็อป 5 ${c}`, contents: { type: "carousel", contents: bubbles }, ...(others.length ? { quickReply: { items: others } } : {}) },
+  ];
+}
+
+// Next page of a category for Pro (Free tapping an old button gets the Pro pitch).
+async function topMore(all, want, cats, { m, view, from }) {
+  const c = cats.includes(want) ? want : null;
+  if (!c) return top(all, want, cats, { m, view });
+  if (!view?.pro) return [text(`🔒 ดูตะกร้าเกินท็อป 5 ได้ถึงอันดับ ${TOP_MAX} สำหรับ Pro เท่านั้น`), buyCard(m)];
+  const ranked = byRank(rank(all.filter((p) => p.category === c))).slice(0, TOP_MAX);
+  const start = Math.min(from, ranked.length), list = ranked.slice(start, start + TOP_PAGE);
+  if (!list.length) return text(`หมวด "${c}" มีให้ดูถึงอันดับ ${ranked.length} ค่ะ`, HELP_QR());
+  addViews(list.length).catch(() => {});
+  const end = start + list.length, next = end < ranked.length;
+  const bubbles = [...list.map((p, i) => bubble(p, p._rank || start + i + 1)),
+    ...(next ? [card("ดูต่อ?", `อีก ${ranked.length - end} ตัวในหมวด "${c}"`, [{ type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: morePostback(c, end, Math.min(ranked.length, end + TOP_PAGE)) }])] : [])];
+  return [
+    text(`หมวด "${c}" อันดับ ${start + 1}–${end} จาก ${ranked.length}${next ? "" : "\nครบแล้วสำหรับหมวดนี้ค่ะ"}`),
+    { type: "flex", altText: `${c} อันดับ ${start + 1}–${end}`, contents: { type: "carousel", contents: bubbles }, quickReply: { items: next ? [{ type: "action", action: { ...morePostback(c, end, Math.min(ranked.length, end + TOP_PAGE)), label: "➡️ ดูต่อ" } }, ...HELP_QR().slice(0, 4)] : HELP_QR() } },
   ];
 }
 
