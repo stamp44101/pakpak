@@ -13,7 +13,10 @@ export const ORDERS = {
   year: { price: PRICE.year, days: 365, label: "รายปี", span: "1 ปี" },
   fmonth: { price: 99, days: 30, label: "Founding รายเดือน", span: "1 เดือน", founding: true },
   fyear: { price: 990, days: 365, label: "Founding รายปี", span: "1 ปี", founding: true },
+  // Halloween promo: member types "รับโปร 199" in the bot (offer sent by an admin from LINE OA chat). Ends at `until`.
+  q199: { price: 199, days: 90, label: "โปรฮาโลวีน 3 เดือน", span: "3 เดือน", until: Date.parse("2026-11-01T00:00:00+07:00") },
 };
+export const orderLive = (p) => !!ORDERS[p] && (!ORDERS[p].until || ORDERS[p].until > Date.now());
 // ฿99 promo sent by an admin (/admin → "🎁 เสนอ ฿99", one member or the whole "สนใจ Pro" group).
 // m.promo = { at, until, by, interestedAt?, declinedAt?, plan?, paidAt? } tracks the card's funnel; the price ends at `until`.
 export const PROMO_HOURS = 48;

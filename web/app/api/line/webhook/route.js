@@ -8,7 +8,7 @@ import { addViews } from "../../../../lib/activity";
 import { readJSON, writeJSON } from "../../../../lib/store";
 import { rank, effPrice } from "../../../../lib/score";
 import { scoreItem, myIdeas, moreIdea, IDEA_EXTRA } from "../../../../lib/ai";
-import { isPro, orderOf, pickOrder, makeAdminPro, promoLive, ORDERS, PLANS } from "../../../../lib/plan";
+import { isPro, orderOf, orderLive, pickOrder, makeAdminPro, promoLive, ORDERS, PLANS } from "../../../../lib/plan";
 const PRO_AI = PLANS.pro.aiPerDay;
 import { ownerProducts, publicProduct } from "../../../../lib/catalog";
 import { flags, setFlag, bucket } from "../../../../lib/flags";
@@ -96,6 +96,18 @@ async function handle(e) {
 แอดมินกำลังตรวจสอบ เปิดสิทธิ์ Pro ${o.span} แล้วจะแจ้งในแชทนี้ทันที`)),
         notifyAdmins(m).catch(() => {}),
         notifyDiscord("slip", { title: `💰 สลิปใหม่ ฿${o.price.toLocaleString("en-US")} · Pro ${o.label}`, lines: [`**${m.name}** ส่งสลิปแล้ว ตรวจยอดแล้วกดอนุมัติ`, `${APP}/admin`], image: slip }).catch(() => {}),
+      ]);
+      return;
+    }
+    // Halloween promo (ORDERS.q199): "รับโปร 199" → payment QR, same flow as a=buy. After `until` → normal plans.
+    if (e.type === "message" && e.message.type === "text" && /^รับ\s*โปร\s*199/.test(e.message.text.trim())) {
+      if (!orderLive("q199")) return reply(e.replyToken, [text("โปรฮาโลวีน ฿199/3 เดือน หมดเวลาแล้วค่ะ 🙏 เลือกแพ็กปกติด้านล่างได้เลย"), buyCard(m)]);
+      const o = orderOf("q199");
+      if (!m.pendingOrder?.slipAt) m.pendingOrder = { plan: "q199", at: Date.now(), promo: "q199" };
+      await saveMember(m);
+      await Promise.all([
+        reply(e.replyToken, payInfo("q199")),
+        notifyDiscord("interest", { title: `🎃 สนใจโปร ฿${o.price} · ${o.label}`, lines: [`**${m.name}** พิมพ์ "รับโปร 199" กำลังจะโอน`, `${APP}/admin`] }).catch(() => {}),
       ]);
       return;
     }
