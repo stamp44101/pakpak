@@ -55,3 +55,9 @@ export async function listPaths(prefix) {
   const rows = await s`SELECT path FROM kv WHERE path LIKE ${prefix + "%"}`;
   return rows.map((r) => r.path);
 }
+
+// Every row, for the daily backup (app/api/admin/backup). A few MB today; revisit if kv grows past ~50 MB.
+export async function dumpAll() {
+  const s = await db();
+  return s`SELECT path, data, ver, updated_at FROM kv ORDER BY path`;
+}

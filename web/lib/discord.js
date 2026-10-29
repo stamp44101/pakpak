@@ -1,6 +1,6 @@
 // Discord notifications: new signups and sales events (plan chosen, slip received, approved).
 // Set DISCORD_WEBHOOK_URL in Vercel env; without it these calls do nothing.
-const COLORS = { signup: 0x06c755, interest: 0xf5a524, slip: 0x22c55e, approved: 0x3b82f6, rejected: 0xef4444, error: 0xdc2626 };
+const COLORS = { signup: 0x06c755, interest: 0xf5a524, slip: 0x22c55e, approved: 0x3b82f6, rejected: 0xef4444, error: 0xdc2626, backup: 0x64748b };
 
 export async function notifyDiscord(kind, { title, lines = [], image } = {}) {
   // signups can go to their own channel (DISCORD_SIGNUP_WEBHOOK_URL), else the same one
