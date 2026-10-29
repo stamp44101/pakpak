@@ -44,7 +44,10 @@ export const paywallLabel = (v) => ({ on: "เปิดแล้ว (ทุก�
 export async function freeRulesNow() { return paywallFor(await flags()) ? RULES.freeV2 : RULES.free; }
 
 // Before D0: one line for Free replies/pages announcing the change. Empty outside the window or when V2 is off.
+// Turned off 29 Oct — the change is announced once instead. Set to true to bring the line back.
+const COUNTDOWN_ON = false;
 export async function countdownLine(view) {
+  if (!COUNTDOWN_ON) return "";
   const now = Date.now();
   if (view?.pro || now < ANNOUNCE_FROM || now >= PAYWALL_AT) return "";
   const v = (await flags()).paywallV2;
