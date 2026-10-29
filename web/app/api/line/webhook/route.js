@@ -307,7 +307,7 @@ async function hot(state, pro, mixFrom) {
     ...publicProduct(p), _t: p._t, _a: p._a, _perOrder: p._perOrder, _perDay: p._perDay, _boost: p._boost,
     ...(!state.shared && state.products?.[p.id]?.affLink ? { affLink: state.products[p.id].affLink } : {}),
   }));
-  if (!list.length && mixFrom) return mix(mixFrom.all, mixFrom.cats);
+  if (!list.length && mixFrom) return mix(mixFrom.all, mixFrom.cats, pro);
   if (!list.length) return text("🔥 มาแรงวันนี้ยังไม่พร้อมค่ะ ต้องมีข้อมูลยอดขายอย่างน้อย 2 วันเพื่อเทียบกัน\nระหว่างนี้ดูท็อปรายหมวดไปก่อนได้เลย", HELP_QR());
   addViews(list.length).catch(() => {});
   const more = pool.length - list.length;
@@ -318,13 +318,22 @@ async function hot(state, pro, mixFrom) {
 }
 
 // "ท็อปรวมวันนี้": the #1 of every category in one carousel (until มาแรง has two days of data).
-function mix(all, cats) {
-  const list = cats.map((c) => byRank(rank(all.filter((p) => p.category === c)))[0]).filter(Boolean).sort((a, b) => b._t - a._t).slice(0, 10);
+// Free: always built from the full shared catalog with ranks 1–5 locked (teaser card), ranks 6–10 shown.
+async function mix(all, cats, pro) {
+  const LOCK = 5;
+  const src = pro ? all : (await ownerProducts());
+  const srcCats = pro ? cats : [...new Set(src.map((p) => p.category).filter(Boolean))];
+  const ranked = srcCats.map((c) => byRank(rank(src.filter((p) => p.category === c)))[0]).filter(Boolean).sort((a, b) => b._t - a._t).slice(0, 10);
+  const locked = pro ? [] : ranked.slice(0, LOCK).map((p, i) => ({ rank: i + 1, perOrder: Math.round(p._perOrder || 0) }));
+  const list = (pro ? ranked : ranked.slice(LOCK)).map((p, i) => ({ ...(pro ? p : publicProduct(p)), _t: p._t, _a: p._a, _cat: p.category, _n: (pro ? 0 : LOCK) + i + 1 }));
   addViews(list.length).catch(() => {});
-  const others = cats.slice(0, 12).map((x) => qr(x, "ท็อป " + x));
+  const others = srcCats.slice(0, 12).map((x) => qr(x, "ท็อป " + x));
+  const head = locked.length
+    ? `ท็อปรวมวันนี้ · 🔒 อันดับ 1–${locked.length} ปลดล็อคได้เฉพาะผู้ใช้งาน Pro\nด้านล่างคืออันดับ ${locked.length + 1}–${locked.length + list.length} จากอันดับ 1 ของแต่ละหมวด`
+    : `ท็อปรวมวันนี้ · อันดับ 1 ของแต่ละหมวด ${list.length} หมวด`;
   return [
-    text(`ท็อปรวมวันนี้ · อันดับ 1 ของแต่ละหมวด ${list.length} หมวด\nอยากดูลึกหมวดไหน กดชื่อหมวดด้านล่าง${list.some((p) => p.affLink) ? "" : "\nอยากได้ลิงก์แอฟของคุณ: กด \"เอาลิงก์ของฉัน\" แล้วส่ง Affiliate ID มา"}`),
-    { type: "flex", altText: "ท็อปรวมวันนี้", contents: { type: "carousel", contents: list.map((p, i) => bubble({ ...p, _cat: p.category }, i + 1)) }, ...(others.length ? { quickReply: { items: others } } : {}) },
+    text(`${head}\nอยากดูลึกหมวดไหน กดชื่อหมวดด้านล่าง${list.some((p) => p.affLink) ? "" : "\nอยากได้ลิงก์แอฟของคุณ: กด \"เอาลิงก์ของฉัน\" แล้วส่ง Affiliate ID มา"}`),
+    { type: "flex", altText: locked.length ? "ท็อปรวมวันนี้ (ท็อป 5 ล็อกไว้สำหรับ Pro)" : "ท็อปรวมวันนี้", contents: { type: "carousel", contents: [...(locked.length ? [lockBubble(locked)] : []), ...list.map((p) => bubble(p, p._n))] }, ...(others.length ? { quickReply: { items: others } } : {}) },
   ];
 }
 
