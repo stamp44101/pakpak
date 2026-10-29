@@ -49,6 +49,18 @@ export async function updateJSON(path, fn, init = () => ({})) {
   throw new Error("updateJSON: too much contention on " + path);
 }
 
+// Many documents in one query (in input order, missing ones skipped). One round trip instead of one per path.
+export async function readMany(paths) {
+  if (!paths.length) return [];
+  const s = await db();
+  const out = new Map();
+  for (let i = 0; i < paths.length; i += 500) {
+    const rows = await s`SELECT path, data FROM kv WHERE path = ANY(${paths.slice(i, i + 500)})`;
+    for (const r of rows) out.set(r.path, r.data);
+  }
+  return paths.map((p) => out.get(p)).filter(Boolean);
+}
+
 // Paths under a prefix, e.g. listPaths("members/") → ["members/U1.json", ...].
 export async function listPaths(prefix) {
   const s = await db();

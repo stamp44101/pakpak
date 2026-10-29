@@ -1,6 +1,6 @@
 "use client";
 import { orderOf } from "../../lib/plan";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const STATUS = { active: "ใช้งานได้", waitlist: "รอคิว", revoked: "ระงับ" };
 const STEPS = [["line", "เข้าสู่ระบบ"], ["bot", "เพิ่มเพื่อนบอท"], ["applink", "เอาลิงก์จากแอป"]];
@@ -52,6 +52,20 @@ function GrantPicker({ m, campaigns = [], cap, onGrant }) {
   );
 }
 
+const PAGE = 50; // rows drawn at a time; the next batch loads when the list end scrolls into view
+
+// Invisible marker at the end of the list: calls onShow when it scrolls near the viewport.
+function MoreOnScroll({ onShow }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!ref.current || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver((es) => es.some((e) => e.isIntersecting) && onShow(), { rootMargin: "400px" });
+    io.observe(ref.current);
+    return () => io.disconnect();
+  }, [onShow]);
+  return <div ref={ref} />;
+}
+
 export default function Admin() {
   const [data, setData] = useState(null);
   const [err, setErr] = useState("");
@@ -61,6 +75,7 @@ export default function Admin() {
   const [offerMsg, setOfferMsg] = useState("");
   const [annMsg, setAnnMsg] = useState("");
   const [filter, setFilter] = useState("all");
+  const [limit, setLimit] = useState(PAGE);
   const [q, setQ] = useState("");
 
   const load = () => fetch("/api/admin").then((r) => r.json()).then((j) => (j.error ? setErr(j.error) : setData(j))).catch(() => setErr("โหลดไม่สำเร็จ"));
@@ -106,9 +121,9 @@ export default function Admin() {
           {FILTERS.map(([k, label, fn]) => {
             const n = data.members.filter(fn).length;
             if (k !== "all" && !n && filter !== k) return null;
-            return <button key={k} className={"chip" + (filter === k ? " on" : "")} onClick={() => setFilter(k)}>{label} <span className="num">{n}</span></button>;
+            return <button key={k} className={"chip" + (filter === k ? " on" : "")} onClick={() => { setFilter(k); setLimit(PAGE); }}>{label} <span className="num">{n}</span></button>;
           })}
-          <input className="grow" value={q} onChange={(e) => setQ(e.target.value)} placeholder="ค้นหาชื่อ" style={{ minWidth: 140 }} />
+          <input className="grow" value={q} onChange={(e) => { setQ(e.target.value); setLimit(PAGE); }} placeholder="ค้นหาชื่อ" style={{ minWidth: 140 }} />
         </div>
         <div className="list">
           {(() => {
@@ -140,7 +155,7 @@ export default function Admin() {
             </div>
           )}
           {!shown.length && <div className="empty"><strong>{data.members.length ? "ไม่พบสมาชิกในตัวกรองนี้" : "ยังไม่มีสมาชิก"}</strong></div>}
-          {shown.map((m) => (
+          {shown.slice(0, limit).map((m) => (
             <div key={m.id} className="mrow">
               {m.picture ? <img className="avatar" src={m.picture} alt="" referrerPolicy="no-referrer" /> : <span className="avatar" />}
               <div className="mrow-main">
@@ -182,6 +197,10 @@ export default function Admin() {
               )}
             </div>
           ))}
+          {shown.length > limit && <>
+            <MoreOnScroll onShow={() => setLimit((n) => n + PAGE)} />
+            <button className="btn" style={{ margin: "10px auto", display: "flex" }} onClick={() => setLimit((n) => n + PAGE)}>แสดงเพิ่ม ({(shown.length - limit).toLocaleString("en-US")} คน)</button>
+          </>}
             </>;
           })()}
         </div>

@@ -1,10 +1,14 @@
-// Member documents read in batches: 500+ parallel DB fetches ran the function out of sockets (EMFILE) on 29 Oct.
-import { roster, getMember } from "./auth";
+// Bulk member reads for /admin, announcements and campaigns: one query for every document
+// (was one query per member: 500+ round trips, ran out of sockets on 29 Oct).
+// Read-only view: a lapsed order is shown as lapsed but not written back; getMember() still does that per member.
+import { roster, memberPath } from "./auth";
+import { readMany } from "./store";
+import { expireOrder } from "./plan";
 
 export async function membersOf(ids) {
-  const out = [];
-  for (let i = 0; i < ids.length; i += 40) out.push(...(await Promise.all(ids.slice(i, i + 40).map(getMember))).filter(Boolean));
-  return out;
+  const docs = await readMany(ids.map(memberPath));
+  for (const m of docs) expireOrder(m);
+  return docs;
 }
 // Every member: active, waitlist, revoked.
 export async function allMembers(r) {
