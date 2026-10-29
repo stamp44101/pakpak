@@ -13,9 +13,12 @@ function db() {
 }
 
 // null only when the document does not exist; database errors are thrown, never read as "missing".
-export async function readJSON(path) {
+// key: read only one top-level field of the document (less data over the wire).
+export async function readJSON(path, key) {
   const s = await db();
-  const rows = await s`SELECT data FROM kv WHERE path = ${path}`;
+  const rows = key
+    ? await s`SELECT data -> ${key} AS data FROM kv WHERE path = ${path}`
+    : await s`SELECT data FROM kv WHERE path = ${path}`;
   return rows.length ? rows[0].data : null;
 }
 
