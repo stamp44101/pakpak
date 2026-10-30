@@ -1,6 +1,7 @@
 // Who am I + how many Early Access seats are left.
 import { readSession, getMember, ensureMember, saveMember, roster, seats, seatsLeft } from "../../../lib/auth";
-import { planInfo, PRICE, ORDERS, makeAdminPro, foundingOpen } from "../../../lib/plan";
+import { planInfo, PRICE, ORDERS, makeAdminPro, foundingOpen, webPromoFor } from "../../../lib/plan";
+import { notifyDiscord } from "../../../lib/discord";
 import { viewOf, countdownLine, todayCat, PAYWALL_AT } from "../../../lib/access";
 import { views } from "../../../lib/activity";
 
@@ -31,6 +32,8 @@ export async function GET(req) {
     seats: seats(), left, users: Math.max(LEGACY_USERS, r.active.length), views: await views(), loginReady: true, price: PRICE,
     offer: { founding: foundingOpen(m), month: (foundingOpen(m) ? ORDERS.fmonth : ORDERS.month).price, year: (foundingOpen(m) ? ORDERS.fyear : ORDERS.year).price },
     paywall: { v2: view.v2, at: PAYWALL_AT, countdown: await countdownLine(view) },
+    // Halloween ฿199 banner: decided here so only eligible Free members ever get it (lib/plan.js webPromoFor)
+    webPromo: webPromoFor(m, { admin: r.admins.includes(m.id) }),
   });
 }
 
@@ -39,7 +42,17 @@ export async function POST(req) {
   const s = readSession(req);
   const m = s ? await getMember(s.sub) : null;
   if (!m) return Response.json({ error: "unauthorized" }, { status: 401 });
-  const { done } = (await req.json().catch(() => ({}))) || {};
+  const { done, webPromo } = (await req.json().catch(() => ({}))) || {};
+  // web banner funnel: first time shown / tapped, kept on the member (m.webPromo) for /admin
+  if (webPromo === "seen" || webPromo === "click") {
+    const k = webPromo === "seen" ? "seenAt" : "clickAt";
+    if (!m.webPromo?.[k]) {
+      m.webPromo = { ...(m.webPromo || {}), key: "q199", [k]: Date.now() };
+      await saveMember(m);
+      if (k === "clickAt") notifyDiscord("interest", { title: "🎃 กดแบนเนอร์โปร ฿199 บนเว็บ", lines: [`**${m.name}** กำลังเปิดแชทเพื่อรับโปร`] }).catch(() => {});
+    }
+    return Response.json({ ok: true });
+  }
   const ok = ["line", "bot", "applink", "connector", "shopee", "scan", "ai"];
   const list = Array.isArray(done) ? [...new Set(done.filter((d) => ok.includes(d)))] : [];
   const cur = m.onboarding?.done || [];

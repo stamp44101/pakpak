@@ -17,6 +17,13 @@ export const ORDERS = {
   q199: { price: 199, days: 90, label: "โปรฮาโลวีน 3 เดือน", span: "3 เดือน", until: Date.parse("2026-11-03T00:00:00+07:00") },
 };
 export const orderLive = (p) => !!ORDERS[p] && (!ORDERS[p].until || ORDERS[p].until > Date.now());
+// Web banner for the Halloween promo: Free members only — never Pro (incl. lifetime/admin), never someone
+// mid-purchase or holding a live ฿99 offer, never suspended/waitlist. Returns what the page needs, or null.
+export function webPromoFor(m, { admin = false } = {}) {
+  if (!m || admin || m.status !== "active" || isPro(m) || m.pendingOrder || promoLive(m) || !orderLive("q199")) return null;
+  const o = ORDERS.q199;
+  return { key: "q199", price: o.price, span: o.span, until: o.until };
+}
 // ฿99 promo sent by an admin (/admin → "🎁 เสนอ ฿99", one member or the whole "สนใจ Pro" group).
 // m.promo = { at, until, by, interestedAt?, declinedAt?, plan?, paidAt? } tracks the card's funnel; the price ends at `until`.
 export const PROMO_HOURS = 48;

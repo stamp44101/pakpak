@@ -34,7 +34,7 @@ export async function GET(req) {
   const [all, campaigns, req0, qt, tm] = await Promise.all([allMembers(r).then((x) => [x, Date.now()]), loadCampaigns(), readJSON("meta/requests.json"), quota()]).then(([[a, t], c, q0, q]) => [a, c, q0 || {}, q, t]);
   const members = all.map((m) => ({
     id: m.id, name: m.name, picture: m.picture, status: m.status, joinedAt: m.joinedAt, admin: r.admins.includes(m.id), owner: r.admins[0] === m.id, aiToday: m.ai?.count || 0, aiDay: m.ai?.day || "", onboarding: m.onboarding?.done || [], ...planInfo(m), pendingOrder: m.pendingOrder || null, freeSince: m.freeSince || null, welcomeFree: !!m.welcomeFree, welcomePushedAt: m.welcomePushedAt || null, trialAt: m.trialAt || null, grants: grantsOf(m), freeDays: freeDaysOf(m), founding: !!m.founding, foundingOffer: !!m.foundingOffer, promo: m.promo || null, promoLive: promoLive(m),
-    payments: m.payments || [],
+    payments: m.payments || [], webPromo: m.webPromo || null,
   }));
   const announce = Object.entries(ANNOUNCE).map(([key, a]) => {
     const target = all.filter((m) => a.to(m, r.admins));

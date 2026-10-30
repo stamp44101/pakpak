@@ -10,7 +10,7 @@ import { expireOrder } from "./plan";
 // These are partial documents: never saveMember() one, re-read with getMember() before writing.
 export const LIST_KEYS = ["id", "name", "picture", "status", "joinedAt", "ai", "onboarding", "plan", "proUntil", "earlyAccess",
   "pendingOrder", "orderExpired", "freeSince", "welcomeFree", "welcomePushedAt", "trialAt", "followReward", "grants",
-  "founding", "foundingOffer", "promo", "payments", "news"];
+  "founding", "foundingOffer", "promo", "payments", "news", "webPromo"];
 
 export async function membersOf(ids) {
   const docs = await readMany(ids.map(memberPath), LIST_KEYS);

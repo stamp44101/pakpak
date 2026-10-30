@@ -77,6 +77,8 @@ export default function Home({ signedIn = false }) {
   const [confirmOut, setConfirmOut] = useState(false);
   const [freeSeen, setFreeSeen] = useState(true);
   useEffect(() => { setFreeSeen(!!ls.get(".freeWelcome")); }, []);
+  const [promoHidden, setPromoHidden] = useState(true);
+  useEffect(() => { setPromoHidden(!!ls.get(".promoQ199")); }, []);
   const poll = useRef(null);
   const saveT = useRef(null);
   const skipSave = useRef(true);
@@ -490,6 +492,7 @@ export default function Home({ signedIn = false }) {
           </div>
         </section>
       )}
+      {me.webPromo && !promoHidden && <PromoBanner promo={me.webPromo} onClose={() => { ls.set(".promoQ199", "1"); setPromoHidden(true); }} />}
       {member && member.status === "revoked" && (
         <section className="panel"><h2>บัญชีนี้ถูกระงับการใช้งาน</h2><p className="hint">ติดต่อผู้ดูแลปั๊กปักหากคิดว่าเป็นความผิดพลาด</p></section>
       )}
@@ -752,6 +755,23 @@ function LockedTop({ rows, cat, note }) {
   );
 }
 
+// Halloween ฿199 promo, shown only when /api/me returns webPromo (eligible Free members; lib/plan.js webPromoFor).
+const PROMO_URL = "https://line.me/R/oaMessage/@979soyth/?" + encodeURIComponent("รับโปร 199");
+function PromoBanner({ promo, onClose }) {
+  useEffect(() => { if (!ls.get(".promoQ199Seen")) { ls.set(".promoQ199Seen", "1"); api("/api/me", "POST", { webPromo: "seen" }); } }, []);
+  return (
+    <section className="panel promo-q199">
+      <button className="btn ghost promo-x" aria-label="ปิด" onClick={onClose}>✕</button>
+      <a href={PROMO_URL} target="_blank" rel="noopener" onClick={() => api("/api/me", "POST", { webPromo: "click" })}>
+        <img src="/promo-q199.jpg" alt={`โปรฮาโลวีน ปั๊กปัก Pro ฿${promo.price} ใช้ได้ ${promo.span}`} width="1254" height="1254" />
+      </a>
+      <div className="bar">
+        <a className="btn primary" href={PROMO_URL} target="_blank" rel="noopener" onClick={() => api("/api/me", "POST", { webPromo: "click" })}>รับโปร ฿{promo.price} · {promo.span}</a>
+        <span className="hint">กดแล้วระบบเปิดแชท LINE ส่ง QR ให้ทันที · ช่วงเวลาจำกัด</span>
+      </div>
+    </section>
+  );
+}
 const UPGRADE_URL = "https://line.me/R/oaMessage/@979soyth/?" + encodeURIComponent("อัปเกรด Pro");
 const OA_ADD = "https://line.me/R/ti/p/@979soyth";
 const thDate = (t) => new Date(t).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
