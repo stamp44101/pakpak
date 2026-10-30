@@ -12,15 +12,18 @@ export async function scoreItem(member, item, refresh = false) {
   const id = String(item?.id || "");
   if (!/^\d+_\d+$/.test(id) || !item.name) return { error: "ข้อมูลสินค้าไม่ครบ", status: 400 };
   const cachePath = `ai/${id}.json`;
+  // A cached idea that was saved cut off (before the 30 Oct fix) is redone on us: no daily limit, no count.
+  let repair = false;
   if (!refresh) {
     const cached = await readJSON(cachePath);
-    if (cached) return { score: cached, cached: true };
+    if (cached && complete(cached)) return { score: cached, cached: true };
+    repair = !!cached;
   }
 
   const day = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10); // Bangkok date
   const used = member.ai?.day === day ? member.ai.count : 0;
   const DAILY = (await viewOf(member)).rules.aiPerDay; // new (uncached) scores per member per day
-  if (used >= DAILY) return { error: planOf(member) === "pro" ? `วันนี้ให้ AI ให้คะแนนครบ ${DAILY} ตัวแล้ว พรุ่งนี้ใช้ต่อได้` : `แพ็ก Free ให้ AI ได้วันละ ${DAILY} ตัว ครบแล้ว อัปเกรด Pro เพื่อใช้ได้วันละ ${RULES.pro.aiPerDay} ตัว`, status: 429, upgrade: planOf(member) !== "pro" };
+  if (!repair && used >= DAILY) return { error: planOf(member) === "pro" ? `วันนี้ให้ AI ให้คะแนนครบ ${DAILY} ตัวแล้ว พรุ่งนี้ใช้ต่อได้` : `แพ็ก Free ให้ AI ได้วันละ ${DAILY} ตัว ครบแล้ว อัปเกรด Pro เพื่อใช้ได้วันละ ${RULES.pro.aiPerDay} ตัว`, status: 429, upgrade: planOf(member) !== "pro" };
 
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return { error: "ยังไม่ได้ตั้ง ANTHROPIC_API_KEY บน server", status: 500 };
@@ -46,26 +49,17 @@ export async function scoreItem(member, item, refresh = false) {
       required: ["problem", "visual", "multi", "hook", "angles", "why"],
     },
   };
-  const r = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({ model: MODEL, max_tokens: 800, tools: [tool], tool_choice: { type: "tool", name: "submit_score" }, messages: [{ role: "user", content: prompt }] }),
-  });
-  if (!r.ok) {
-    const t = await r.text().catch(() => "");
-    return { error: `AI error ${r.status}`, detail: t.slice(0, 300), status: 502 };
-  }
-  const j = await r.json();
-  const s = (j.content || []).find((c) => c.type === "tool_use")?.input;
-  if (!s) return { error: "AI ไม่ส่งคะแนนกลับมา", status: 502 };
+  const a = await askTool(key, tool, prompt);
+  if (a.error) return a;
+  const s = a.input;
   const clamp = (v) => Math.max(0, Math.min(10, +v || 0));
   const score = {
     problem: clamp(s.problem), visual: clamp(s.visual), multi: clamp(s.multi),
-    hook: String(s.hook || ""), angles: (s.angles || []).slice(0, 3).map(String), why: String(s.why || ""),
+    hook: String(s.hook || ""), angles: angleList(s.angles), why: String(s.why || ""),
     model: MODEL, at: Date.now(),
   };
   await writeJSON(cachePath, score);
-  await bumpAi(member, day);
+  if (!repair) await bumpAi(member, day);
   return { score, cached: false };
 }
 
@@ -75,9 +69,30 @@ export async function scoreItem(member, item, refresh = false) {
 export const IDEA_EXTRA = 4;
 const ideasPath = (m, id) => `ideas/${m.id}/${id}.json`;
 
+// Thai text is token-heavy: a low max_tokens cut the tool input mid-way (hook arrived, angles/why didn't — 30 Oct bug).
+// Ask with room to spare; if the answer is still cut or incomplete, ask once more. Never accept a partial idea.
+export const angleList = (a) => (Array.isArray(a) ? a : typeof a === "string" ? a.split(/\n|•/) : []).map((x) => String(x).trim()).filter(Boolean).slice(0, 3);
+export const complete = (s) => !!(s && String(s.hook || "").trim() && angleList(s.angles).length >= 2 && String(s.why || "").trim());
+async function askTool(key, tool, prompt, extra = {}) {
+  let last = { error: "AI ไม่ส่งข้อมูลกลับมา", status: 502 };
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({ model: MODEL, max_tokens: 2000, ...extra, tools: [tool], tool_choice: { type: "tool", name: tool.name }, messages: [{ role: "user", content: prompt }] }),
+    });
+    if (!r.ok) { last = { error: `AI error ${r.status}`, detail: (await r.text().catch(() => "")).slice(0, 300), status: 502 }; continue; }
+    const j = await r.json();
+    const s = (j.content || []).find((c) => c.type === "tool_use")?.input;
+    if (j.stop_reason !== "max_tokens" && complete(s)) return { input: s };
+    last = { error: "AI ตอบไม่ครบ ลองใหม่อีกครั้งได้เลย (ไม่เสียโควตา)", status: 502 };
+  }
+  return last;
+}
+
 export async function myIdeas(member, id) {
   if (!/^\d+_\d+$/.test(String(id || ""))) return [];
-  return ((await readJSON(ideasPath(member, id))) || {}).list || [];
+  return (((await readJSON(ideasPath(member, id))) || {}).list || []).filter(complete); // drop ideas saved cut-off before 30 Oct fix
 }
 
 // Returns { idea, list, left } or { error, status, upgrade }.
@@ -105,15 +120,10 @@ ${before ? `ไอเดียที่ให้ไปแล้ว ห้าม�
     name: "submit_idea", description: "ส่งไอเดียคลิปใหม่",
     input_schema: { type: "object", properties: { hook: { type: "string" }, angles: { type: "array", items: { type: "string" } }, why: { type: "string" } }, required: ["hook", "angles", "why"] },
   };
-  const r = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({ model: MODEL, max_tokens: 600, temperature: 1, tools: [tool], tool_choice: { type: "tool", name: "submit_idea" }, messages: [{ role: "user", content: prompt }] }),
-  });
-  if (!r.ok) return { error: `AI error ${r.status}`, status: 502 };
-  const s = ((await r.json()).content || []).find((c) => c.type === "tool_use")?.input;
-  if (!s?.hook) return { error: "AI ไม่ส่งไอเดียกลับมา", status: 502 };
-  const idea = { hook: String(s.hook), angles: (s.angles || []).slice(0, 3).map(String), why: String(s.why || ""), at: Date.now() };
+  const a = await askTool(key, tool, prompt, { temperature: 1 });
+  if (a.error) return a;
+  const s = a.input;
+  const idea = { hook: String(s.hook), angles: angleList(s.angles), why: String(s.why || ""), at: Date.now() };
   const next = [...list, idea];
   await writeJSON(ideasPath(member, id), { list: next });
   await bumpAi(member, day);
