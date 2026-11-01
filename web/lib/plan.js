@@ -14,7 +14,7 @@ export const ORDERS = {
   fmonth: { price: 99, days: 30, label: "Founding รายเดือน", span: "1 เดือน", founding: true },
   fyear: { price: 990, days: 365, label: "Founding รายปี", span: "1 ปี", founding: true },
   // Halloween promo: member types "รับโปร 199" in the bot (offer sent by an admin from LINE OA chat). Ends at `until` (covers the slow-release sends; each message says 24 ชม.).
-  q199: { price: 199, days: 90, label: "โปรฮาโลวีน 3 เดือน", span: "3 เดือน", until: Date.parse("2026-11-03T00:00:00+07:00") },
+  q199: { price: 199, days: 90, label: "โปรฮาโลวีน 3 เดือน", span: "3 เดือน", until: Date.parse("2026-11-01T17:15:00+07:00") }, // ปิดก่อนกำหนด 1 พ.ย. (เดิม 3 พ.ย. 00:00)
 };
 export const orderLive = (p) => !!ORDERS[p] && (!ORDERS[p].until || ORDERS[p].until > Date.now());
 // Web banner for the Halloween promo: Free members only — never Pro (incl. lifetime/admin), never someone
