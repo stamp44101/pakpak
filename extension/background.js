@@ -43,6 +43,7 @@ async function injected(op, arg) {
         sold: c.sold, historicalSold: c.historical_sold,
         rating: Number((c.item_rating && c.item_rating.rating_star) || 0), reviews: c.cmt_count,
         commission: Math.max(pct(it.max_commission_rate), pct(it.seller_commission_rate), pct(it.default_commission_rate)),
+        commBase: pct(it.default_commission_rate), xtra: pct(it.seller_commission_rate),
         shop: c.is_official_shop ? "mall" : (c.is_preferred_plus_seller || c.shopee_verified ? "preferred" : ""),
         catId: c.catid, longLink: it.long_link, url: it.product_link,
       };

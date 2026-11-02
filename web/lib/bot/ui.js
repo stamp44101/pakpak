@@ -2,8 +2,9 @@
 import { LIFF_URL } from "../line";
 import { affLink, SHORT_NOTE } from "../afflink";
 import { effPrice } from "../score";
+import { commChange, commLabel } from "../commission";
 import { isPro, ORDERS, orderOf, ORDER_TTL_H, PLANS, foundingOpen } from "../plan";
-import { baht, thDate, thDateTime } from "../fmt";
+import { baht, thDate, thDateTime, ago } from "../fmt";
 
 export const APP = process.env.APP_URL || "https://pakpak-two.vercel.app";
 export const img = (id, size = "") => (id ? `https://down-th.img.susercontent.com/file/${id}${size}` : "");
@@ -127,6 +128,7 @@ export function bubble(p, n) {
       ...(p._perDay ? [{ type: "text", text: `🔥 ขายวันละ ~${Math.round(p._perDay).toLocaleString("en-US")} ชิ้น · ${p._boost >= 1.5 ? `เร็วกว่าปกติ ${p._boost.toFixed(1)} เท่า` : "ยอดกำลังขึ้น"}${p.category ? ` · ${p.category}` : ""}`, size: "xxs", color: "#E5480A", weight: "bold", wrap: true }] : []),
       { type: "text", text: p.name || "-", weight: "bold", size: "sm", wrap: true, maxLines: 2 },
       { type: "text", text: `${baht(effPrice(p))} · คอม ${(+p.commission || 0).toFixed(0)}% · ได้ ~${baht(p._perOrder)}/ออเดอร์`, size: "xs", color: "#555555", wrap: true },
+      ...(commChange(p) ? [{ type: "text", text: `⚠️ ${commLabel(commChange(p))} (${ago(commChange(p).at)})`, size: "xxs", color: commChange(p).down ? "#D93025" : "#1E8E3E", wrap: true }] : []),
       { type: "text", text: `ขายแล้ว ${(+p.sold || 0).toLocaleString("en-US")} · ⭐ ${(+p.rating || 0).toFixed(1)}${p.affLink ? " · มีลิงก์" : ""}`, size: "xs", color: "#888888", wrap: true },
       ...(!p.affLink && p.url ? [{ type: "box", layout: "vertical", margin: "sm", paddingAll: "8px", cornerRadius: "8px", backgroundColor: "#FFF1E7", contents: [
         { type: "text", text: "✓ ปั๊กปักเลือกตะกร้าให้แล้ว", size: "xxs", color: "#333333", weight: "bold", wrap: true },

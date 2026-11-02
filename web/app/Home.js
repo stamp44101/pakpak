@@ -1,6 +1,7 @@
 "use client";
 import { memo, useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { effPrice, rank } from "../lib/score";
+import { commFields, commChange, commLabel } from "../lib/commission";
 import Landing from "./Landing";
 import AffLinkBox from "./AffLinkBox";
 
@@ -263,7 +264,7 @@ export default function Home({ signedIn = false }) {
         for (const it of r.items) {
           const old = next[it.id];
           const { longLink, ...rest } = it;
-          next[it.id] = { ...old, ...rest, category: tag, keyword: k, fetchedAt: Date.now() };
+          next[it.id] = { ...old, ...rest, ...commFields(old, rest), category: tag, keyword: k, fetchedAt: Date.now() };
           if (!old) added++;
         }
       }
@@ -640,6 +641,7 @@ const ProductRow = memo(function ProductRow({ p, i, isOpen, idea, ideaBusy, aiBu
                     <span>คอม <span className="num">{fmt(p.commission)}%</span> ≈ ฿<span className="num">{fmt(p._perOrder)}</span>/ชิ้น</span>
                     <span>★ <span className="num">{fmt(p.rating)}</span></span>
                     {p.affLink && <span className="tag a">มีลิงก์</span>}
+                    {commChange(p) && <span className="tag b">{commLabel(commChange(p))}</span>}
                     {p.fetchedAt && Date.now() - p.fetchedAt > STALE_MS && <span className="tag b">ข้อมูล{ago(p.fetchedAt)}</span>}
                     {p.shop && <span className="tag">{p.shop}</span>}
                     {!cat && p._rank && <span className="tag">{p.category}</span>}
