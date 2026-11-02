@@ -1,6 +1,7 @@
 "use client";
 // Public landing page for people who are not signed in (also previewable at /landing).
-// Demo products are real: the owner's latest ranked Shopee data from /api/showcase.
+// Demo products are real: the owner's latest ranked Shopee data from /api/showcase, shown as Free sees it
+// (#1–5 per category locked: rank, score and ≈฿/order only).
 import { useEffect, useRef, useState } from "react";
 
 const LOGIN = "/api/auth/line";
@@ -27,6 +28,20 @@ function Glyph({ kind }) {
   return <svg viewBox="0 0 48 48" {...p}><rect x="17" y="18" width="14" height="22" rx="3" /><path d="M20 18v-6l8-4v10" /></svg>;
 }
 
+function LockedCard({ perOrder }) {
+  return (
+    <div className="lp-card lp-card-lock">
+      <div className="lp-card-img"><span>🔒</span></div>
+      <div className="lp-card-body">
+        <div className="lp-card-top"><b>#1–5</b><span>Pro เท่านั้น</span></div>
+        <p className="lp-card-name">ตะกร้าท็อป 5 ของหมวดนี้</p>
+        <p className="lp-card-meta">{perOrder ? `ได้สูงสุด ~${baht(perOrder)}/ออเดอร์` : "ล็อกไว้ให้ผู้ใช้ Pro"}</p>
+        <span className="lp-card-btn">ปลดล็อคด้วย Pro</span>
+      </div>
+    </div>
+  );
+}
+
 function Card({ n, score, name, price, glyph, tone, image }) {
   return (
     <div className="lp-card" style={{ "--tone": tone }}>
@@ -44,7 +59,8 @@ function Card({ n, score, name, price, glyph, tone, image }) {
 
 function Phone({ cats }) {
   const c = cats?.find((x) => x.category === "ห้องครัว") || cats?.[0];
-  const items = c?.items?.slice(0, 3);
+  const items = c?.items?.slice(0, 2);
+  const lockedMax = c?.locked?.length ? Math.max(...c.locked.map((l) => l.perOrder)) : 0;
   const hook = items?.find((p) => p.hook)?.hook;
   return (
     <div className="lp-phone" aria-label="ตัวอย่างการใช้ปั๊กปักในแชท LINE">
@@ -53,7 +69,8 @@ function Phone({ cats }) {
         <p className="lp-me">ท็อป {c?.category || "ห้องครัว"}</p>
         <p className="lp-bot">ท็อป 5 หมวด “{c?.category || "ห้องครัว"}” · ข้อมูล {c ? ago(c.updatedAt) : "2 ชม.ก่อน"}</p>
         <div className="lp-carousel">
-          {items ? items.map((p, i) => <Card key={p.id} n={i + 1} score={p.total} image={p.image} name={p.name} price={`${baht(p.price)} · คอม ${Math.round(p.commission)}% · ได้ ~${baht(p.perOrder)}/ออเดอร์`} />) : <>
+          {items && <LockedCard perOrder={lockedMax} />}
+          {items ? items.map((p) => <Card key={p.id} n={p.rank} score={p.total} image={p.image} name={p.name} price={`${baht(p.price)} · คอม ${Math.round(p.commission)}% · ได้ ~${baht(p.perOrder)}/ออเดอร์`} />) : <>
           <Card n={1} score={82} glyph="pan" tone="#FFE1CC" name="แผ่นรองหม้อทอดไร้น้ำมัน ซิลิโคน" price="฿99 · คอม 10% · ได้ ~฿10/ออเดอร์" />
           <Card n={2} score={77} glyph="spray" tone="#FFD9E2" name="สเปรย์ขจัดคราบมันเตาแก๊ส" price="฿159 · คอม 9% · ได้ ~฿14/ออเดอร์" />
           <Card n={3} score={71} glyph="cat" tone="#DDEBFF" name="กล่องเก็บอาหารสุญญากาศ" price="฿189 · คอม 12% · ได้ ~฿23/ออเดอร์" />
@@ -97,12 +114,20 @@ function Demo({ cats }) {
       <div className="lp-tabs" role="tablist">
         {cats.map((x) => <button key={x.category} role="tab" aria-selected={x.category === c.category} onClick={() => setCat(x.category)}>{x.category}</button>)}
       </div>
+      {c.locked?.length > 0 && (
+        <div className="lp-locked">
+          <div className="lp-locked-row">
+            {c.locked.map((l) => <span key={l.rank} className="lp-locked-tile"><b>#{l.rank}</b><i>🔒</i><small>{l.score} คะแนน</small><small>~{baht(l.perOrder)}/ออเดอร์</small></span>)}
+          </div>
+          <p>ท็อป 1–{c.locked.length} ของทุกหมวด ปลดล็อคสำหรับผู้ใช้ Pro · สมัครฟรีด้วย LINE เพื่อดูอันดับถัดไป</p>
+        </div>
+      )}
       <ol className="lp-rank">
-        {c.items.slice(0, 3).map((p, i) => (
+        {c.items.slice(0, 3).map((p) => (
           <li key={p.id} className="lp-item">
             <a className="lp-item-img" href={p.link || undefined} target="_blank" rel="noopener sponsored">
               <img src={img(p.image)} alt={p.name} referrerPolicy="no-referrer" loading="lazy" />
-              <b>{i + 1}</b>
+              <b>{p.rank}</b>
             </a>
             <div className="lp-item-body">
               <p className="lp-item-name">{p.name}</p>
