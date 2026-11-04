@@ -7,11 +7,15 @@ export const dynamic = "force-dynamic";
 export async function GET(req) {
   const id = process.env.LINE_CHANNEL_ID;
   if (!id || !process.env.LINE_CHANNEL_SECRET) return new Response("LINE Login ยังตั้งค่าไม่ครบ (LINE_CHANNEL_ID / LINE_CHANNEL_SECRET)", { status: 500 });
+  // Started on another host (e.g. pakpak-two.vercel.app) while APP_URL is the main domain: hop there first,
+  // so the pp_state cookie lands on the same host as the callback (otherwise state never matches → login=failed).
+  const base = appUrl(req);
+  if (new URL(base).host !== new URL(req.url).host) return Response.redirect(`${base}/api/auth/line`, 302);
   const state = newState();
   const u = new URL("https://access.line.me/oauth2/v2.1/authorize");
   u.search = new URLSearchParams({
     response_type: "code", client_id: id, state, scope: "profile openid",
-    redirect_uri: `${appUrl(req)}/api/auth/line/callback`,
+    redirect_uri: `${base}/api/auth/line/callback`,
   });
   return new Response(null, {
     status: 302,
