@@ -1,0 +1,19 @@
+import { GUIDES } from "../../lib/guides";
+
+export const metadata = {
+  title: "คู่มือ Shopee Affiliate สำหรับคนทำคลิปปักตะกร้า",
+  description: "คู่มือ Shopee Affiliate ภาษาไทย: ค่าคอมคิดยังไง จ่ายเมื่อไหร่ เลือกสินค้าปักตะกร้ายังไงให้ขายได้ และหา Affiliate ID",
+  alternates: { canonical: "/guide" },
+};
+
+export default function GuideIndex() {
+  return (
+    <main className="gd">
+      <nav className="gd-crumb"><a href="/">ปั๊กปัก</a></nav>
+      <h1>คู่มือ Shopee Affiliate สำหรับคนทำคลิป</h1>
+      <ul className="gd-list">
+        {GUIDES.map((g) => <li key={g.slug}><a href={`/guide/${g.slug}`}><b>{g.title}</b><span>{g.description}</span></a></li>)}
+      </ul>
+    </main>
+  );
+}

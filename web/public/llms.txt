@@ -12,4 +12,7 @@
 ## Pages
 
 - [หน้าหลัก](https://pugpak.com/): วิธีใช้ ที่มาของคะแนน ราคา และคำถามที่พบบ่อย
+- [Shopee Affiliate คืออะไร ได้เงินยังไง จ่ายเมื่อไหร่](https://pugpak.com/guide/shopee-affiliate): สรุปจากข้อตกลง Shopee Affiliate Program ฉบับ 20 ม.ค. 2569
+- [เลือกสินค้าปักตะกร้า Shopee ยังไงให้ขายได้](https://pugpak.com/guide/choose-products): เกณฑ์ 2 ด่าน ตัวเลขจาก Shopee และความเหมาะกับคลิป
+- [Shopee Affiliate ID คืออะไร หาได้ที่ไหน](https://pugpak.com/guide/affiliate-id)
 - [ติดตั้ง Connector](https://pugpak.com/connector): ส่วนเสริม Chrome สำหรับฟีเจอร์ขั้นสูง

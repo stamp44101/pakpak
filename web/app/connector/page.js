@@ -12,7 +12,7 @@ export default function Connector() {
         <p className="hint" style={{ margin: "0 0 6px" }}>ขั้นสูง · ไม่บังคับ</p>
         <h1>ลิงก์อัตโนมัติ + สแกนหมวดของคุณเอง</h1>
         <p className="sub">ติดตั้งส่วนเสริม Chrome “ปั๊กปัก Connector” บนคอม แล้วระบบจะสร้างลิงก์ affiliate ของคุณให้ Top 20 ทุกหมวด และสแกนคำค้นอะไรก็ได้ ไม่เก็บรหัสผ่านหรือ cookie · ทำครั้งเดียวราว 3 นาที</p>
-        <p className="hint" style={{ marginTop: 8 }}>ไม่ติดตั้งก็ใช้ปั๊กปักได้ปกติ: ดูท็อปจากคลังกลางในแชท LINE และเอาลิงก์ผ่านแอป Shopee (กดแชร์ → คัดลอก)</p>
+        <p className="hint" style={{ marginTop: 8 }}>ไม่ติดตั้งก็ใช้ปั๊กปักได้ปกติ: ดูท็อปจากคลังกลางในแชท LINE และได้ลิงก์ของคุณเองแค่ใส่ Affiliate ID</p>
       </div>
       <ol className="panel install">
         <li>

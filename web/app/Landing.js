@@ -313,7 +313,7 @@ export default function Landing({ me, onLogin }) {
         <Cta me={me} onLogin={onLogin} big />
       </section>
 
-      <footer className="lp-foot">ปั๊กปัก · เครื่องมือเลือกตะกร้าสำหรับคนทำคลิป Shopee Affiliate</footer>
+      <footer className="lp-foot">ปั๊กปัก · เครื่องมือเลือกตะกร้าสำหรับคนทำคลิป Shopee Affiliate<nav className="lp-foot-nav"><a href="/guide/shopee-affiliate">Shopee Affiliate คืออะไร</a><a href="/guide/choose-products">เลือกสินค้าปักตะกร้า</a><a href="/guide/affiliate-id">หา Affiliate ID</a><a href="/guide">คู่มือทั้งหมด</a></nav></footer>
     </div>
   );
 }
