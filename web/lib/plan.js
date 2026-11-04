@@ -13,18 +13,11 @@ export const ORDERS = {
   year: { price: PRICE.year, days: 365, label: "รายปี", span: "1 ปี" },
   fmonth: { price: 99, days: 30, label: "Founding รายเดือน", span: "1 เดือน", founding: true },
   fyear: { price: 990, days: 365, label: "Founding รายปี", span: "1 ปี", founding: true },
-  // Halloween promo: member types "รับโปร 199" in the bot (offer sent by an admin from LINE OA chat). Ends at `until` (covers the slow-release sends; each message says 24 ชม.).
+  // Halloween promo (ended). Not sellable any more (`until` passed → pickOrder falls back), but kept so members who bought it
+  // or still hold a q199 pendingOrder/orderExpired/payments entry keep their 90 days, label and price (orderOf).
   q199: { price: 199, days: 90, label: "โปรฮาโลวีน 3 เดือน", span: "3 เดือน", until: Date.parse("2026-11-01T17:15:00+07:00") }, // ปิดก่อนกำหนด 1 พ.ย. (เดิม 3 พ.ย. 00:00)
 };
 export const orderLive = (p, now = Date.now()) => !!ORDERS[p] && (!ORDERS[p].until || ORDERS[p].until > now);
-// Web banner for the Halloween promo: Free members only — never Pro (incl. lifetime/admin), never someone
-// mid-purchase or holding a live ฿99 offer, never suspended/waitlist. Returns what the page needs, or null.
-// `now` is injectable so tests don't depend on the real clock.
-export function webPromoFor(m, { admin = false, now = Date.now() } = {}) {
-  if (!m || admin || m.status !== "active" || isPro(m) || m.pendingOrder || promoLive(m) || !orderLive("q199", now)) return null;
-  const o = ORDERS.q199;
-  return { key: "q199", price: o.price, span: o.span, until: o.until };
-}
 // ฿99 promo sent by an admin (/admin → "🎁 เสนอ ฿99", one member or the whole "สนใจ Pro" group).
 // m.promo = { at, until, by, interestedAt?, declinedAt?, plan?, paidAt? } tracks the card's funnel; the price ends at `until`.
 export const PROMO_HOURS = 48;
@@ -32,7 +25,7 @@ export const promoLive = (m) => !!(m?.foundingOffer && (!m.promo?.until || m.pro
 // Founding prices: only for members an admin offered them to (still within the promo window), or who already bought one.
 export const foundingOpen = (m) => !!(m?.founding || promoLive(m));
 // What a member is allowed to pick: a founding plan only while foundingOpen, else the matching regular one.
-export const pickOrder = (m, p) => (ORDERS[p]?.founding && !foundingOpen(m) ? (p === "fyear" ? "year" : "month") : ORDERS[p] ? p : "month");
+export const pickOrder = (m, p) => (ORDERS[p]?.founding && !foundingOpen(m) ? (p === "fyear" ? "year" : "month") : orderLive(p) ? p : "month");
 export const orderOf = (plan) => ORDERS[plan] || ORDERS.month;
 // A chosen plan with no slip after this long is cancelled (a late slip still revives it, see webhook).
 export const ORDER_TTL_H = 24;
