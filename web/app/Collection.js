@@ -20,8 +20,8 @@ export default function Collection({ slug, say, onClose }) {
 
   return (
     <section className="panel" id="collection">
-      <div className="bar" style={{ justifyContent: "space-between", alignItems: "center" }}>
-        <span className="eyebrow">💎 Insight Pro · Trend Alert</span>
+      <div className="bar" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "nowrap" }}>
+        <span className="eyebrow" style={{ minWidth: 0 }}>💎 Insight Pro · Trend Alert</span>
         <button className="btn ghost" onClick={onClose}>ปิด</button>
       </div>
       <h2>{c.title} · {c.count} ตะกร้า</h2>
@@ -32,11 +32,17 @@ export default function Collection({ slug, say, onClose }) {
           <div key={g.name} style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14 }}>
             <h3 style={{ margin: 0 }}>{g.name}</h3>
             {g.items.map((p) => (
-              <div key={p.id} className="row" style={{ display: "flex", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
+              <div key={p.id} className="row coll-row">
                 <a href={p.url} target="_blank" rel="noopener"><img className="thumb" src={img(p.image)} alt="" loading="lazy" referrerPolicy="no-referrer" /></a>
-                <div style={{ flex: 1, minWidth: 180, display: "flex", flexDirection: "column", gap: 6 }}>
-                  <div><b>{p.no}</b> {p.name} {p.badge && <span className="chip on" style={{ marginLeft: 6 }}>{p.badge}</span>}</div>
-                  <div className="hint" style={{ margin: 0 }}>฿{p.price.toLocaleString()} · ขาย {p.sold}/เดือน · คอม {p.commission}% ≈ ฿{Math.round(p.price * p.commission / 100).toLocaleString()}/ออเดอร์</div>
+                <div className="coll-body">
+                  {p.badge && <span className="tag a coll-badge">{p.badge}</span>}
+                  <div className="coll-name"><b>{p.no}</b> {p.name}</div>
+                  <div className="coll-stats">
+                    <span>฿{p.price.toLocaleString()}</span>
+                    <span>ขาย {p.sold}/เดือน</span>
+                    <span>คอม {p.commission}%</span>
+                    <b className="coll-per">≈ ฿{Math.round(p.price * p.commission / 100).toLocaleString()}/ออเดอร์</b>
+                  </div>
                   <div className="bar"><AffLinkBox url={p.url} say={say} /><a className="btn ghost" href={p.url} target="_blank" rel="noopener">ดูใน Shopee</a></div>
                 </div>
               </div>

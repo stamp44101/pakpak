@@ -485,3 +485,13 @@ body:has(.gd){background:#FAF6F1}
 .gd-list a{display:grid;gap:14px}
 .gd-list img{display:block;width:100%;height:auto;border-radius:12px}
 @media (min-width:640px){.gd-list a{grid-template-columns:220px 1fr;align-items:center;gap:22px}}
+
+/* Trend Alert collection (app/Collection.js) */
+#collection{scroll-margin-top:12px}
+.coll-row{display:flex;gap:12px;align-items:flex-start}
+.coll-row .thumb{flex:none}
+.coll-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.coll-badge{white-space:nowrap;font-size:12px}
+.coll-name{line-height:1.4}
+.coll-stats{display:flex;flex-wrap:wrap;gap:2px 10px;font-size:13.5px;color:var(--muted)}
+.coll-per{color:var(--accent);font-weight:600}
