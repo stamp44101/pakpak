@@ -6,7 +6,7 @@ import { commChange, commLabel } from "../commission";
 import { isPro, ORDERS, orderOf, ORDER_TTL_H, PLANS, foundingOpen } from "../plan";
 import { baht, thDate, thDateTime, ago } from "../fmt";
 
-export const APP = process.env.APP_URL || "https://pakpak-two.vercel.app";
+export const APP = process.env.APP_URL || "https://pugpak.com";
 export const img = (id, size = "") => (id ? `https://down-th.img.susercontent.com/file/${id}${size}` : "");
 export const text = (t, quick) => ({ type: "text", text: t, ...(quick ? { quickReply: { items: quick } } : {}) });
 export const qr = (label, txt) => ({ type: "action", action: { type: "message", label: label.slice(0, 20), text: txt } });

@@ -6,7 +6,7 @@ import { botFetch, LIFF_URL } from "../../../../lib/line";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const APP = process.env.APP_URL || "https://pakpak-two.vercel.app";
+const APP = process.env.APP_URL || "https://pugpak.com";
 const W = 2500, H = 1686, PAD = 36, GAP = 36;
 const cw = (W - 2 * PAD - 2 * GAP) / 3, ch = (H - 2 * PAD - GAP) / 2;
 const msg = (text) => ({ type: "message", label: text.slice(0, 20), text });
