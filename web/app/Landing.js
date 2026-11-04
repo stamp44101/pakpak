@@ -3,6 +3,7 @@
 // Demo products are real: the owner's latest ranked Shopee data from /api/showcase, shown as Free sees it
 // (#1–5 per category locked: rank, score and ≈฿/order only).
 import { useEffect, useRef, useState } from "react";
+import { FAQ } from "../lib/faq";
 
 const LOGIN = "/api/auth/line";
 // Official LINE mark (white bubble, letters show the button green through)
@@ -270,7 +271,7 @@ export default function Landing({ me, onLogin }) {
       <section className="lp-price">
         <div className="lp-price-head">
           <h2>ราคา</h2>
-          <p>Early Access {me?.seats || 10} คนแรก ได้ใช้ Pro ฟรี 30 วัน ครบแล้วเป็น Free อัตโนมัติ ไม่มีตัดเงิน</p>
+          <p>{me?.left > 0 ? <>Early Access เหลือ {me.left} ที่ ได้ใช้ Pro ฟรี 30 วัน ครบแล้วเป็น Free อัตโนมัติ ไม่มีตัดเงิน</> : <>สมัครแล้วใช้ Free ได้ทันที ไม่มีค่าใช้จ่าย อัปเป็น Pro เมื่อพร้อม</>}</p>
         </div>
         <div className="lp-plans">
           <div className="lp-plan">
@@ -280,7 +281,7 @@ export default function Landing({ me, onLogin }) {
             <ul>
               <li>ท็อป 5 ของทุกหมวด อัปเดตโดยทีมปั๊กปัก</li>
               <li>AI ไอเดียคลิป วันละ 3 ตัว</li>
-              <li>เอาลิงก์ของคุณเองผ่านแอป Shopee</li>
+              <li>ลิงก์ของคุณเอง แค่ใส่ Affiliate ID</li>
               <li>ใช้ในแชท LINE ได้ครบ</li>
             </ul>
             <a className="lp-plan-btn" href={LOGIN} onClick={onLogin}>เริ่มใช้ฟรี</a>
@@ -303,11 +304,7 @@ export default function Landing({ me, onLogin }) {
 
       <section className="lp-faq">
         <h2>คำถามที่เจอบ่อย</h2>
-        <details><summary>ต้องให้รหัส Shopee ไหม</summary><p>ไม่ต้อง ใช้งานปกติไม่ต้องเชื่อม Shopee เลย ถ้าเปิดขั้นสูง คุณล็อกอิน Shopee Affiliate เองใน Chrome ตามปกติ Connector แค่อ่านรายการสินค้าและสร้างลิงก์จากแท็บนั้น ไม่เก็บรหัสผ่านหรือ cookie</p></details>
-        <details><summary>ใช้แต่มือถือได้ไหม</summary><p>ได้ค่ะ ดูท็อปสินค้า ขอไอเดียคลิปจาก AI และเอาลิงก์ของคุณผ่านแอป Shopee ได้ครบบนมือถือ คอมใช้เฉพาะ “ขั้นสูง” ถ้าอยากได้ลิงก์อัตโนมัติหรือสแกนหมวดเอง</p></details>
-        <details><summary>ลิงก์ที่ได้เป็นลิงก์ของใคร</summary><p>เป็นลิงก์ affiliate ของบัญชีคุณเอง ค่าคอมเข้าบัญชีคุณตามปกติ</p></details>
-        <details><summary>Early Access คืออะไร</summary><p>รอบแรกเปิดให้ {me?.seats || 10} คนใช้ Pro ฟรี 30 วัน ครบแล้วจะเป็นแพ็ก Free อัตโนมัติ ไม่มีการตัดเงิน ถ้าอยากใช้ Pro ต่อค่อยทักแอดมินใน LINE ใครสมัครหลังที่เต็มจะได้แพ็ก Free ใช้ได้ทันที</p></details>
-        <details><summary>จ่ายเงินยังไง</summary><p>ทักแอดมินในแชท LINE ของปั๊กปัก แล้วโอนผ่านพร้อมเพย์ แอดมินเปิดสิทธิ์ Pro ให้ทันที</p></details>
+        {FAQ.map(({ q, a }) => <details key={q}><summary>{q}</summary><p>{a}</p></details>)}
       </section>
 
       <section className="lp-final">

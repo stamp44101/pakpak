@@ -22,19 +22,29 @@ export const metadata = {
 };
 export const viewport = { themeColor: "#FF6A13", width: "device-width", initialScale: 1 };
 
+const ORG = `${SITE}/#org`;
 const jsonLd = {
   "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  name: "ปั๊กปัก",
-  applicationCategory: "BusinessApplication",
-  operatingSystem: "Web, LINE",
-  url: SITE,
-  image: `${SITE}/og.jpg`,
-  description: DESC,
-  inLanguage: "th",
-  offers: [
-    { "@type": "Offer", name: "Free", price: "0", priceCurrency: "THB" },
-    { "@type": "Offer", name: "Pro", price: "199", priceCurrency: "THB", priceSpecification: { "@type": "UnitPriceSpecification", price: "199", priceCurrency: "THB", billingDuration: "P1M" } },
+  "@graph": [
+    { "@type": "Organization", "@id": ORG, name: "ปั๊กปัก", alternateName: ["PugPak", "pukpak"], url: SITE, logo: `${SITE}/logo.svg` },
+    { "@type": "WebSite", "@id": `${SITE}/#website`, name: "ปั๊กปัก", url: SITE, inLanguage: "th", publisher: { "@id": ORG } },
+    {
+      "@type": "SoftwareApplication",
+      name: "ปั๊กปัก",
+      alternateName: "PugPak",
+      applicationCategory: "BusinessApplication",
+      operatingSystem: "Web, LINE",
+      url: SITE,
+      image: `${SITE}/og.jpg`,
+      description: DESC,
+      inLanguage: "th",
+      publisher: { "@id": ORG },
+      offers: [
+        { "@type": "Offer", name: "Free", price: "0", priceCurrency: "THB" },
+        { "@type": "Offer", name: "Pro รายเดือน", price: "199", priceCurrency: "THB", priceSpecification: { "@type": "UnitPriceSpecification", price: "199", priceCurrency: "THB", billingDuration: "P1M" } },
+        { "@type": "Offer", name: "Pro รายปี", price: "1990", priceCurrency: "THB", priceSpecification: { "@type": "UnitPriceSpecification", price: "1990", priceCurrency: "THB", billingDuration: "P1Y" } },
+      ],
+    },
   ],
 };
 
