@@ -16,11 +16,12 @@ export const ORDERS = {
   // Halloween promo: member types "รับโปร 199" in the bot (offer sent by an admin from LINE OA chat). Ends at `until` (covers the slow-release sends; each message says 24 ชม.).
   q199: { price: 199, days: 90, label: "โปรฮาโลวีน 3 เดือน", span: "3 เดือน", until: Date.parse("2026-11-01T17:15:00+07:00") }, // ปิดก่อนกำหนด 1 พ.ย. (เดิม 3 พ.ย. 00:00)
 };
-export const orderLive = (p) => !!ORDERS[p] && (!ORDERS[p].until || ORDERS[p].until > Date.now());
+export const orderLive = (p, now = Date.now()) => !!ORDERS[p] && (!ORDERS[p].until || ORDERS[p].until > now);
 // Web banner for the Halloween promo: Free members only — never Pro (incl. lifetime/admin), never someone
 // mid-purchase or holding a live ฿99 offer, never suspended/waitlist. Returns what the page needs, or null.
-export function webPromoFor(m, { admin = false } = {}) {
-  if (!m || admin || m.status !== "active" || isPro(m) || m.pendingOrder || promoLive(m) || !orderLive("q199")) return null;
+// `now` is injectable so tests don't depend on the real clock.
+export function webPromoFor(m, { admin = false, now = Date.now() } = {}) {
+  if (!m || admin || m.status !== "active" || isPro(m) || m.pendingOrder || promoLive(m) || !orderLive("q199", now)) return null;
   const o = ORDERS.q199;
   return { key: "q199", price: o.price, span: o.span, until: o.until };
 }
