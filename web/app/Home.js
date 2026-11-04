@@ -4,6 +4,8 @@ import { effPrice, rank } from "../lib/score";
 import { commFields, commChange, commLabel } from "../lib/commission";
 import Landing from "./Landing";
 import AffLinkBox from "./AffLinkBox";
+import Collection from "./Collection";
+import { slugFromQuery } from "../lib/collection-slug";
 
 const bkkToday = () => new Date(Date.now() + 7 * 36e5).toISOString().slice(0, 10);
 
@@ -85,6 +87,7 @@ export default function Home({ signedIn = false }) {
 
   productsRef.current = products;
   const say = (t) => { setToast(t); clearTimeout(say.t); say.t = setTimeout(() => setToast(""), 3000); };
+  const [coll, setColl] = useState("");
   const member = me && me.member;
   const active = member && member.status === "active";
   const pro = active && member.plan === "pro";
@@ -96,6 +99,7 @@ export default function Home({ signedIn = false }) {
   // ---- who am I ----
   useEffect(() => {
     const q = new URLSearchParams(location.search);
+    setColl(slugFromQuery(q));
     if (q.get("login")) { say(q.get("login") === "cancelled" ? "ยกเลิกการเข้าสู่ระบบ" : "เข้าสู่ระบบไม่สำเร็จ ลองอีกครั้ง"); history.replaceState(null, "", "/"); }
     setSignedHint(signedIn || ls.get(".in") === "1");
     skipSave.current = true;
@@ -543,6 +547,7 @@ export default function Home({ signedIn = false }) {
         </section>
       )}
 
+      {active && coll && <Collection slug={coll} say={say} onClose={() => setColl("")} />}
       {active && <>
       {account && pro && (
         <section className="panel" id="scan">
