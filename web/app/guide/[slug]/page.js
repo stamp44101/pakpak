@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { GUIDES, guideBySlug } from "../../../lib/guides";
+import { GUIDES, guideBySlug, nb } from "../../../lib/guides";
 
 const SITE = process.env.APP_URL || "https://pugpak.com";
 const thDate = (d) => new Date(d + "T00:00:00+07:00").toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" });
@@ -47,20 +47,20 @@ export default function Guide({ params }) {
     <main className="gd"><div className="gd-in">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ld) }} />
       <nav className="gd-crumb"><a href="/">ปั๊กปัก</a> / <a href="/guide">คู่มือ</a></nav>
-      <h1>{g.title}</h1>
+      <h1>{nb(g.title)}</h1>
       <p className="gd-date">อัปเดต {thDate(g.updated)}</p>
       <img className="gd-hero" src={`/guide-img/${g.slug}.webp`} alt={g.alt} width="1344" height="768" />
       <p className="gd-answer">{g.answer}</p>
       {g.sections.map((s) => (
         <section key={s.h}>
-          <h2>{s.h}</h2>
+          <h2>{nb(s.h)}</h2>
           {s.blocks.map((b, i) => <Block key={i} type={b[0]} v={b[1]} />)}
         </section>
       ))}
       {g.faq?.length > 0 && (
         <section>
           <h2>คำถามที่เจอบ่อย</h2>
-          {g.faq.map(({ q, a }) => <div key={q} className="gd-faq"><h3>{q}</h3><p>{a}</p></div>)}
+          {g.faq.map(({ q, a }) => <div key={q} className="gd-faq"><h3>{nb(q)}</h3><p>{a}</p></div>)}
         </section>
       )}
       <aside className="gd-cta">
@@ -71,7 +71,7 @@ export default function Guide({ params }) {
       {related.length > 0 && (
         <section className="gd-related">
           <h2>อ่านต่อ</h2>
-          <ul>{related.map((r) => <li key={r.slug}><a href={`/guide/${r.slug}`}>{r.title}</a></li>)}</ul>
+          <ul>{related.map((r) => <li key={r.slug}><a href={`/guide/${r.slug}`}>{nb(r.title)}</a></li>)}</ul>
         </section>
       )}
       {g.sources?.length > 0 && (

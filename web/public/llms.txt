@@ -12,6 +12,7 @@
 ## Pages
 
 - [หน้าหลัก](https://pugpak.com/): วิธีใช้ ที่มาของคะแนน ราคา และคำถามที่พบบ่อย
+- [11.11 สายปักตะกร้าต้องเตรียมตัวยังไง: แผน 7 วันก่อนเซล](https://pugpak.com/guide/11-11-prep): โพสต์ก่อนเซล, ส่วนลดกินค่าคอม, ช่วงเที่ยงคืน, กับดักหลังเซล
 - [Shopee Affiliate คืออะไร ได้เงินยังไง จ่ายเมื่อไหร่](https://pugpak.com/guide/shopee-affiliate): สรุปจากข้อตกลง Shopee Affiliate Program ฉบับ 20 ม.ค. 2569
 - [เลือกสินค้าปักตะกร้า Shopee ยังไงให้ขายได้](https://pugpak.com/guide/choose-products): เกณฑ์ 2 ด่าน ตัวเลขจาก Shopee และความเหมาะกับคลิป
 - [Shopee Affiliate ID คืออะไร หาได้ที่ไหน](https://pugpak.com/guide/affiliate-id)

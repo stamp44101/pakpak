@@ -1,4 +1,4 @@
-import { GUIDES } from "../../lib/guides";
+import { GUIDES, nb } from "../../lib/guides";
 
 export const metadata = {
   title: "คู่มือ Shopee Affiliate สำหรับคนทำคลิปปักตะกร้า",
@@ -12,7 +12,7 @@ export default function GuideIndex() {
       <nav className="gd-crumb"><a href="/">ปั๊กปัก</a></nav>
       <h1>คู่มือ Shopee Affiliate สำหรับคนทำคลิป</h1>
       <ul className="gd-list">
-        {GUIDES.map((g) => <li key={g.slug}><a href={`/guide/${g.slug}`}><b>{g.title}</b><span>{g.description}</span></a></li>)}
+        {GUIDES.map((g) => <li key={g.slug}><a href={`/guide/${g.slug}`}><b>{nb(g.title)}</b><span>{g.description}</span></a></li>)}
       </ul>
     </div></main>
   );
