@@ -14,7 +14,8 @@ export function generateMetadata({ params }) {
     title: g.title,
     description: g.description,
     alternates: { canonical: `/guide/${g.slug}` },
-    openGraph: { type: "article", url: `/guide/${g.slug}`, title: g.title, description: g.description, modifiedTime: g.updated },
+    openGraph: { type: "article", url: `/guide/${g.slug}`, title: g.title, description: g.description, modifiedTime: g.updated, images: [{ url: `/guide-img/${g.slug}-og.jpg`, width: 1200, height: 630, alt: g.alt }] },
+    twitter: { card: "summary_large_image", title: g.title, description: g.description, images: [`/guide-img/${g.slug}-og.jpg`] },
   };
 }
 
@@ -32,7 +33,7 @@ export default function Guide({ params }) {
   const ld = {
     "@context": "https://schema.org",
     "@graph": [
-      { "@type": "Article", headline: g.title, description: g.description, inLanguage: "th", dateModified: g.updated, datePublished: g.updated, mainEntityOfPage: url, author: { "@id": `${SITE}/#org` }, publisher: { "@id": `${SITE}/#org` }, image: `${SITE}/og.jpg` },
+      { "@type": "Article", headline: g.title, description: g.description, inLanguage: "th", dateModified: g.updated, datePublished: g.updated, mainEntityOfPage: url, author: { "@id": `${SITE}/#org` }, publisher: { "@id": `${SITE}/#org` }, image: `${SITE}/guide-img/${g.slug}-og.jpg` },
       { "@type": "BreadcrumbList", itemListElement: [
         { "@type": "ListItem", position: 1, name: "ปั๊กปัก", item: SITE },
         { "@type": "ListItem", position: 2, name: "คู่มือ", item: `${SITE}/guide` },
@@ -43,11 +44,12 @@ export default function Guide({ params }) {
   };
   const related = (g.related || []).map(guideBySlug).filter(Boolean);
   return (
-    <main className="gd">
+    <main className="gd"><div className="gd-in">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ld) }} />
       <nav className="gd-crumb"><a href="/">ปั๊กปัก</a> / <a href="/guide">คู่มือ</a></nav>
       <h1>{g.title}</h1>
       <p className="gd-date">อัปเดต {thDate(g.updated)}</p>
+      <img className="gd-hero" src={`/guide-img/${g.slug}.webp`} alt={g.alt} width="1344" height="768" />
       <p className="gd-answer">{g.answer}</p>
       {g.sections.map((s) => (
         <section key={s.h}>
@@ -64,7 +66,7 @@ export default function Guide({ params }) {
       <aside className="gd-cta">
         <b>ไม่อยากไล่ดูทีละชิ้น?</b>
         <p>ปั๊กปักจัดอันดับตะกร้า Shopee ทุกหมวดให้ พร้อมไอเดีย hook 3 วิแรก ใช้ฟรีในแชท LINE</p>
-        <a className="btn primary" href="/">ดูปั๊กปัก</a>
+        <a href="/">ดูปั๊กปัก</a>
       </aside>
       {related.length > 0 && (
         <section className="gd-related">
@@ -75,6 +77,6 @@ export default function Guide({ params }) {
       {g.sources?.length > 0 && (
         <p className="gd-src">ที่มา: {g.sources.map((s, i) => <span key={s.url}>{i > 0 && " · "}<a href={s.url} rel="nofollow noopener" target="_blank">{s.name}</a></span>)}</p>
       )}
-    </main>
+    </div></main>
   );
 }

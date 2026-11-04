@@ -8,12 +8,12 @@ export const metadata = {
 
 export default function GuideIndex() {
   return (
-    <main className="gd">
+    <main className="gd"><div className="gd-in">
       <nav className="gd-crumb"><a href="/">ปั๊กปัก</a></nav>
       <h1>คู่มือ Shopee Affiliate สำหรับคนทำคลิป</h1>
       <ul className="gd-list">
         {GUIDES.map((g) => <li key={g.slug}><a href={`/guide/${g.slug}`}><b>{g.title}</b><span>{g.description}</span></a></li>)}
       </ul>
-    </main>
+    </div></main>
   );
 }
