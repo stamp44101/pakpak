@@ -37,3 +37,11 @@ test("LINE card links map to the collection", () => {
 test("client slug list matches the collections", () => {
   assert.deepEqual(SLUGS.sort(), Object.keys(COLLECTIONS).sort());
 });
+
+test("slugFromQuery unpacks liff.state from liff.line.me links", async () => {
+  const { slugFromQuery } = await import("./collection-slug.js");
+  assert.equal(slugFromQuery(new URLSearchParams("liff.state=%2F%3Fsrc%3Dline_pro1")), "stockpile");
+  assert.equal(slugFromQuery(new URLSearchParams("liff.state=%2F%3Fsrc%3Dline_stock_more")), "stockpile");
+  assert.equal(slugFromQuery(new URLSearchParams("liff.state=%2F")), "");
+  assert.equal(slugFromQuery(new URLSearchParams("src=line_pro3")), "stockpile");
+});
