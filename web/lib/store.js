@@ -3,13 +3,14 @@
 // until 27 Nov 2026) keeps the earlier data; lib/legacy.js merges it back when it unlocks.
 import { neon } from "@neondatabase/serverless";
 
-let sql, ready;
+// Schema (already created in production; run once by hand on a fresh database):
+//   CREATE TABLE IF NOT EXISTS kv (path text PRIMARY KEY, data jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now(), ver integer NOT NULL DEFAULT 0);
+// It used to run on every cold start: two extra round trips, and the ALTER TABLE takes a table lock that queues behind reads.
+let sql;
 function db() {
   // no-store: Next.js would otherwise cache these fetches inside route handlers and serve stale rows
   if (!sql) sql = neon(process.env.DATABASE_URL, { fetchOptions: { cache: "no-store" } });
-  if (!ready) ready = sql`CREATE TABLE IF NOT EXISTS kv (path text PRIMARY KEY, data jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now())`
-    .then(() => sql`ALTER TABLE kv ADD COLUMN IF NOT EXISTS ver integer NOT NULL DEFAULT 0`);
-  return ready.then(() => sql);
+  return Promise.resolve(sql);
 }
 
 // null only when the document does not exist; database errors are thrown, never read as "missing".
