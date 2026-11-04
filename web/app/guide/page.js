@@ -12,7 +12,7 @@ export default function GuideIndex() {
       <nav className="gd-crumb"><a href="/">ปั๊กปัก</a></nav>
       <h1>คู่มือ Shopee Affiliate สำหรับคนทำคลิป</h1>
       <ul className="gd-list">
-        {GUIDES.map((g) => <li key={g.slug}><a href={`/guide/${g.slug}`}><b>{nb(g.title)}</b><span>{g.description}</span></a></li>)}
+        {GUIDES.map((g) => <li key={g.slug}><a href={`/guide/${g.slug}`}><img src={`/guide-img/${g.slug}.webp`} alt={g.alt} width="1344" height="768" loading="lazy" /><div><b>{nb(g.title)}</b><span>{g.description}</span></div></a></li>)}
       </ul>
     </div></main>
   );

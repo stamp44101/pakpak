@@ -482,3 +482,6 @@ body:has(.gd){background:#FAF6F1}
 .gd .gd-list,.gd .gd-related ul{padding-left:0}
 .gd-list b{display:block;line-height:1.4}
 .gd-hero{display:block;width:100%;height:auto;margin:22px 0 0;border-radius:14px}
+.gd-list a{display:grid;gap:14px}
+.gd-list img{display:block;width:100%;height:auto;border-radius:12px}
+@media (min-width:640px){.gd-list a{grid-template-columns:220px 1fr;align-items:center;gap:22px}}
