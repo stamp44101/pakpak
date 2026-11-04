@@ -474,7 +474,7 @@ export default function Home({ signedIn = false }) {
           <p className="hint">ปั๊กปักดึงสินค้าจาก Shopee Affiliate ของคุณ ให้คะแนนจากยอดขาย ค่าคอม รีวิว และให้ AI ประเมินว่าทำคลิปง่ายแค่ไหน พร้อม hook 3 วินาทีแรก</p>
           <div className="bar">
             <a className={"btn line" + (me.loginReady ? "" : " disabled")} href={me.loginReady ? "/api/auth/line" : undefined} onClick={() => ls.set(".lineOut", null)}>เข้าสู่ระบบด้วย LINE</a>
-            <span className="seats">{me.left > 0 ? <>เหลือ <b className="num">{me.left}</b> จาก {me.seats} ที่</> : "สมัครแล้วใช้ฟรีได้ทันที · ท็อป 5/หมวด · AI 3 ครั้ง/วัน"}</span>
+            <span className="seats">{me.left > 0 ? <>เหลือ <b className="num">{me.left}</b> จาก {me.seats} ที่</> : "สมัครแล้วใช้ฟรีได้ทันที · อันดับ 6–8 วันละ 1 หมวด · AI 1 ครั้ง/วัน"}</span>
           </div>
           {!me.loginReady && <p className="hint">ระบบเข้าสู่ระบบยังตั้งค่าไม่เสร็จ</p>}
         </section>
@@ -485,13 +485,13 @@ export default function Home({ signedIn = false }) {
           <span className="eyebrow">Free</span>
           <h2>เปิดให้ใช้ฟรีแล้ว ไม่ต้องรอคิว 🎉</h2>
           <ul className="hint" style={{ margin: "6px 0 10px", paddingLeft: 18 }}>
-            <li>ท็อป 5 ตะกร้า/หมวด จากยอดขายจริง</li>
-            <li>ให้ AI คิด hook คลิป 3 ครั้ง/วัน</li>
-            <li>เอาลิงก์ของตัวเองผ่านแอป Shopee</li>
+            <li>ตะกร้าอันดับ 6–8 วันละ 1 หมวด จากยอดขายจริง (ท็อป 1–5 สำหรับ Pro)</li>
+            <li>ให้ AI คิด hook คลิป 1 ครั้ง/วัน</li>
+            <li>ลิงก์ของคุณเอง วันละ 3 ลิงก์ แค่ใส่ Affiliate ID</li>
           </ul>
           <div className="bar">
             <button className="btn primary" onClick={() => { ls.set(".freeWelcome", "1"); setFreeSeen(true); }}>เริ่มใช้เลย</button>
-            <span className="hint">อยากเห็นทุกตัว + AI 30 ครั้ง/วัน → Pro ฿{me.price?.month || 199}/เดือน</span>
+            <span className="hint">ปลดล็อกท็อป 1–5 + AI 30 ครั้ง/วัน → Pro ฿{me.price?.month || 199}/เดือน</span>
           </div>
         </section>
       )}
