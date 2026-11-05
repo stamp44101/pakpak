@@ -122,6 +122,49 @@ export default function Admin() {
             ? <span className={data.quota.left != null && data.quota.left < 50 ? "stat-alert" : ""} title="โควตา push ของ LINE OA เดือนนี้ (reply ไม่นับ)">push เหลือ <b className="num">{data.quota.left == null ? "∞" : data.quota.left.toLocaleString("en-US")}</b>{data.quota.value != null && <>/{data.quota.value.toLocaleString("en-US")}</>}</span>
             : <span className="hint">push: อ่านโควตาไม่ได้</span>}
         </div>
+        <details className="panel admin-tools" style={{ margin: "10px 0" }}>
+          <summary style={{ cursor: "pointer", fontWeight: 600 }}>🛠 เครื่องมือ (แจ้งเตือน LINE · คำค้นที่ไม่มีในคลัง · Rich menu)</summary>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
+          {(data.toWelcome > 0 || stats.wait > 0 || welcomeMsg) && (
+            <div className="bar">
+              <button className="btn primary" disabled={welcomeMsg === "กำลังส่ง…"} onClick={async () => {
+                setWelcomeMsg("กำลังส่ง…");
+                const r = await fetch("/api/admin", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ welcomeFree: true }) }).then((x) => x.json()).catch(() => ({ error: "เชื่อมต่อไม่ได้" }));
+                setWelcomeMsg(r.ok ? `ส่งแจ้ง "ใช้ฟรีได้แล้ว" ทาง LINE ${r.sent} คน` : "ไม่สำเร็จ: " + (r.error || ""));
+                load();
+              }}>แจ้งคน Free ใหม่ทาง LINE ({data.toWelcome + stats.wait} คน)</button>
+              {welcomeMsg && <span className="hint">{welcomeMsg}</span>}
+            </div>
+          )}
+          {data.announce?.filter((x) => x.left > 0 || x.sent > 0).map((x) => (
+            <div key={x.key} className="bar">
+              <button className="btn" disabled={!x.left || annMsg === "กำลังส่ง…"} onClick={async () => {
+                if (!confirm(`ส่ง "${x.label}" ทาง LINE ให้ ${x.left} คน? (ใช้โควตา push ${x.left} ข้อความ · คนละครั้ง)`)) return;
+                setAnnMsg("กำลังส่ง…");
+                const r = await fetch("/api/admin", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ announce: x.key }) }).then((j) => j.json()).catch(() => ({ error: "เชื่อมต่อไม่ได้" }));
+                setAnnMsg(r.ok ? `📣 ส่งแล้ว ${r.sent} คน${r.failed ? ` · ไม่สำเร็จ ${r.failed}` : ""}` : "ไม่สำเร็จ: " + (r.error || ""));
+                load();
+              }}>📣 {x.label} ({x.left ? `${x.left} คน` : `ส่งครบแล้ว ${x.sent} คน`})</button>
+              {annMsg && <span className="hint">{annMsg}</span>}
+            </div>
+          ))}
+          {data.requests?.length > 0 && (
+            <div className="panel" style={{ margin: "12px 0" }}>
+              <h2 style={{ marginTop: 0 }}>คนค้นหาแต่ไม่มีในคลังกลาง</h2>
+              <p className="hint">เพิ่มเป็นหมวดในคลังกลางได้ เรียงตามจำนวนคน</p>
+              {data.requests.map((x) => <div key={x.kw} className="bar" style={{ justifyContent: "space-between" }}><span>{x.kw}</span><span className="hint"><b className="num">{x.people}</b> คน · {x.count} ครั้ง · {short(x.last)}</span></div>)}
+            </div>
+          )}
+          <div className="bar">
+            <button className="btn" disabled={menuMsg === "กำลังติดตั้ง…"} onClick={async () => {
+              setMenuMsg("กำลังติดตั้ง…");
+              const r = await fetch("/api/admin/richmenu", { method: "POST" }).then((x) => x.json()).catch(() => ({ error: "เชื่อมต่อไม่ได้" }));
+              setMenuMsg(r.ok ? "อัปเดตเมนู LINE แล้ว (ปิดแล้วเปิดแชทใหม่เพื่อดู)" : "ไม่สำเร็จ: " + (r.error || ""));
+            }}>อัปเดต Rich menu ใน LINE</button>
+            {menuMsg && <span className="hint">{menuMsg}</span>}
+          </div>
+          </div>
+        </details>
         <div className="bar" style={{ flexWrap: "wrap", gap: 6, margin: "10px 0" }}>
           {FILTERS.map(([k, label, fn]) => {
             const n = data.members.filter(fn).length;
@@ -208,44 +251,6 @@ export default function Admin() {
           </>}
             </>;
           })()}
-        </div>
-        {(data.toWelcome > 0 || stats.wait > 0 || welcomeMsg) && (
-          <div className="bar">
-            <button className="btn primary" disabled={welcomeMsg === "กำลังส่ง…"} onClick={async () => {
-              setWelcomeMsg("กำลังส่ง…");
-              const r = await fetch("/api/admin", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ welcomeFree: true }) }).then((x) => x.json()).catch(() => ({ error: "เชื่อมต่อไม่ได้" }));
-              setWelcomeMsg(r.ok ? `ส่งแจ้ง "ใช้ฟรีได้แล้ว" ทาง LINE ${r.sent} คน` : "ไม่สำเร็จ: " + (r.error || ""));
-              load();
-            }}>แจ้งคน Free ใหม่ทาง LINE ({data.toWelcome + stats.wait} คน)</button>
-            {welcomeMsg && <span className="hint">{welcomeMsg}</span>}
-          </div>
-        )}
-        {data.announce?.filter((x) => x.left > 0 || x.sent > 0).map((x) => (
-          <div key={x.key} className="bar">
-            <button className="btn" disabled={!x.left || annMsg === "กำลังส่ง…"} onClick={async () => {
-              if (!confirm(`ส่ง "${x.label}" ทาง LINE ให้ ${x.left} คน? (ใช้โควตา push ${x.left} ข้อความ · คนละครั้ง)`)) return;
-              setAnnMsg("กำลังส่ง…");
-              const r = await fetch("/api/admin", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ announce: x.key }) }).then((j) => j.json()).catch(() => ({ error: "เชื่อมต่อไม่ได้" }));
-              setAnnMsg(r.ok ? `📣 ส่งแล้ว ${r.sent} คน${r.failed ? ` · ไม่สำเร็จ ${r.failed}` : ""}` : "ไม่สำเร็จ: " + (r.error || ""));
-              load();
-            }}>📣 {x.label} ({x.left ? `${x.left} คน` : `ส่งครบแล้ว ${x.sent} คน`})</button>
-            {annMsg && <span className="hint">{annMsg}</span>}
-          </div>
-        ))}
-        {data.requests?.length > 0 && (
-          <div className="panel" style={{ margin: "12px 0" }}>
-            <h2 style={{ marginTop: 0 }}>คนค้นหาแต่ไม่มีในคลังกลาง</h2>
-            <p className="hint">เพิ่มเป็นหมวดในคลังกลางได้ เรียงตามจำนวนคน</p>
-            {data.requests.map((x) => <div key={x.kw} className="bar" style={{ justifyContent: "space-between" }}><span>{x.kw}</span><span className="hint"><b className="num">{x.people}</b> คน · {x.count} ครั้ง · {short(x.last)}</span></div>)}
-          </div>
-        )}
-        <div className="bar">
-          <button className="btn" disabled={menuMsg === "กำลังติดตั้ง…"} onClick={async () => {
-            setMenuMsg("กำลังติดตั้ง…");
-            const r = await fetch("/api/admin/richmenu", { method: "POST" }).then((x) => x.json()).catch(() => ({ error: "เชื่อมต่อไม่ได้" }));
-            setMenuMsg(r.ok ? "อัปเดตเมนู LINE แล้ว (ปิดแล้วเปิดแชทใหม่เพื่อดู)" : "ไม่สำเร็จ: " + (r.error || ""));
-          }}>อัปเดต Rich menu ใน LINE</button>
-          {menuMsg && <span className="hint">{menuMsg}</span>}
         </div>
         <p className="hint">จำนวนที่นั่ง Early Access ตั้งใน Vercel env <code>EARLY_ACCESS_SEATS</code> · EA = Early Access</p>
       </>}
