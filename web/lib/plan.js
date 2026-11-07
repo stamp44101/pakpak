@@ -17,6 +17,11 @@ export const ORDERS = {
   // or still hold a q199 pendingOrder/orderExpired/payments entry keep their 90 days, label and price (orderOf).
   q199: { price: 199, days: 90, label: "โปรฮาโลวีน 3 เดือน", span: "3 เดือน", until: Date.parse("2026-11-01T17:15:00+07:00") }, // ปิดก่อนกำหนด 1 พ.ย. (เดิม 3 พ.ย. 00:00)
 };
+// Add-on reports (one-off ฿ purchase, not a Pro plan): approving one sets m.addons[addon] instead of calling grantPro.
+// "สรุปก่อน 11.11" is free for Pro; Free members buy it for ฿69.
+ORDERS.r1111 = { price: 69, days: 0, addon: "r1111", label: "รายงานสรุปก่อน 11.11", span: "รายงาน" };
+export const hasAddon = (m, k) => !!m?.addons?.[k];
+export const canReport1111 = (m) => isPro(m) || hasAddon(m, "r1111");
 export const orderLive = (p, now = Date.now()) => !!ORDERS[p] && (!ORDERS[p].until || ORDERS[p].until > now);
 // ฿99 promo sent by an admin (/admin → "🎁 เสนอ ฿99", one member or the whole "สนใจ Pro" group).
 // m.promo = { at, until, by, interestedAt?, declinedAt?, plan?, paidAt? } tracks the card's funnel; the price ends at `until`.

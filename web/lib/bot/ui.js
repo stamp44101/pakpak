@@ -3,7 +3,7 @@ import { LIFF_URL } from "../line";
 import { affLink, SHORT_NOTE } from "../afflink";
 import { effPrice } from "../score";
 import { commChange, commLabel } from "../commission";
-import { isPro, ORDERS, orderOf, ORDER_TTL_H, PLANS, foundingOpen } from "../plan";
+import { isPro, ORDERS, orderOf, ORDER_TTL_H, PLANS, foundingOpen, canReport1111 } from "../plan";
 import { baht, thDate, thDateTime, ago } from "../fmt";
 import { mvLabel } from "../moves";
 
@@ -200,10 +200,27 @@ export function offerCard(m) {
   } };
 }
 
+// "สรุปก่อน 11.11": link for Pro / buyers, otherwise a ฿69 offer whose button starts the normal slip flow (a=buy&p=r1111).
+export function report1111Card(m, c = {}) {
+  const url = `${APP}/report`;
+  if (canReport1111(m)) return { type: "flex", altText: "สรุปก่อน 11.11 พร้อมแล้ว", contents: { type: "bubble", body: { type: "box", layout: "vertical", spacing: "md", contents: [
+    { type: "text", text: "สรุปก่อน 11.11", weight: "bold", size: "lg" },
+    { type: "text", text: "Tier list ตะกร้าจากสแกนล่าสุด ปักอะไร ห้ามปักอะไร ได้เงินต่อออเดอร์เท่าไหร่", size: "sm", color: "#666666", wrap: true },
+  ] }, footer: { type: "box", layout: "vertical", contents: [{ type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "uri", label: "เปิดรายงาน", uri: external(url) } }] } } };
+  const n = c.S != null ? `มี ${c.S} ตะกร้าใน Tier S และ ${c.D || 0} ตะกร้าที่ยอดสวยแต่ไม่ควรปัก` : "Tier list ตะกร้า ปักอะไร ห้ามปักอะไร";
+  return { type: "flex", altText: "สรุปก่อน 11.11 ฿69", contents: { type: "bubble", body: { type: "box", layout: "vertical", spacing: "md", contents: [
+    { type: "text", text: "สรุปก่อน 11.11", weight: "bold", size: "lg" },
+    { type: "text", text: `${n}\nพร้อมค่าคอมต่อออเดอร์ทุกตัว`, size: "sm", color: "#666666", wrap: true },
+    { type: "box", layout: "baseline", spacing: "sm", contents: [{ type: "text", text: baht(ORDERS.r1111.price), weight: "bold", size: "3xl", color: "#E5480A", flex: 0 }, { type: "text", text: "ครั้งเดียว · สมาชิก Pro ดูฟรี", size: "sm", color: "#888888" }] },
+  ] }, footer: { type: "box", layout: "vertical", spacing: "sm", contents: [
+    { type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "postback", label: `ซื้อรายงาน ${baht(ORDERS.r1111.price)}`, data: "a=buy&p=r1111", displayText: "ซื้อรายงานสรุปก่อน 11.11" } },
+  ] } } };
+}
+
 export function payInfo(plan) {
   const o = orderOf(plan), amount = o.price.toLocaleString("en-US");
   return [
-    text(`แพ็ก Pro ${o.label} ยอด ฿${amount}\n\n1) สแกน QR พร้อมเพย์ด้านล่าง ร้าน ปั๊กปัก รับได้ทุกธนาคาร\n2) โอน ฿${amount} แล้วส่งรูปสลิปในแชทนี้ภายใน ${ORDER_TTL_H} ชม. (เกินเวลาคำสั่งซื้อจะถูกยกเลิก เลือกแพ็กใหม่ได้ตลอด)\n\nแอดมินตรวจแล้วเปิดสิทธิ์ให้ ระบบจะแจ้งในแชทนี้ทันที`),
+    text(`${o.addon ? o.label : `แพ็ก Pro ${o.label}`} ยอด ฿${amount}\n\n1) สแกน QR พร้อมเพย์ด้านล่าง ร้าน ปั๊กปัก รับได้ทุกธนาคาร\n2) โอน ฿${amount} แล้วส่งรูปสลิปในแชทนี้ภายใน ${ORDER_TTL_H} ชม. (เกินเวลาคำสั่งซื้อจะถูกยกเลิก เลือกแพ็กใหม่ได้ตลอด)\n\nแอดมินตรวจแล้วเปิดสิทธิ์ให้ ระบบจะแจ้งในแชทนี้ทันที`),
     { type: "image", originalContentUrl: `${APP}/pay-qr.jpg`, previewImageUrl: `${APP}/pay-qr-preview.jpg` },
   ];
 }

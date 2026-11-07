@@ -137,7 +137,8 @@ export async function POST(req) {
       if (!order) return cur;
       cur.pendingOrder = null;
       if (approve) {
-        grantPro(cur, o.days);
+        if (o.addon) cur.addons = { ...(cur.addons || {}), [o.addon]: Date.now() };
+        else grantPro(cur, o.days);
         if (o.founding) cur.founding = true; // keeps the founding price on renewals
         if (o.founding && cur.promo && !cur.promo.paidAt) cur.promo.paidAt = Date.now();
         cur.payments = [...(cur.payments || []), { plan: order.plan, amount: o.price, at: Date.now(), by: g.member.name }];
@@ -151,8 +152,10 @@ export async function POST(req) {
       m.status = "active";
       await updateJSON(memberPath(m.id), (cur) => ({ ...cur, status: "active" }), () => m);
     }
-    notifyDiscord(approve ? "approved" : "rejected", { title: approve ? `✅ อนุมัติ Pro ${o.label}` : "❌ สลิปไม่ผ่าน", lines: [`**${m.name}** · โดย ${g.member.name}`] }).catch(() => {});
-    await push(m.id, { type: "text", text: approve
+    notifyDiscord(approve ? "approved" : "rejected", { title: approve ? `✅ อนุมัติ ${o.addon ? "" : "Pro "}${o.label}` : "❌ สลิปไม่ผ่าน", lines: [`**${m.name}** · โดย ${g.member.name}`] }).catch(() => {});
+    await push(m.id, { type: "text", text: approve && o.addon
+      ? `เปิดรายงาน "${o.label}" ให้แล้ว 🎉\nอ่านได้ที่ ${process.env.APP_URL || "https://pugpak.com"}/report (เข้าสู่ระบบด้วย LINE) หรือพิมพ์ "สรุป 11.11" ในแชทนี้`
+      : approve
       ? `เปิดสิทธิ์ Pro ให้แล้ว 🎉 ใช้ได้ถึง ${thDate(m.proUntil)}\nกด "ท็อป 5 วันนี้" ที่เมนูด้านล่างเพื่อเริ่มได้เลย`
       : "สลิปยังตรวจสอบไม่ผ่าน รบกวนส่งสลิปใหม่ หรือพิมพ์รายละเอียดในแชทนี้ แอดมินจะช่วยดูให้ค่ะ" }).catch(() => {});
     return Response.json({ ok: true });

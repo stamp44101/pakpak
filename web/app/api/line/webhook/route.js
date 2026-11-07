@@ -8,14 +8,15 @@ import { addViews } from "../../../../lib/activity";
 import { readJSON, writeJSON } from "../../../../lib/store";
 import { rank, effPrice } from "../../../../lib/score";
 import { scoreItem, myIdeas, moreIdea, IDEA_EXTRA } from "../../../../lib/ai";
-import { isPro, orderOf, pickOrder, makeAdminPro, promoLive, ORDERS, PLANS } from "../../../../lib/plan";
+import { isPro, canReport1111, orderOf, pickOrder, makeAdminPro, promoLive, ORDERS, PLANS } from "../../../../lib/plan";
 const PRO_AI = PLANS.pro.aiPerDay;
 import { ownerProducts, publicProduct } from "../../../../lib/catalog";
+import { buildReport } from "../../../../lib/report";
 import { flags, setFlag, bucket } from "../../../../lib/flags";
 import { viewOf, sharedCatalog, topAll, hotView, lockTop5For, lockLabel, paywallLabel, freeRulesNow, countdownLine, chooseCat, todayCat, useLink, reserveAi, releaseAi } from "../../../../lib/access";
 import { parseAffId, cleanProductUrl, isShortLink, resolveShortLink, AFF_ID_HOW } from "../../../../lib/afflink";
 import { ago, thDateTime } from "../../../../lib/fmt";
-import { APP, text, qr, HELP_QR, openApp, card, bubble, lockBubble, buyCard, payInfo, howto, affResult, moreBubble } from "../../../../lib/bot/ui";
+import { APP, text, qr, HELP_QR, openApp, card, bubble, lockBubble, buyCard, report1111Card, payInfo, howto, affResult, moreBubble } from "../../../../lib/bot/ui";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -57,7 +58,7 @@ async function handle(e) {
       await saveMember(m);
       await Promise.all([
         reply(e.replyToken, payInfo(plan)),
-        notifyDiscord("interest", { title: `🛒 เลือกแพ็ก Pro ${o.label} ฿${o.price.toLocaleString("en-US")}`, lines: [`**${m.name}** กำลังจะโอน${lockGroup ? " · กลุ่มทดสอบล็อกท็อป 5" : ""}`, `${APP}/admin`] }).catch(() => {}),
+        notifyDiscord("interest", { title: `🛒 เลือก${o.addon ? "" : "แพ็ก Pro "}${o.label} ฿${o.price.toLocaleString("en-US")}`, lines: [`**${m.name}** กำลังจะโอน${lockGroup ? " · กลุ่มทดสอบล็อกท็อป 5" : ""}`, `${APP}/admin`] }).catch(() => {}),
       ]);
       return;
     }
@@ -93,12 +94,14 @@ async function handle(e) {
       const slip = await botFetch(`message/${e.message.id}/content`, { data: true, method: "GET" }).then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null);
       await Promise.all([
         reply(e.replyToken, text(`ได้รับสลิปแล้ว ขอบคุณค่ะ 🙏
-แอดมินกำลังตรวจสอบ เปิดสิทธิ์ Pro ${o.span} แล้วจะแจ้งในแชทนี้ทันที`)),
+แอดมินกำลังตรวจสอบ เปิดสิทธิ์${o.addon ? o.span : ` Pro ${o.span}`} แล้วจะแจ้งในแชทนี้ทันที`)),
         notifyAdmins(m).catch(() => {}),
-        notifyDiscord("slip", { title: `💰 สลิปใหม่ ฿${o.price.toLocaleString("en-US")} · Pro ${o.label}`, lines: [`**${m.name}** ส่งสลิปแล้ว ตรวจยอดแล้วกดอนุมัติ`, `${APP}/admin`], image: slip }).catch(() => {}),
+        notifyDiscord("slip", { title: `💰 สลิปใหม่ ฿${o.price.toLocaleString("en-US")} · ${o.addon ? "" : "Pro "}${o.label}`, lines: [`**${m.name}** ส่งสลิปแล้ว ตรวจยอดแล้วกดอนุมัติ`, `${APP}/admin`], image: slip }).catch(() => {}),
       ]);
       return;
     }
+    if (e.type === "message" && e.message.type === "text" && /^(สรุป\s*11\.?\s*11|รายงาน\s*11|11\.11)/i.test(e.message.text.trim()))
+      return reply(e.replyToken, report1111Card(m, canReport1111(m) ? {} : buildReport(await ownerProducts()).counts));
     if (e.type === "message" && e.message.type === "text" && /^(อัปเกรด|อัพเกรด|ซื้อ|รับ\s*โปร|สมัคร pro|ต่ออายุ|pro$|แพ็ก|ราคา)/i.test(e.message.text.trim())) return reply(e.replyToken, buyCard(m));
   }
 
@@ -409,7 +412,7 @@ const byRank = (list) => (list.some((p) => p._rank) ? [...list].sort((a, b) => (
 
 async function notifyAdmins(m) {
   const r = await roster();
-  const msg = text(`💰 มีสลิปใหม่\n${m.name} · Pro ${orderOf(m.pendingOrder.plan).label} ฿${orderOf(m.pendingOrder.plan).price.toLocaleString("en-US")}\nตรวจสลิปในแชท OA แล้วกดอนุมัติที่ ${APP}/admin`);
+  const msg = text(`💰 มีสลิปใหม่\n${m.name} · ${orderOf(m.pendingOrder.plan).addon ? "" : "Pro "}${orderOf(m.pendingOrder.plan).label} ฿${orderOf(m.pendingOrder.plan).price.toLocaleString("en-US")}\nตรวจสลิปในแชท OA แล้วกดอนุมัติที่ ${APP}/admin`);
   await Promise.all(r.admins.map((id) => push(id, msg)));
 }
 

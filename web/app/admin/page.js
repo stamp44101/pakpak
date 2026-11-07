@@ -221,7 +221,7 @@ export default function Admin() {
               {!m.owner ? <button className={"btn act-btn" + (openId === m.id ? " on" : "")} aria-expanded={openId === m.id} onClick={() => setOpenId(openId === m.id ? null : m.id)}>จัดการ</button> : <span />}
               {m.pendingOrder && (
                 <div className="act-row order-row">
-                  <button className="btn primary" onClick={() => set(m.id, null, { approve: true }, { pendingOrder: null, plan: "pro" })}>อนุมัติ · เปิด Pro {orderOf(m.pendingOrder.plan).span}</button>
+                  <button className="btn primary" onClick={() => set(m.id, null, { approve: true }, { pendingOrder: null, ...(orderOf(m.pendingOrder.plan).addon ? { addons: { ...(m.addons || {}), [orderOf(m.pendingOrder.plan).addon]: Date.now() } } : { plan: "pro" }) })}>อนุมัติ · เปิด {orderOf(m.pendingOrder.plan).addon ? orderOf(m.pendingOrder.plan).label : `Pro ${orderOf(m.pendingOrder.plan).span}`}</button>
                   {m.pendingOrder.slipAt
                     ? <button className="btn" onClick={() => set(m.id, null, { reject: true }, { pendingOrder: null })}>สลิปไม่ผ่าน</button>
                     : <button className="btn" title="ไม่แจ้งลูกค้า · ถ้าเขาส่งสลิปมาภายใน 7 วัน จะกลับมาให้ตรวจเอง" onClick={() => set(m.id, null, { cancelOrder: true }, { pendingOrder: null })}>เอาออกจากรอสลิป</button>}
