@@ -45,6 +45,8 @@ nav button[aria-selected="true"]{color:var(--ink);border-color:var(--accent)}
 .row.top10{background:linear-gradient(90deg,var(--accent-soft),transparent 60%)}
 .rank{font-family:var(--mono);color:var(--muted);text-align:right}
 .top10 .rank{color:var(--accent);font-weight:500}
+.rank .mv{display:block;font-size:10px;font-weight:600;line-height:1.2}
+.rank .mv.up{color:#1E8E3E}.rank .mv.down{color:#D93025}.rank .mv.new{color:var(--accent)}
 .name{font-weight:500;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .meta{display:flex;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:12.5px;margin-top:2px}
 .meta .num{color:var(--ink)}

@@ -5,6 +5,7 @@
 // makes products from different categories comparable — a snack and an air fryer each against their own normal.
 import { readJSON, updateJSON } from "./store";
 import { rank } from "./score";
+import { MV_KEEP, moveOf } from "./moves";
 
 const PATH = "meta/sold-history.json";
 const KEEP_DAYS = 8;
@@ -13,13 +14,16 @@ const dayKey = (t = Date.now()) => new Date(t + 7 * 36e5).toISOString().slice(0,
 
 // Called when the owner saves products (a scan), not per request: at most one write per save.
 export async function recordSold(products) {
-  const s = {};
-  for (const p of Object.values(products || {})) if (+p.historicalSold > 0) s[p.id] = +p.historicalSold;
+  const s = {}, list = Object.values(products || {});
+  for (const p of list) if (+p.historicalSold > 0) s[p.id] = +p.historicalSold;
   if (!Object.keys(s).length) return;
+  // each category's order today (top MV_KEEP ids), for the 🆕/↑/↓ labels tomorrow (lib/moves.js)
+  const r = {};
+  for (const c of new Set(list.map((p) => p.category).filter(Boolean))) r[c] = rank(list.filter((p) => p.category === c)).slice(0, MV_KEEP).map((p) => p.id);
   const today = dayKey();
   await updateJSON(PATH, (h) => {
     const days = { ...(h.days || {}) };
-    days[today] = { t: Date.now(), s: { ...(days[today]?.s || {}), ...s } };
+    days[today] = { t: Date.now(), s: { ...(days[today]?.s || {}), ...s }, r: { ...(days[today]?.r || {}), ...r } };
     for (const d of Object.keys(days).sort().slice(0, -KEEP_DAYS)) delete days[d];
     return { days };
   });
@@ -59,4 +63,18 @@ export async function trending(products, limit = 20) {
     if (items.length >= limit) break;
   }
   return { items, since };
+}
+
+// Lookup for rank-change labels: (category, id, today's 1-based rank) -> "new" | +n | -n | null.
+// Compares with the newest earlier day that has a rank snapshot. Cached a minute per instance.
+let mvCache = { at: 0, day: null, r: null };
+export async function movesFor() {
+  const today = dayKey();
+  if (!(mvCache.r && mvCache.day === today && Date.now() - mvCache.at < 60_000)) {
+    const days = (await readJSON(PATH, "days").catch(() => null)) || {};
+    const d = Object.keys(days).filter((k) => k < today && days[k].r).sort().pop();
+    mvCache = { at: Date.now(), day: today, r: d ? days[d].r : {} };
+  }
+  const r = mvCache.r;
+  return (c, id, pos) => moveOf(r[c], pos, id);
 }

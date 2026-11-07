@@ -6,6 +6,7 @@ import Landing from "./Landing";
 import AffLinkBox from "./AffLinkBox";
 import Collection from "./Collection";
 import { slugFromQuery } from "../lib/collection-slug";
+import { mvLabel } from "../lib/moves";
 
 const bkkToday = () => new Date(Date.now() + 7 * 36e5).toISOString().slice(0, 10);
 
@@ -633,7 +634,7 @@ const ProductList = memo(function ProductList({ ranked, limit, open, ideas, idea
 const ProductRow = memo(function ProductRow({ p, i, isOpen, idea, ideaBusy, aiBusy, setOpen, cat, pro, catalogMode, account, shared, act }) {
   return (
     <div id={"row-" + p.id} className={"row" + (i < 10 ? " top10" : "")} onClick={(e) => { if (!e.target.closest(".detail")) setOpen((o) => (o === p.id ? null : p.id)); }}>
-                <div className="rank">{p._rank || i + 1}</div>
+                <div className="rank">{p._rank || i + 1}{p._mv && (cat || p._rank) && <span className={"mv " + (p._mv === "new" ? "new" : p._mv > 0 ? "up" : "down")}>{mvLabel(p._mv)}</span>}</div>
                 {p.image ? <img className="thumb" src={img(p.image)} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <div className="thumb" />}
                 <div style={{ minWidth: 0 }}>
                   <div className="name">{p.name}</div>

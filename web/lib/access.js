@@ -11,7 +11,7 @@
 import { ownerProducts, publicProduct } from "./catalog";
 import { flags, bucket } from "./flags";
 import { rank } from "./score";
-import { trending } from "./trending";
+import { trending, movesFor } from "./trending";
 import { isPro, PLANS } from "./plan";
 import { saveMember, memberPath } from "./auth";
 import { updateJSON } from "./store";
@@ -161,7 +161,10 @@ export function whyGood(p, n = 2) {
 export const lockRows = (items) => items.map((p, i) => ({ rank: i + 1, image: p.image || "", category: p.category || "", score: Math.round(p._t || 0), max: p._a ? 100 : 60, why: whyGood(p) }));
 
 // Card-safe copy of a ranked product: no owner link/sub-id, but keeps the scores the cards show.
-export const forCard = (p) => ({ ...publicProduct(p), _t: p._t, _a: p._a, _perOrder: p._perOrder, ...(p._perDay != null ? { _perDay: p._perDay, _boost: p._boost } : {}) });
+export const forCard = (p) => ({ ...publicProduct(p), _t: p._t, _a: p._a, _perOrder: p._perOrder, ...(p._mv ? { _mv: p._mv } : {}), ...(p._perDay != null ? { _perDay: p._perDay, _boost: p._boost } : {}) });
+
+// _mv: rank change vs yesterday in the product's category (lib/moves.js); only set when there is one
+const withMove = (p, v) => (v ? { ...p, _mv: v } : p);
 
 const categories = (all) => [...new Set(all.map((p) => p.category).filter(Boolean))];
 
@@ -172,10 +175,11 @@ const categories = (all) => [...new Set(all.map((p) => p.category).filter(Boolea
 export async function sharedCatalog({ pro, v2, lockCat, rules = RULES.free }, { only } = {}) {
   const cut = v2 && !pro ? noAi : (p) => p;
   const all = await ownerProducts();
+  const mv = await movesFor();
   const products = {}, locked = {}, lockedIds = new Set();
   const cats = categories(all).map((c) => ({ name: c, count: all.filter((p) => p.category === c).length }));
   for (const { name: c } of cats) {
-    const r = rank(all.filter((p) => p.category === c));
+    const r = rank(all.filter((p) => p.category === c)).map((p, i) => withMove(p, mv(c, p.id, i + 1)));
     if (pro) { r.forEach((p) => { products[p.id] = publicProduct(p); }); continue; }
     const start = lockCat ? LOCK_N : 0;
     if (lockCat) r.slice(0, LOCK_N).forEach((p) => lockedIds.add(p.id));
@@ -190,7 +194,8 @@ export async function sharedCatalog({ pro, v2, lockCat, rules = RULES.free }, { 
 export async function topAll({ pro, v2, rules = RULES.free, own }) {
   const mine = pro && own?.length > 0;
   const src = mine ? own : await ownerProducts();
-  const firsts = categories(src).map((c) => rank(src.filter((p) => p.category === c))[0]).filter(Boolean).sort((a, b) => b._t - a._t).slice(0, TOP_ALL_N);
+  const mv = mine ? () => null : await movesFor();
+  const firsts = categories(src).map((c) => rank(src.filter((p) => p.category === c))[0]).filter(Boolean).map((p) => withMove(p, mv(p.category, p.id, 1))).sort((a, b) => b._t - a._t).slice(0, TOP_ALL_N);
   const n = pro ? 0 : Math.min(LOCK_N, firsts.length);
   const shown = firsts.slice(n, n + rules.show);
   return { locked: lockRows(firsts.slice(0, n)), items: shown.map((p, i) => ({ ...(mine ? p : v2 && !pro ? noAi(forCard(p)) : forCard(p)), _n: n + i + 1 })), cats: categories(src) };

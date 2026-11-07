@@ -5,6 +5,7 @@ import { effPrice } from "../score";
 import { commChange, commLabel } from "../commission";
 import { isPro, ORDERS, orderOf, ORDER_TTL_H, PLANS, foundingOpen } from "../plan";
 import { baht, thDate, thDateTime, ago } from "../fmt";
+import { mvLabel } from "../moves";
 
 export const APP = process.env.APP_URL || "https://pugpak.com";
 export const img = (id, size = "") => (id ? `https://down-th.img.susercontent.com/file/${id}${size}` : "");
@@ -121,7 +122,7 @@ export function bubble(p, n) {
     ...(p.image ? { hero: { type: "image", url: img(p.image), size: "full", aspectRatio: "1:1", aspectMode: "cover", ...(link ? { action: { type: "uri", uri: link } } : {}) } } : {}),
     body: { type: "box", layout: "vertical", spacing: "sm", paddingAll: "14px", contents: [
       { type: "box", layout: "horizontal", contents: [
-        { type: "text", text: `#${n}`, weight: "bold", color: "#FE6A0E", size: "sm", flex: 0 },
+        { type: "text", text: `#${n}${p._mv ? ` ${mvLabel(p._mv)}` : ""}`, weight: "bold", color: "#FE6A0E", size: "sm", flex: 0 },
         { type: "text", text: `คะแนน ${score}/${max}${p._a ? "" : " · ยังไม่มี AI"}`, size: "xs", color: "#888888", align: "end" },
       ] },
       ...(p._cat && !p._perDay ? [{ type: "text", text: `หมวด ${p._cat}`, size: "xxs", color: "#E5480A", weight: "bold" }] : []),
