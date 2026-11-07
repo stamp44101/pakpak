@@ -10,7 +10,7 @@ test("tiers", () => {
     P({ name: "s" }),                                   // 50 baht/order, 30% share
     P({ name: "a", price: 120, sold: 1500, historicalSold: 99999 }), // 12/order
     P({ name: "b", price: 60, commission: 10, sold: 600, historicalSold: 99999 }), // 6/order
-    P({ name: "d", price: 20, commission: 5, sold: 9000 }),           // 1/order
+    P({ name: "d", price: 20, commission: 5, sold: 9000 }),           // 1/order, big seller
     P({ name: "not for sale", price: 100 }),
     P({ name: "phone", price: 52900, commission: 3, sold: 400, rating: 4.9 }),
   ], Date.now());

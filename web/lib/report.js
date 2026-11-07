@@ -27,7 +27,7 @@ export function buildReport(products, now = Date.now()) {
   for (const p of list) {
     const ch = commChange(p, now), r = row(p, ch);
     const drop = !!ch?.down, lowRate = r.rating > 0 && r.rating < 4.6;
-    if (r.sold >= 1000 && (r.perOrder < 2 || lowRate || drop)) { dAll++; T.D.push(r); continue; }
+    if ((r.sold >= 5000 && r.perOrder < 2) || (r.sold >= 1000 && (lowRate || drop))) { dAll++; T.D.push(r); continue; }
     if (ch && !ch.down && r.sold >= 300) T.U.push(r);
     if (r.price > HIGH_TICKET) { if (r.sold >= 50 && r.rating >= 4.7) T.H.push(r); else rest++; continue; }
     const o = Math.min(r.perOrder, PER_ORDER_CAP);
