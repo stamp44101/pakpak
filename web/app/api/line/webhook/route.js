@@ -8,10 +8,9 @@ import { addViews } from "../../../../lib/activity";
 import { readJSON, writeJSON } from "../../../../lib/store";
 import { rank, effPrice } from "../../../../lib/score";
 import { scoreItem, myIdeas, moreIdea, IDEA_EXTRA } from "../../../../lib/ai";
-import { isPro, canReport1111, orderOf, pickOrder, makeAdminPro, promoLive, ORDERS, PLANS } from "../../../../lib/plan";
+import { isPro, orderOf, pickOrder, makeAdminPro, promoLive, ORDERS, PLANS } from "../../../../lib/plan";
 const PRO_AI = PLANS.pro.aiPerDay;
 import { ownerProducts, publicProduct } from "../../../../lib/catalog";
-import { buildReport } from "../../../../lib/report";
 import { flags, setFlag, bucket } from "../../../../lib/flags";
 import { viewOf, sharedCatalog, topAll, hotView, lockTop5For, lockLabel, paywallLabel, freeRulesNow, countdownLine, chooseCat, todayCat, useLink, reserveAi, releaseAi } from "../../../../lib/access";
 import { parseAffId, cleanProductUrl, isShortLink, resolveShortLink, AFF_ID_HOW } from "../../../../lib/afflink";
@@ -101,7 +100,7 @@ async function handle(e) {
       return;
     }
     if (e.type === "message" && e.message.type === "text" && /^(สรุป\s*11\.?\s*11|รายงาน\s*11|11\.11)/i.test(e.message.text.trim()))
-      return reply(e.replyToken, report1111Card(m, canReport1111(m) ? {} : buildReport(await ownerProducts()).counts));
+      return reply(e.replyToken, report1111Card(m));
     if (e.type === "message" && e.message.type === "text" && /^(อัปเกรด|อัพเกรด|ซื้อ|รับ\s*โปร|สมัคร pro|ต่ออายุ|pro$|แพ็ก|ราคา)/i.test(e.message.text.trim())) return reply(e.replyToken, buyCard(m));
   }
 

@@ -200,21 +200,16 @@ export function offerCard(m) {
   } };
 }
 
-// "สรุปก่อน 11.11": link for Pro / buyers, otherwise a ฿69 offer whose button starts the normal slip flow (a=buy&p=r1111).
-export function report1111Card(m, c = {}) {
-  const url = `${APP}/report`;
-  if (canReport1111(m)) return { type: "flex", altText: "สรุปก่อน 11.11 พร้อมแล้ว", contents: { type: "bubble", body: { type: "box", layout: "vertical", spacing: "md", contents: [
-    { type: "text", text: "สรุปก่อน 11.11", weight: "bold", size: "lg" },
-    { type: "text", text: "Tier list ตะกร้าจากสแกนล่าสุด ปักอะไร ห้ามปักอะไร ได้เงินต่อออเดอร์เท่าไหร่", size: "sm", color: "#666666", wrap: true },
-  ] }, footer: { type: "box", layout: "vertical", contents: [{ type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "uri", label: "เปิดรายงาน", uri: external(url) } }] } } };
-  const n = c.S != null ? `มี ${c.S} ตะกร้าใน Tier S และ ${c.D || 0} ตะกร้าที่ยอดสวยแต่ไม่ควรปัก` : "Tier list ตะกร้า ปักอะไร ห้ามปักอะไร";
-  return { type: "flex", altText: "สรุปก่อน 11.11 ฿69", contents: { type: "bubble", body: { type: "box", layout: "vertical", spacing: "md", contents: [
-    { type: "text", text: "สรุปก่อน 11.11", weight: "bold", size: "lg" },
-    { type: "text", text: `${n}\nพร้อมค่าคอมต่อออเดอร์ทุกตัว`, size: "sm", color: "#666666", wrap: true },
-    { type: "box", layout: "baseline", spacing: "sm", contents: [{ type: "text", text: baht(ORDERS.r1111.price), weight: "bold", size: "3xl", color: "#E5480A", flex: 0 }, { type: "text", text: "ครั้งเดียว · สมาชิก Pro ดูฟรี", size: "sm", color: "#888888" }] },
-  ] }, footer: { type: "box", layout: "vertical", spacing: "sm", contents: [
-    { type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "postback", label: `ซื้อรายงาน ${baht(ORDERS.r1111.price)}`, data: "a=buy&p=r1111", displayText: "ซื้อรายงานสรุปก่อน 11.11" } },
-  ] } } };
+// "สรุปก่อน 11.11": banner card. Pro / buyers get the link, everyone else a ฿69 button that starts the normal slip flow (a=buy&p=r1111).
+export function report1111Card(m) {
+  const own = canReport1111(m);
+  const hero = { type: "image", url: `${APP}/report-1111.jpg`, size: "full", aspectRatio: "1:1", aspectMode: "cover",
+    action: own ? { type: "uri", label: "เปิดรายงาน", uri: external(`${APP}/report`) } : { type: "postback", label: `ซื้อรายงาน ${baht(ORDERS.r1111.price)}`, data: "a=buy&p=r1111", displayText: "ซื้อรายงานสรุปก่อน 11.11" } };
+  const footer = own
+    ? [{ type: "text", text: "สมาชิก Pro ดูรายงานได้ฟรี", size: "xs", color: "#888888", align: "center" }, { type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "uri", label: "เปิดรายงาน", uri: external(`${APP}/report`) } }]
+    : [{ type: "button", style: "primary", color: "#E5480A", height: "sm", action: { type: "postback", label: `ดูรายงาน ${baht(ORDERS.r1111.price)}`, data: "a=buy&p=r1111", displayText: "ซื้อรายงานสรุปก่อน 11.11" } },
+       { type: "text", text: "จ่ายครั้งเดียว · สมาชิก Pro ดูฟรี", size: "xs", color: "#888888", align: "center" }];
+  return { type: "flex", altText: own ? "สรุปก่อน 11.11 พร้อมแล้ว" : "11.11 นี้ อย่าปักตะกร้าผิดตัว · รายงาน ฿69", contents: { type: "bubble", size: "mega", hero, footer: { type: "box", layout: "vertical", spacing: "sm", contents: footer } } };
 }
 
 export function payInfo(plan) {

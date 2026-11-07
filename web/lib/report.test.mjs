@@ -30,3 +30,11 @@ test("add-on", () => {
   assert.equal(canReport1111({ plan: "pro", proUntil: null }), true);
   assert.equal(orderOf("r1111").addon, "r1111");
 });
+
+test("bot card: buyers get a postback, Pro/owners a link", async () => {
+  const { report1111Card } = await import("./bot/ui.js");
+  const free = JSON.stringify(report1111Card({ plan: "free" }));
+  assert.ok(free.includes("a=buy&p=r1111") && free.includes("report-1111.jpg"));
+  const pro = JSON.stringify(report1111Card({ plan: "pro", proUntil: null }));
+  assert.ok(pro.includes("/report") && !pro.includes("a=buy"));
+});
