@@ -1,7 +1,7 @@
 // Admin: list members, activate / move to waitlist / revoke.
 import { requireMember, isAdmin, roster, mutateRoster, getMember, saveMember, memberPath, seats, earlyTaken, openFree } from "../../../lib/auth";
-import { planInfo, isPro, grantPro, makeAdminPro, orderOf, ORDERS, EA_DAYS, PROMO_HOURS, promoLive } from "../../../lib/plan";
-import { offerCard } from "../../../lib/bot/ui";
+import { planInfo, canReport1111, isPro, grantPro, makeAdminPro, orderOf, ORDERS, EA_DAYS, PROMO_HOURS, promoLive } from "../../../lib/plan";
+import { offerCard, report1111Card } from "../../../lib/bot/ui";
 import { thDate } from "../../../lib/fmt";
 import { push, quota, markPushed } from "../../../lib/line";
 import { readJSON, updateJSON } from "../../../lib/store";
@@ -59,7 +59,25 @@ async function quotaBlock(n, what) {
 export async function POST(req) {
   const g = await guard(req);
   if (g.error) return g.error;
-  const { id, ids: offerIds, announce, status, plan, days, approve, reject, welcomeFree, admin, grant: grantKey, cancelOrder, founding } = (await req.json().catch(() => ({}))) || {};
+  const { id, ids: offerIds, announce, status, plan, days, approve, reject, welcomeFree, admin, grant: grantKey, cancelOrder, founding, report1111: reportIds } = (await req.json().catch(() => ({}))) || {};
+  // One-off push of the "สรุป 11.11" banner card to a hand-picked list (pilot). Skips Pro/buyers, people already sent it and anyone mid-purchase.
+  if (Array.isArray(reportIds)) {
+    const list = [...new Set(reportIds.filter((x) => typeof x === "string"))].slice(0, 60);
+    const blocked = await quotaBlock(list.length, "การ์ดสรุป 11.11");
+    if (blocked) return blocked;
+    let sent = 0, skipped = 0, failed = 0;
+    for (const mid of list) {
+      const w = await getMember(mid);
+      if (!w || w.status !== "active" || canReport1111(w) || w.report1111PushedAt || w.pendingOrder) { skipped++; continue; }
+      const ok = await push(mid, report1111Card(w)).catch(() => false);
+      if (!ok) { failed++; continue; }
+      sent++;
+      await updateJSON(memberPath(mid), (cur) => ({ ...cur, report1111PushedAt: Date.now() }), () => w);
+    }
+    markPushed(sent);
+    notifyDiscord("trial", { title: `📣 ส่งการ์ดสรุป 11.11 ${sent} คน`, lines: [`โดย ${g.member.name} · ข้าม ${skipped} · ส่งไม่สำเร็จ ${failed}`] }).catch(() => {});
+    return Response.json({ ok: true, sent, skipped, failed });
+  }
   // One-time LINE push to everyone moved from the waitlist to Free who hasn't been told yet.
   if (welcomeFree) {
     const r0 = await roster();
