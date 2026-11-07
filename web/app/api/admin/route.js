@@ -59,16 +59,19 @@ async function quotaBlock(n, what) {
 export async function POST(req) {
   const g = await guard(req);
   if (g.error) return g.error;
-  const { id, ids: offerIds, announce, status, plan, days, approve, reject, welcomeFree, admin, grant: grantKey, cancelOrder, founding, report1111: reportIds } = (await req.json().catch(() => ({}))) || {};
+  const { id, ids: offerIds, announce, status, plan, days, approve, reject, welcomeFree, admin, grant: grantKey, cancelOrder, founding, report1111: reportIds0, report1111Pro } = (await req.json().catch(() => ({}))) || {};
   // One-off push of the "สรุป 11.11" banner card to a hand-picked list (pilot). Skips Pro/buyers, people already sent it and anyone mid-purchase.
+  // report1111Pro: true → the same card to every Pro member (not admins) who hasn't had it: "free for Pro".
+  let reportIds = reportIds0;
+  if (report1111Pro) { const r1 = await roster(); reportIds = (await membersOf(r1.active)).filter((w) => w && isPro(w) && !r1.admins.includes(w.id) && !w.report1111PushedAt).map((w) => w.id); }
   if (Array.isArray(reportIds)) {
-    const list = [...new Set(reportIds.filter((x) => typeof x === "string"))].slice(0, 60);
+    const list = [...new Set(reportIds.filter((x) => typeof x === "string"))].slice(0, 80);
     const blocked = await quotaBlock(list.length, "การ์ดสรุป 11.11");
     if (blocked) return blocked;
     let sent = 0, skipped = 0, failed = 0;
     for (const mid of list) {
       const w = await getMember(mid);
-      if (!w || w.status !== "active" || canReport1111(w) || w.report1111PushedAt || w.pendingOrder) { skipped++; continue; }
+      if (!w || w.status !== "active" || (!report1111Pro && canReport1111(w)) || w.report1111PushedAt || (!report1111Pro && w.pendingOrder)) { skipped++; continue; }
       const ok = await push(mid, report1111Card(w)).catch(() => false);
       if (!ok) { failed++; continue; }
       sent++;

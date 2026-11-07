@@ -206,10 +206,10 @@ export function report1111Card(m) {
   const hero = { type: "image", url: `${APP}/report-1111.jpg`, size: "full", aspectRatio: "1:1", aspectMode: "cover",
     action: own ? { type: "uri", label: "เปิดรายงาน", uri: external(`${APP}/report`) } : { type: "postback", label: `ซื้อรายงาน ${baht(ORDERS.r1111.price)}`, data: "a=buy&p=r1111", displayText: "ซื้อรายงานสรุปก่อน 11.11" } };
   const footer = own
-    ? [{ type: "text", text: "สมาชิก Pro ดูรายงานได้ฟรี", size: "xs", color: "#888888", align: "center" }, { type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "uri", label: "เปิดรายงาน", uri: external(`${APP}/report`) } }]
+    ? [{ type: "text", text: "แถมให้สมาชิก Pro · ดูรายงานฟรี", size: "xs", color: "#888888", align: "center" }, { type: "button", style: "primary", color: "#FE6A0E", height: "sm", action: { type: "uri", label: "เปิดรายงาน", uri: external(`${APP}/report`) } }]
     : [{ type: "button", style: "primary", color: "#E5480A", height: "sm", action: { type: "postback", label: `ดูรายงาน ${baht(ORDERS.r1111.price)}`, data: "a=buy&p=r1111", displayText: "ซื้อรายงานสรุปก่อน 11.11" } },
        { type: "text", text: "จ่ายครั้งเดียว · สมาชิก Pro ดูฟรี", size: "xs", color: "#888888", align: "center" }];
-  return { type: "flex", altText: own ? "สรุปก่อน 11.11 พร้อมแล้ว" : "11.11 นี้ อย่าปักตะกร้าผิดตัว · รายงาน ฿69", contents: { type: "bubble", size: "mega", hero, footer: { type: "box", layout: "vertical", spacing: "sm", contents: footer } } };
+  return { type: "flex", altText: own ? "แถมสมาชิก Pro: รายงานสรุปก่อน 11.11 ดูฟรี" : "11.11 นี้ อย่าปักตะกร้าผิดตัว · รายงาน ฿69", contents: { type: "bubble", size: "mega", hero, footer: { type: "box", layout: "vertical", spacing: "sm", contents: footer } } };
 }
 
 export function payInfo(plan) {
