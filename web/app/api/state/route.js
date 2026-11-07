@@ -13,6 +13,8 @@ export async function GET(req) {
   const { member, error } = await requireMember(req);
   if (error) return error;
   const state = await readJSON(path(member));
+  // a copy of the shared catalog saved by an old bug is not the member's own data
+  if (state?.shared) return Response.json({ products: {}, updatedAt: 0 });
   return Response.json(state || { products: {}, updatedAt: 0 });
 }
 

@@ -147,7 +147,8 @@ async function handle(e) {
   const view = await viewOf(m, { admin });
   const { pro } = view;
   let state = (await readJSON(`users/m_${uid}.json`)) || { products: {} };
-  if (!pro || !Object.keys(state.products || {}).length) {
+  // state.shared = a copy of the shared catalog that an old AI-idea save wrote as this member's own file: never treat it as their own scans
+  if (!pro || state.shared || !Object.keys(state.products || {}).length) {
     const sc = await sharedCatalog(view);
     state = { ...state, products: sc.products, locked: sc.locked, lockedIds: sc.lockedIds, shared: true };
   }
@@ -442,8 +443,9 @@ async function aiIdea(e, m, state, id, view) {
     if (r.error) { if (gate.limit !== Infinity && !gate.seen) await releaseAi(m, id); return reply(e.replyToken, text(r.error)); }
     s = r.score;
     // save into the member's state so the web app shows it too
-    const cur = (await readJSON(`users/m_${m.id}.json`)) || state;
-    if (cur.products?.[id]) { cur.products[id] = { ...cur.products[id], ai: s }; cur.updatedAt = Date.now(); await writeJSON(`users/m_${m.id}.json`, cur); }
+    const own = await readJSON(`users/m_${m.id}.json`); // only a member's real file: the merged shared catalog (state.shared) must not be saved as theirs
+    const cur = own && !own.shared ? own : null;
+    if (cur?.products?.[id]) { cur.products[id] = { ...cur.products[id], ai: s }; cur.updatedAt = Date.now(); await writeJSON(`users/m_${m.id}.json`, cur); }
   }
   const mine = await myIdeas(m, id);
   const msg = `🎬 ${(p.name || "").slice(0, 60)}\n\nAI: โชว์ปัญหา ${s.problem}/10 · ภาพหยุดนิ้ว ${s.visual}/10 · ต่อยอดหลายคลิป ${s.multi}/10\n\nHook 3 วิแรก\n"${s.hook}"\n\nมุมเล่า\n${(s.angles || []).map((a) => "• " + a).join("\n")}\n\nเหตุผล: ${s.why}`
