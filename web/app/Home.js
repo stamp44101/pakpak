@@ -57,7 +57,15 @@ async function api(path, method = "GET", body) {
   if (!r) return { error: "เชื่อมต่อ server ไม่ได้" };
   return r.json().catch(() => ({ error: "server error " + r.status }));
 }
-function loadLocal() { try { return JSON.parse(ls.get("") || "{}"); } catch { return {}; } }
+// A device copy of the shared catalog (rows carry `_rank`, written while the member was Free) is not their own data:
+// drop it, or a Pro would keep seeing the Free list with top 1–5 missing.
+function loadLocal() {
+  try {
+    const l = JSON.parse(ls.get("") || "{}");
+    if (Object.values(l.products || {}).some((p) => p && p._rank)) { ls.set("", "{}"); return {}; }
+    return l;
+  } catch { return {}; }
+}
 
 export default function Home({ signedIn = false }) {
   const [me, setMe] = useState(null); // {member, seats, left, loginReady}

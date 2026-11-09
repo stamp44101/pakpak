@@ -68,6 +68,11 @@ export function lockTop5For(f, m, { adminPreview = false } = {}) {
 }
 export const lockLabel = (v) => (!v || v === "off" ? "ปิด (ทุกคนเห็นท็อป 1–5 ตามเดิม)" : v === "admin" ? "ทดสอบเฉพาะแอดมิน (\"ดูแบบ free\")" : `เปิด ${v}% ของผู้ใช้ Free`);
 
+// A member file that is really a copy of the shared catalog (old bugs saved one while the member was Free):
+// flagged `shared`, or carrying the Free lock fields / per-row `_rank` that only sharedCatalog() writes.
+// Never treat it as the member's own scans — for a Pro it would hide top 1–5 behind a stale lock.
+export const isSharedCopy = (state) => !!(state && (state.shared || state.locked || state.lockedIds || Object.values(state.products || {}).some((p) => p && p._rank)));
+
 // One member's view: Pro or not (admins preview Free with "ดูแบบ free"), V2 or not, and the rules that follow.
 export async function viewOf(m, { admin = false } = {}) {
   const preview = admin && !!m?.viewAsFree;

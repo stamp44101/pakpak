@@ -4,6 +4,7 @@ import { requireMember } from "../../../lib/auth";
 import { isPro } from "../../../lib/plan";
 import { roster } from "../../../lib/auth";
 import { recordSold } from "../../../lib/trending";
+import { isSharedCopy } from "../../../lib/access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ export async function GET(req) {
   if (error) return error;
   const state = await readJSON(path(member));
   // a copy of the shared catalog saved by an old bug is not the member's own data
-  if (state?.shared) return Response.json({ products: {}, updatedAt: 0 });
+  if (isSharedCopy(state)) return Response.json({ products: {}, updatedAt: 0 });
   return Response.json(state || { products: {}, updatedAt: 0 });
 }
 

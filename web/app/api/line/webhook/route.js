@@ -12,7 +12,7 @@ import { isPro, orderOf, pickOrder, makeAdminPro, promoLive, ORDERS, PLANS } fro
 const PRO_AI = PLANS.pro.aiPerDay;
 import { ownerProducts, publicProduct } from "../../../../lib/catalog";
 import { flags, setFlag, bucket } from "../../../../lib/flags";
-import { viewOf, sharedCatalog, topAll, hotView, lockTop5For, lockLabel, paywallLabel, freeRulesNow, countdownLine, chooseCat, todayCat, useLink, reserveAi, releaseAi } from "../../../../lib/access";
+import { viewOf, sharedCatalog, topAll, hotView, lockTop5For, lockLabel, isSharedCopy, paywallLabel, freeRulesNow, countdownLine, chooseCat, todayCat, useLink, reserveAi, releaseAi } from "../../../../lib/access";
 import { parseAffId, cleanProductUrl, isShortLink, resolveShortLink, AFF_ID_HOW } from "../../../../lib/afflink";
 import { ago, thDateTime } from "../../../../lib/fmt";
 import { APP, text, qr, HELP_QR, openApp, card, bubble, lockBubble, buyCard, report1111Card, payInfo, howto, affResult, moreBubble } from "../../../../lib/bot/ui";
@@ -148,7 +148,7 @@ async function handle(e) {
   const { pro } = view;
   let state = (await readJSON(`users/m_${uid}.json`)) || { products: {} };
   // state.shared = a copy of the shared catalog that an old AI-idea save wrote as this member's own file: never treat it as their own scans
-  if (!pro || state.shared || !Object.keys(state.products || {}).length) {
+  if (!pro || isSharedCopy(state) || !Object.keys(state.products || {}).length) {
     const sc = await sharedCatalog(view);
     state = { ...state, products: sc.products, locked: sc.locked, lockedIds: sc.lockedIds, shared: true };
   }
