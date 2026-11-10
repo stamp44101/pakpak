@@ -11,7 +11,8 @@ import { scoreItem, myIdeas, moreIdea, IDEA_EXTRA } from "../../../../lib/ai";
 import { isPro, orderOf, pickOrder, makeAdminPro, promoLive, ORDERS, PLANS } from "../../../../lib/plan";
 const PRO_AI = PLANS.pro.aiPerDay;
 import { ownerProducts, publicProduct } from "../../../../lib/catalog";
-import { flags, setFlag, bucket } from "../../../../lib/flags";
+import { flags, setFlag, bucket, photoSearchFor } from "../../../../lib/flags";
+import { photoSearch, photoCommand } from "../../../../lib/vision";
 import { viewOf, sharedCatalog, topAll, hotView, lockTop5For, lockLabel, isSharedCopy, paywallLabel, freeRulesNow, countdownLine, chooseCat, todayCat, useLink, reserveAi, releaseAi } from "../../../../lib/access";
 import { parseAffId, cleanProductUrl, isShortLink, resolveShortLink, AFF_ID_HOW } from "../../../../lib/afflink";
 import { ago, thDateTime } from "../../../../lib/fmt";
@@ -143,6 +144,9 @@ async function handle(e) {
     const f = await flags();
     return reply(e.replyToken, text(`💰 Paywall V2: ${paywallLabel(f.paywallV2)}${f.paywallV2At ? `\nเปลี่ยนล่าสุด ${ago(f.paywallV2At)}` : ""}\n\nFree V2 = วันละ 1 หมวด เห็น #6–8 · AI 1/วัน · ลิงก์ Aff ID 3/วัน\nสั่งได้: "paywall admin" (ทดสอบเอง + "ดูแบบ free") · "paywall on" · "paywall off" (ย้อนกลับทันที) · "paywall auto" (เปิดเองคืนนี้เที่ยงคืน)\nมีผลกับทุกคนภายใน ~30 วิ`, HELP_QR()));
   }
+  // ถ่ายรูปหาตะกร้า switch: "รูปหาตะกร้า" (status) · "รูปหาตะกร้า admin" · "รูปหาตะกร้า 20" · "รูปหาตะกร้า off" (lib/vision.js)
+  const ps = admin && (await photoCommand(tt, uid));
+  if (ps) return reply(e.replyToken, ps);
   // What this member may see (lib/access.js). Pro with own scans uses them; everyone else the shared catalog.
   const view = await viewOf(m, { admin });
   const { pro } = view;
@@ -161,6 +165,17 @@ async function handle(e) {
     if (q.get("a") === "ai2") return aiMore(e, m, state, q.get("id"), view);
     if (q.get("a") === "top") return reply(e.replyToken, await top(all, q.get("c"), cats, { m, view, state, from: +q.get("o") || 0 }));
     if (q.get("a") === "link") { const p = await shownProduct(state, q.get("id")); return reply(e.replyToken, await askAffId(m, p?.url, p?.name)); }
+    return;
+  }
+  // ถ่ายรูปหาตะกร้า (lib/vision.js), only behind the photoSearch flag — everyone else: a photo is ignored, as before.
+  // Skipped while an order is open (its images are slips). Reply only: no push from this path, even on error.
+  if (e.type === "message" && e.message.type === "image" && !m.pendingOrder && photoSearchFor(await flags(), m, { adminPreview: admin && !!m.viewAsFree })) {
+    try { await photoSearch(e, m, { view, state, cats }); }
+    catch (err) {
+      console.error("photoSearch", err);
+      notifyError("🔥 photoSearch threw", [String(err?.stack || err).slice(0, 800)]).catch(() => {});
+      await reply(e.replyToken, FALLBACK).catch(() => {});
+    }
     return;
   }
   if (e.type !== "message" || e.message.type !== "text") return;
