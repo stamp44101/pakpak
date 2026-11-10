@@ -14,7 +14,7 @@ import { rank } from "./score";
 import { chooseCat, todayCat, bkkDay, RULES } from "./access";
 import { flags, setFlag, photoSearchLabel } from "./flags";
 import { ago } from "./fmt";
-import { text, qr, HELP_QR, bubble, buyCard } from "./bot/ui";
+import { text, qr, HELP_QR, bubble, buyCard, external } from "./bot/ui";
 
 const MAX_BYTES = 5 * 1024 * 1024; // Anthropic's per-image limit
 const SHOW = { pro: 5, free: 3 };
@@ -118,8 +118,11 @@ async function answer(seen, m, view, state, cats, left) {
       buyCard(m, `ดูตะกร้า "${want}" ในท็อป 1–5 ได้ใน Pro`),
     ] };
     await logDemand(want, m.id).catch(() => {});
-    const msg = text(`📷 รูปนี้น่าจะเป็น "${want}" (คีย์เวิร์ด: ${kws})\nตอนนี้คลังกลางยังไม่มีสินค้านี้ค่ะ แจ้งทีมไว้แล้วว่ามีคนอยากได้ 🙏${quota}`, pro ? HELP_QR() : undefined);
-    return { found: 0, msgs: pro ? [msg] : [msg, { ...buyCard(m, `ค้นหา "${want}" เองได้ใน Pro`), quickReply: { items: HELP_QR() } }] };
+    const q = shopeeQuery(seen);
+    return { found: 0, msgs: [
+      text(`📷 รูปนี้น่าจะเป็น "${want}" (คีย์เวิร์ด: ${kws})\nตอนนี้คลังกลางยังไม่มีสินค้านี้ค่ะ แจ้งทีมไว้แล้วว่ามีคนอยากได้ 🙏${quota}`),
+      { type: "flex", altText: `ค้นหา "${q}" ใน Shopee`.slice(0, 400), contents: shopeeBubble(q, `ยังไม่มีในคลัง ค้น "${q}" ใน Shopee แทน`), quickReply: { items: HELP_QR() } },
+    ] };
   }
 
   const n = pro ? SHOW.pro : SHOW.free;
@@ -127,9 +130,26 @@ async function answer(seen, m, view, state, cats, left) {
   const more = !pro && hits.length > n ? `\nแพ็ก Pro เห็นได้ถึง ${SHOW.pro} ตัว` : "";
   return { found: hits.length, msgs: [
     text(`📷 รูปนี้น่าจะเป็น "${want}" (คีย์เวิร์ด: ${kws})\nเจอ ${list.length} ตะกร้าที่ใกล้เคียงในคลังกลาง 👇${first ? `\n📌 หมวดของวันนี้: "${list[0].category}" (แพ็ก Free ดูได้วันละ 1 หมวด)` : ""}${more}${quota}`),
-    { type: "flex", altText: `ตะกร้าที่ใกล้เคียง "${want}"`.slice(0, 400), contents: { type: "carousel", contents: list.map((p, i) => bubble(p, i + 1)) }, quickReply: { items: HELP_QR() } },
+    { type: "flex", altText: `ตะกร้าที่ใกล้เคียง "${want}"`.slice(0, 400), contents: { type: "carousel", contents: [...list.map((p, i) => bubble(p, i + 1)), shopeeBubble(shopeeQuery(seen), "ไม่ใช่ตัวที่ถ่าย? ค้นใน Shopee")] }, quickReply: { items: HELP_QR() } },
   ] };
 }
+
+// ---- not in the catalog (or not the right one): open Shopee's search with the photo's keywords. The member picks a
+// product there, shares its link back into this chat, and the existing pasted-link flow makes their own aff link.
+// Search terms: the most specific keyword (often the brand) + the type, e.g. "sasi แป้งฝุ่น".
+export const shopeeQuery = ({ type = "", keywords = [] }) => [...new Set([keywords[0], type].map((x) => String(x || "").trim()).filter(Boolean))].join(" ").slice(0, 60);
+export const shopeeSearchUrl = (q) => external(`https://shopee.co.th/search?keyword=${encodeURIComponent(q)}`);
+// kilo, like bubble(): a carousel must not mix sizes.
+export const shopeeBubble = (q, title) => ({
+  type: "bubble", size: "kilo",
+  body: { type: "box", layout: "vertical", spacing: "sm", paddingAll: "14px", contents: [
+    { type: "text", text: "🔍 " + title, weight: "bold", size: "sm", wrap: true },
+    { type: "text", text: "1) กดค้นใน Shopee แล้วเลือกสินค้า\n2) กด แชร์ → คัดลอกลิงก์\n3) วางลิงก์ในแชทนี้ บอทแปลงเป็นลิงก์แอฟของคุณให้", size: "xs", color: "#555555", wrap: true },
+  ] },
+  footer: { type: "box", layout: "vertical", contents: [
+    { type: "button", style: "primary", color: "#EE4D2D", height: "sm", action: { type: "uri", label: "ค้นใน Shopee", uri: shopeeSearchUrl(q) } },
+  ] },
+});
 
 // ---- search: products whose name (or scanned keyword) contains the photo's keywords; most keywords first,
 // then the catalog score. A product must match at least one keyword — the category alone is too loose.

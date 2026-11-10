@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { matchProducts, parseReading, mediaType } from "./vision.js";
+import { matchProducts, parseReading, mediaType, shopeeQuery, shopeeSearchUrl, shopeeBubble } from "./vision.js";
+import { bubble } from "./bot/ui.js";
+import { validateMessages } from "./bot/validate.js";
 import { photoSearchFor, bucket } from "./flags.js";
 
 const P = (id, name, category, sold = 100) => ({ id, name, category, sold, price: 199, commission: 10, rating: 4.8, reviews: 50 });
@@ -45,4 +47,17 @@ test("flag: off / admin / percent", () => {
   process.env.PHOTO_SEARCH = "off";
   assert.equal(photoSearchFor({ photoSearch: "100" }, m, { admin: true }), false);
   delete process.env.PHOTO_SEARCH;
+});
+
+test("shopee search: brand + type, encoded, opens outside LINE", () => {
+  assert.equal(shopeeQuery({ type: "แป้งฝุ่น", keywords: ["sasi", "แป้งฝุ่น"] }), "sasi แป้งฝุ่น");
+  assert.equal(shopeeQuery({ type: "ลำโพง", keywords: ["ลำโพง"] }), "ลำโพง");
+  const u = new URL(shopeeSearchUrl("sasi แป้งฝุ่น"));
+  assert.equal(u.searchParams.get("keyword"), "sasi แป้งฝุ่น");
+  assert.equal(u.searchParams.get("openExternalBrowser"), "1");
+});
+test("carousel: product cards + Shopee card pass the LINE validator", () => {
+  const p = { ...pool[0], url: "https://shopee.co.th/x-i.1.1", _t: 30 };
+  assert.deepEqual(validateMessages([{ type: "flex", altText: "x", contents: { type: "carousel", contents: [bubble(p, 1), shopeeBubble("sasi แป้งฝุ่น", "ไม่ใช่ตัวที่ถ่าย? ค้นใน Shopee")] } }]), []);
+  assert.deepEqual(validateMessages([{ type: "flex", altText: "x", contents: shopeeBubble("ลำโพง", "ยังไม่มีในคลัง") }]), []);
 });
