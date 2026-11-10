@@ -37,12 +37,12 @@ test("media type from bytes", () => {
 test("flag: off / admin / percent", () => {
   const m = { id: "U123" };
   assert.equal(photoSearchFor({}, m), false);
-  assert.equal(photoSearchFor({ photoSearch: "off" }, m, { adminPreview: true }), false);
+  assert.equal(photoSearchFor({ photoSearch: "off" }, m, { admin: true }), false);
   assert.equal(photoSearchFor({ photoSearch: "admin" }, m), false);
-  assert.equal(photoSearchFor({ photoSearch: "admin" }, m, { adminPreview: true }), true);
+  assert.equal(photoSearchFor({ photoSearch: "admin" }, m, { admin: true }), true);
   assert.equal(photoSearchFor({ photoSearch: "100" }, m), true);
   assert.equal(photoSearchFor({ photoSearch: "20" }, m), bucket("photo:U123") < 20);
   process.env.PHOTO_SEARCH = "off";
-  assert.equal(photoSearchFor({ photoSearch: "100" }, m, { adminPreview: true }), false);
+  assert.equal(photoSearchFor({ photoSearch: "100" }, m, { admin: true }), false);
   delete process.env.PHOTO_SEARCH;
 });

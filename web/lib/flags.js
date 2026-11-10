@@ -23,14 +23,14 @@ export async function setFlag(key, value, by) {
 export const bucket = (id) => { let h = 0; for (const c of String(id || "")) h = (h * 31 + c.charCodeAt(0)) | 0; return Math.abs(h) % 100; };
 
 // photoSearch switch (ถ่ายรูปหาตะกร้า, lib/vision.js): "off" | "admin" | 1–100 (% of members, Free and Pro).
-// Same shape as lockTop5: "admin" = only an admin in "ดูแบบ free"; any other value also lets that preview in.
+// "admin" = admins only, in "ดูแบบ free" or "ดูแบบ pro" (to test the old path, use "off"). Any other value includes admins too.
 // Its own bucket salt, so the photo group isn't the same people as the lock-top-5 group. Env PHOTO_SEARCH=off = kill switch.
-export function photoSearchFor(f, m, { adminPreview = false } = {}) {
+export function photoSearchFor(f, m, { admin = false } = {}) {
   if (process.env.PHOTO_SEARCH === "off") return false;
   const v = f?.photoSearch;
   if (!v || v === "off") return false;
-  if (adminPreview) return true;
+  if (admin) return true;
   if (v === "admin") return false;
   return bucket("photo:" + (m?.id || "")) < Math.min(100, +v || 0);
 }
-export const photoSearchLabel = (v) => (!v || v === "off" ? "ปิด (ส่งรูปแล้วบอทเงียบตามเดิม)" : v === "admin" ? "ทดสอบเฉพาะแอดมิน (\"ดูแบบ free\")" : `เปิด ${v}% ของผู้ใช้`);
+export const photoSearchLabel = (v) => (!v || v === "off" ? "ปิด (ส่งรูปแล้วบอทเงียบตามเดิม)" : v === "admin" ? "ทดสอบเฉพาะแอดมิน (ทั้ง \"ดูแบบ free\" และ \"ดูแบบ pro\")" : `เปิด ${v}% ของผู้ใช้`);

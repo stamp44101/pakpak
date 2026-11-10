@@ -31,7 +31,7 @@ export async function photoCommand(tt, uid) {
     await setFlag("photoSearch", v, uid);
   }
   const f = await flags();
-  return text(`📷 ถ่ายรูปหาตะกร้า: ${photoSearchLabel(f.photoSearch)}${f.photoSearchAt ? `\nเปลี่ยนล่าสุด ${ago(f.photoSearchAt)}` : ""}\n\nสั่งได้: "รูปหาตะกร้า admin" (ทดสอบเอง + "ดูแบบ free") · "รูปหาตะกร้า 20" (20% ของผู้ใช้) · "รูปหาตะกร้า 100" · "รูปหาตะกร้า off" (ย้อนกลับทันที)\nมีผลกับทุกคนภายใน ~30 วิ`, HELP_QR());
+  return text(`📷 ถ่ายรูปหาตะกร้า: ${photoSearchLabel(f.photoSearch)}${f.photoSearchAt ? `\nเปลี่ยนล่าสุด ${ago(f.photoSearchAt)}` : ""}\n\nสั่งได้: "รูปหาตะกร้า admin" (แอดมินเท่านั้น ทั้งแบบ free/pro) · "รูปหาตะกร้า 20" (20% ของผู้ใช้) · "รูปหาตะกร้า 100" · "รูปหาตะกร้า off" (ย้อนกลับทันที)\nมีผลกับทุกคนภายใน ~30 วิ`, HELP_QR());
 }
 
 // ---- the photo → carousel flow. `view`, `state`, `cats` are what route.js already built for this member.
