@@ -169,7 +169,7 @@ async function handle(e) {
   }
   // ถ่ายรูปหาตะกร้า (lib/vision.js), only behind the photoSearch flag — everyone else: a photo is ignored, as before.
   // Skipped while an order is open (its images are slips). Reply only: no push from this path, even on error.
-  if (e.type === "message" && e.message.type === "image" && !m.pendingOrder && photoSearchFor(await flags(), m, { adminPreview: admin && !!m.viewAsFree })) {
+  if (e.type === "message" && e.message.type === "image" && !m.pendingOrder && photoSearchFor(await flags(), m, { admin })) {
     try { await photoSearch(e, m, { view, state, cats }); }
     catch (err) {
       console.error("photoSearch", err);
