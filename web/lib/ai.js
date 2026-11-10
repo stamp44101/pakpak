@@ -5,7 +5,7 @@ import { memberPath } from "./auth";
 import { planOf } from "./plan";
 import { viewOf, RULES } from "./access";
 
-const MODEL = process.env.ANTHROPIC_MODEL || "claude-haiku-5-5";
+export const MODEL = process.env.ANTHROPIC_MODEL || "claude-haiku-5-5";
 
 // Returns { score, cached } or { error, status }.
 export async function scoreItem(member, item, refresh = false) {
