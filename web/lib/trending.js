@@ -3,7 +3,7 @@
 // cumulative sales (historicalSold) in meta/sold-history.json. Comparing today's numbers with an earlier day
 // gives units sold per day; dividing by the product's usual daily rate (sold over the last 30 days / 30)
 // makes products from different categories comparable — a snack and an air fryer each against their own normal.
-import { readJSON, updateJSON } from "./store";
+import { readCached, updateJSON } from "./store";
 import { rank } from "./score";
 import { MV_KEEP, moveOf } from "./moves";
 
@@ -32,7 +32,7 @@ export async function recordSold(products) {
 // Ranked list across categories. Each item gets _perDay (units/day since the earlier snapshot)
 // and _boost (how many times faster than its 30-day average).
 export async function trending(products, limit = 20) {
-  const h = (await readJSON(PATH)) || {};
+  const h = { days: (await readCached(PATH, "days")) || {} }; // read-only: shared with other requests
   const today = dayKey();
   const past = Object.keys(h.days || {}).filter((d) => d < today).sort().reverse(); // newest earlier day first
   if (!past.length) return { items: [], since: null };
@@ -71,7 +71,7 @@ let mvCache = { at: 0, day: null, r: null };
 export async function movesFor() {
   const today = dayKey();
   if (!(mvCache.r && mvCache.day === today && Date.now() - mvCache.at < 60_000)) {
-    const days = (await readJSON(PATH, "days").catch(() => null)) || {};
+    const days = (await readCached(PATH, "days").catch(() => null)) || {};
     const d = Object.keys(days).filter((k) => k < today && days[k].r).sort().pop();
     mvCache = { at: Date.now(), day: today, r: d ? days[d].r : {} };
   }

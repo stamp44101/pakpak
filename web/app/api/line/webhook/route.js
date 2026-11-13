@@ -5,7 +5,7 @@ import { getMember, ensureMember, saveMember, roster, seatsLeft, isAdmin } from 
 import { freeWelcome } from "../../../../lib/welcome";
 import { notifyDiscord, notifyError } from "../../../../lib/discord";
 import { addViews } from "../../../../lib/activity";
-import { readJSON, writeJSON } from "../../../../lib/store";
+import { readJSON, writeJSON, readCached } from "../../../../lib/store";
 import { rank, effPrice } from "../../../../lib/score";
 import { scoreItem, myIdeas, moreIdea, IDEA_EXTRA } from "../../../../lib/ai";
 import { isPro, orderOf, pickOrder, makeAdminPro, promoLive, ORDERS, PLANS } from "../../../../lib/plan";
@@ -150,7 +150,8 @@ async function handle(e) {
   // What this member may see (lib/access.js). Pro with own scans uses them; everyone else the shared catalog.
   const view = await viewOf(m, { admin });
   const { pro } = view;
-  let state = (await readJSON(`users/m_${uid}.json`)) || { products: {} };
+  // read-only below; readCached re-downloads the member's scans only when they changed (the owner's are ~1 MB+ per message)
+  let state = (await readCached(`users/m_${uid}.json`, undefined, 0)) || { products: {} };
   // state.shared = a copy of the shared catalog that an old AI-idea save wrote as this member's own file: never treat it as their own scans
   if (!pro || isSharedCopy(state) || !Object.keys(state.products || {}).length) {
     const sc = await sharedCatalog(view);

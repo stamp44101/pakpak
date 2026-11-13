@@ -23,6 +23,58 @@ export async function readJSON(path, key) {
   return rows.length ? rows[0].data : null;
 }
 
+// Version-gated cache per function instance, for documents that are large and change rarely
+// (the shared catalog ~1 MB+, the sales history). After `ttl` it asks Postgres for the row's `ver` only;
+// the document itself travels again only when the version moved. Polling the whole document every minute
+// used up Neon's 5 GB/month network transfer in 13 days (Nov 2026).
+// ttl 0 = check the version on every call (always fresh, still a few bytes when unchanged).
+// Callers must treat the result as read-only: it is shared between requests.
+const docs = new Map();
+const DOCS_MAX = 40;
+export async function readCached(path, key, ttl = 60_000) {
+  const k = path + "\n" + (key || "");
+  const c = docs.get(k);
+  if (c?.has && ttl && Date.now() - c.at < ttl) return c.data;
+  if (c?.pending) return c.pending;
+  const e = c || { has: false, ver: -1, data: null, at: 0, pending: null };
+  docs.delete(k); docs.set(k, e); // newest last
+  for (const old of docs.keys()) { if (docs.size <= DOCS_MAX) break; if (old !== k) docs.delete(old); }
+  e.pending = (async () => {
+    const s = await db();
+    const known = e.has ? e.ver : -1;
+    const rows = key
+      ? await s`SELECT ver, ver <> ${known} AS changed, CASE WHEN ver <> ${known} THEN data -> ${key} END AS data FROM kv WHERE path = ${path}`
+      : await s`SELECT ver, ver <> ${known} AS changed, CASE WHEN ver <> ${known} THEN data END AS data FROM kv WHERE path = ${path}`;
+    if (!rows.length) { e.ver = -1; e.data = null; }
+    else if (rows[0].changed || !e.has) { e.ver = rows[0].ver; e.data = rows[0].data; }
+    e.has = true; e.at = Date.now(); e.pending = null;
+    return e.data;
+  })().catch((err) => {
+    e.pending = null;
+    if (e.has) { e.at = Date.now() - Math.max(0, ttl - 10_000); return e.data; } // database trouble: keep serving the last copy, retry in ~10s
+    docs.delete(k);
+    throw err;
+  });
+  return e.pending;
+}
+
+// Shallow merge into a document inside Postgres (same result as { ...cur, ...patch }) without pulling it out first.
+// drop: top-level keys to remove. init: extra fields when the document does not exist yet.
+// touch: false leaves `ver` alone, for small status fields that must not make readCached() reload the document.
+// Returns the document's `updatedAt` field after the write.
+export async function patchJSON(path, patch, { init = {}, drop = [], touch = true } = {}) {
+  const s = await db();
+  const first = JSON.stringify({ ...init, ...patch }), p = JSON.stringify(patch);
+  const rows = touch
+    ? await s`INSERT INTO kv (path, data, updated_at) VALUES (${path}, ${first}::jsonb, now())
+              ON CONFLICT (path) DO UPDATE SET data = (kv.data - ${drop}::text[]) || ${p}::jsonb, updated_at = now(), ver = kv.ver + 1
+              RETURNING data -> 'updatedAt' AS u`
+    : await s`INSERT INTO kv (path, data, updated_at) VALUES (${path}, ${first}::jsonb, now())
+              ON CONFLICT (path) DO UPDATE SET data = (kv.data - ${drop}::text[]) || ${p}::jsonb, updated_at = now()
+              RETURNING data -> 'updatedAt' AS u`;
+  return rows[0]?.u ?? null;
+}
+
 export async function writeJSON(path, data) {
   const s = await db();
   await s`INSERT INTO kv (path, data, updated_at) VALUES (${path}, ${JSON.stringify(data)}::jsonb, now())
