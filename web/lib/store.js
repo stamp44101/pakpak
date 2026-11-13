@@ -9,7 +9,9 @@ import { neon } from "@neondatabase/serverless";
 let sql;
 function db() {
   // no-store: Next.js would otherwise cache these fetches inside route handlers and serve stale rows
-  if (!sql) sql = neon(process.env.DATABASE_URL, { fetchOptions: { cache: "no-store" } });
+  // DB_URL_NEXT: Neon project pakpak-db-2 (since 13 Nov 2026, when pakpak-db ran out of its monthly network transfer).
+  // DATABASE_URL is still the old project, managed by the Vercel integration; removing DB_URL_NEXT goes back to it.
+  if (!sql) sql = neon(process.env.DB_URL_NEXT || process.env.DATABASE_URL, { fetchOptions: { cache: "no-store" } });
   return Promise.resolve(sql);
 }
 
