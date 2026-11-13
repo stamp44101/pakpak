@@ -1,4 +1,4 @@
-// Server-only key/value store. Documents live in Postgres (Neon) as JSON rows keyed by path,
+// Server-only key/value store. Documents live in Postgres (Neon project pakpak-db-2) as JSON rows keyed by path,
 // e.g. "members/U123.json" or "meta/roster.json". The old Vercel Blob store (suspended on the Hobby plan
 // until 27 Nov 2026) keeps the earlier data; lib/legacy.js merges it back when it unlocks.
 import { neon } from "@neondatabase/serverless";
