@@ -12,7 +12,7 @@
 
 ## Deploy
 - Vercel: root = `web/`, ตั้ง env `ANTHROPIC_API_KEY`
-- ถ้าใช้โดเมนของตัวเอง ให้เพิ่มโดเมนใน `externally_connectable.matches` ของ `extension/manifest.json`
+- ถ้าใช้โดเมนของตัวเอง ให้เพิ่มโดเมนใน `externally_connectable.matches` ของ `extension/manifest.json` และใน `ALLOWED_ORIGINS` ของ `extension/background.js`
 
 ## สมาชิก (Early Access)
 - เข้าสู่ระบบด้วย LINE Login (`/api/auth/line` → `/api/auth/line/callback`) session เป็น cookie ที่เซ็นด้วย HMAC
