@@ -22,4 +22,4 @@
 - AI ให้คะแนนทีละสินค้า เก็บผลรวมที่ `ai/<shopId_itemId>.json` ใช้ร่วมกันทุกคน สินค้าที่เคยให้คะแนนแล้วไม่เสียค่า AI และไม่นับโควต้า (`AI_DAILY_LIMIT` ค่าเริ่ม 30 ตัวต่อคนต่อวัน)
 
 ## Env
-`LINE_CHANNEL_ID`, `LINE_CHANNEL_SECRET`, `APP_URL`, `EARLY_ACCESS_SEATS`, `ANTHROPIC_API_KEY`, `BLOB_READ_WRITE_TOKEN`
+`LINE_CHANNEL_ID`, `LINE_CHANNEL_SECRET`, `SESSION_SECRET` (เซ็น session cookie ถ้าไม่ตั้งจะใช้ค่าที่ได้จาก `LINE_CHANNEL_SECRET` แทน ตั้ง/เปลี่ยนแล้วทุกคนต้องเข้าสู่ระบบใหม่หนึ่งครั้ง), `APP_URL`, `EARLY_ACCESS_SEATS`, `ANTHROPIC_API_KEY`, `BLOB_READ_WRITE_TOKEN`

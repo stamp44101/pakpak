@@ -9,7 +9,10 @@ const MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 
 export const appUrl = (req) => process.env.APP_URL && !new URL(req.url).host.startsWith("localhost") ? process.env.APP_URL : new URL(req.url).origin;
 export const seats = () => Number(process.env.EARLY_ACCESS_SEATS || 10);
-const key = () => createHmac("sha256", "pukpak-session").update(process.env.LINE_CHANNEL_SECRET || "").digest();
+// Session cookies are signed with SESSION_SECRET. Without it, fall back to the key derived from
+// LINE_CHANNEL_SECRET (as before) so existing deployments keep their sessions. Setting it signs everyone out once.
+const sessionSecret = () => process.env.SESSION_SECRET || process.env.LINE_CHANNEL_SECRET || "";
+const key = () => createHmac("sha256", "pukpak-session").update(sessionSecret()).digest();
 const sign = (s) => createHmac("sha256", key()).update(s).digest("base64url");
 
 export function sessionCookie(sub) {
@@ -19,7 +22,7 @@ export function sessionCookie(sub) {
 export const clearCookie = () => `${COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`;
 
 export function readSession(req) {
-  if (!process.env.LINE_CHANNEL_SECRET) return null;
+  if (!sessionSecret()) return null;
   const c = (req.headers.get("cookie") || "").split(/;\s*/).find((x) => x.startsWith(COOKIE + "="));
   return c ? readSessionValue(c.slice(COOKIE.length + 1)) : null;
 }
@@ -27,7 +30,7 @@ export function readSession(req) {
 // Same check from a raw cookie value (server components use next/headers cookies()).
 export const SESSION_COOKIE = COOKIE;
 export function readSessionValue(value) {
-  if (!process.env.LINE_CHANNEL_SECRET || !value) return null;
+  if (!sessionSecret() || !value) return null;
   const [body, sig] = value.split(".");
   if (!body || !sig) return null;
   const a = Buffer.from(sig), b = Buffer.from(sign(body));
