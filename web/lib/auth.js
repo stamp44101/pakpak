@@ -107,7 +107,7 @@ export async function ensureMember(sub, profile = {}) {
     return m;
   }
   const r = await roster();
-  if (!r.admins.length) return null; // before the owner has claimed the new database nobody is auto-created
+  if (!r.admins.length) return null; // a database with no admin yet: nobody is auto-created
   m = { id: sub, name: profile.name || "สมาชิก", picture: profile.picture || "", status: "active", joinedAt: Date.now(), ai: { day: "", count: 0 },
     plan: "free", proUntil: null, freeSince: Date.now(), returning: true };
   await restoreLegacy(m);
@@ -135,7 +135,7 @@ export async function openFree(m, r) {
 export async function joinOrUpdate(profile) {
   let m = await getMember(profile.sub);
   if (!m) {
-    let early = false; // the owner claims admin explicitly via /api/admin/claim
+    let early = false;
     if (seatsLeft(await roster()) > 0) await mutateRoster((x) => {
       early = !x.early.includes(profile.sub) && seatsLeft(x) > 0;
       if (early) x.early.push(profile.sub);
