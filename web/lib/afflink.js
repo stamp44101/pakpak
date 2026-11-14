@@ -32,6 +32,16 @@ const SHOPEE_HOST = /(^|\.)(shopee\.co\.th|shp\.ee|shope\.ee)$/i;
 export function shopeeHttps(u) {
   try { const x = new URL(/^https?:\/\//i.test(u) ? u : "https://" + u); return x.protocol === "https:" && !x.port && !x.username && SHOPEE_HOST.test(x.hostname) ? x.toString() : null; } catch { return null; }
 }
+// A saved product link (url / affLink) must be an explicit https:// URL on a Shopee host.
+export const isShopeeLink = (u) => typeof u === "string" && /^https:\/\//i.test(u) && !!shopeeHttps(u);
+// Drops url / affLink values that are not Shopee https links (javascript:, other sites...). Mutates and returns products.
+export function stripBadLinks(products) {
+  for (const p of Object.values(products || {})) {
+    if (!p || typeof p !== "object") continue;
+    for (const f of ["url", "affLink"]) if (f in p && !isShopeeLink(p[f])) delete p[f];
+  }
+  return products;
+}
 export async function resolveShortLink(u) {
   let cur = u;
   for (let i = 0; i < 6; i++) {

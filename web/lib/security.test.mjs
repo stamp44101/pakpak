@@ -28,3 +28,16 @@ test("plan keys that are not real plans fall back to the monthly plan", () => {
   }
   assert.equal(pickOrder({}, "year"), "year");
 });
+test("saved product links keep only https Shopee URLs", async () => {
+  const { stripBadLinks } = await import("./afflink.js");
+  const p = stripBadLinks({
+    a: { id: "a", url: "https://shopee.co.th/product/1/2", affLink: "https://s.shopee.co.th/abc" },
+    b: { id: "b", url: "javascript:alert(1)", affLink: "https://evil.com/?shopee.co.th" },
+    c: { id: "c", url: "http://shopee.co.th/product/1/2", affLink: "s.shopee.co.th/abc" },
+    d: { id: "d", url: 5, affLink: "https://shopee.co.th.evil.com/x" },
+    e: null,
+  });
+  assert.deepEqual(p.a, { id: "a", url: "https://shopee.co.th/product/1/2", affLink: "https://s.shopee.co.th/abc" });
+  for (const k of ["b", "c", "d"]) assert.deepEqual(p[k], { id: k }, k);
+  assert.equal(p.e, null);
+});

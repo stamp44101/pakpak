@@ -5,6 +5,7 @@ import { isPro } from "../../../lib/plan";
 import { roster } from "../../../lib/auth";
 import { recordSold } from "../../../lib/trending";
 import { isSharedCopy } from "../../../lib/access";
+import { stripBadLinks } from "../../../lib/afflink";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,9 +33,10 @@ export async function PUT(req) {
     const updatedAt = await patchJSON(path(member), patch, { init: { products: {}, updatedAt: 0 }, touch: false });
     return Response.json({ ok: true, updatedAt: updatedAt || 0 });
   }
-  if (!body || typeof body.products !== "object") return Response.json({ error: "bad body" }, { status: 400 });
+  if (!body || !body.products || typeof body.products !== "object" || Array.isArray(body.products)) return Response.json({ error: "bad body" }, { status: 400 });
   if (!isPro(member)) return Response.json({ error: "บันทึกสินค้าที่สแกนเองได้ในแพ็ก Pro", upgrade: true }, { status: 403 });
   if (JSON.stringify(body.products).length > 3_000_000) return Response.json({ error: "too large" }, { status: 413 });
+  stripBadLinks(body.products); // product links are shown and opened as-is: only Shopee https links are kept
   // real scans replace any shared copy an old bug left here. Merged inside Postgres: reading the old document back
   // on every save (each scan saves many times) was a large part of the database's network transfer.
   const updatedAt = Date.now();
