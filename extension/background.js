@@ -192,19 +192,33 @@ async function handle(msg) {
       if (tab && tab.url && !tab.url.startsWith(AFF)) await chrome.tabs.update(tab.id, { url: AFF_HOME });
       return { ok: true };
     }
-    case "search":
-      return run("search", msg.opts || {});
+    case "search": {
+      // only the known options, as plain numbers/short text — nothing else from the page reaches the Shopee tab
+      const o = msg.opts || {}, int = (v, d, max) => Math.min(max, Math.max(0, Math.floor(Number(v)) || d));
+      return run("search", { listType: int(o.listType, 0, 99), sortType: int(o.sortType, 2, 99), offset: int(o.offset, 0, 5000), limit: int(o.limit, 20, 50), keyword: String(o.keyword || "").slice(0, 100) });
+    }
     case "links": {
-      const items = (msg.items || []).slice(0, 20);
+      const items = (Array.isArray(msg.items) ? msg.items : []).slice(0, 20).map((i) => ({ itemId: String(i && i.itemId), shopId: Number(i && i.shopId) })).filter((i) => /^\d+$/.test(i.itemId) && i.shopId > 0);
       if (!items.length) return { links: [] };
-      return run("links", { items, subIds: msg.subIds });
+      const subIds = (Array.isArray(msg.subIds) ? msg.subIds : []).slice(0, 5).map((x) => String(x || "").slice(0, 50));
+      return run("links", { items, subIds });
     }
     default:
       return { error: "unknown_type" };
   }
 }
 
+// Web pages that may drive the extension. The manifest's externally_connectable already limits who can connect;
+// the sender is checked again here so a wider manifest pattern alone can never open the Shopee session to other sites.
+const ALLOWED_ORIGINS = ["https://pugpak.com", "https://www.pugpak.com"];
+const fromApp = (sender) => {
+  let o = sender && sender.origin;
+  if (!o) { try { o = new URL(sender.url).origin; } catch { return false; } }
+  return ALLOWED_ORIGINS.includes(o) || /^http:\/\/localhost(:\d+)?$/.test(o);
+};
+
 chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
+  if (!fromApp(sender)) { sendResponse({ error: "forbidden_origin" }); return false; }
   handle(msg).then(sendResponse, (e) => sendResponse({ error: String(e && e.message || e) }));
   return true;
 });

@@ -22,7 +22,9 @@ export const ORDERS = {
 ORDERS.r1111 = { price: 69, days: 0, addon: "r1111", label: "รายงานสรุปก่อน 11.11", span: "รายงาน" };
 export const hasAddon = (m, k) => !!m?.addons?.[k];
 export const canReport1111 = (m) => isPro(m) || hasAddon(m, "r1111");
-export const orderLive = (p, now = Date.now()) => !!ORDERS[p] && (!ORDERS[p].until || ORDERS[p].until > now);
+// Plan keys arrive from postback data: only real entries count (not "constructor" and other inherited names).
+const order = (p) => (Object.hasOwn(ORDERS, p) ? ORDERS[p] : undefined);
+export const orderLive = (p, now = Date.now()) => !!order(p) && (!order(p).until || order(p).until > now);
 // ฿99 promo sent by an admin (/admin → "🎁 เสนอ ฿99", one member or the whole "สนใจ Pro" group).
 // m.promo = { at, until, by, interestedAt?, declinedAt?, plan?, paidAt? } tracks the card's funnel; the price ends at `until`.
 export const PROMO_HOURS = 48;
@@ -30,8 +32,8 @@ export const promoLive = (m) => !!(m?.foundingOffer && (!m.promo?.until || m.pro
 // Founding prices: only for members an admin offered them to (still within the promo window), or who already bought one.
 export const foundingOpen = (m) => !!(m?.founding || promoLive(m));
 // What a member is allowed to pick: a founding plan only while foundingOpen, else the matching regular one.
-export const pickOrder = (m, p) => (ORDERS[p]?.founding && !foundingOpen(m) ? (p === "fyear" ? "year" : "month") : orderLive(p) ? p : "month");
-export const orderOf = (plan) => ORDERS[plan] || ORDERS.month;
+export const pickOrder = (m, p) => (order(p)?.founding && !foundingOpen(m) ? (p === "fyear" ? "year" : "month") : orderLive(p) ? p : "month");
+export const orderOf = (plan) => order(plan) || ORDERS.month;
 // A chosen plan with no slip after this long is cancelled (a late slip still revives it, see webhook).
 export const ORDER_TTL_H = 24;
 export function expireOrder(m) {

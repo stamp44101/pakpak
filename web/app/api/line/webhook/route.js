@@ -5,9 +5,9 @@ import { getMember, ensureMember, saveMember, roster, seatsLeft, isAdmin } from 
 import { freeWelcome } from "../../../../lib/welcome";
 import { notifyDiscord, notifyError } from "../../../../lib/discord";
 import { addViews } from "../../../../lib/activity";
-import { readJSON, writeJSON, readCached } from "../../../../lib/store";
+import { readJSON, writeJSON, updateJSON, readCached } from "../../../../lib/store";
 import { rank, effPrice } from "../../../../lib/score";
-import { scoreItem, myIdeas, moreIdea, IDEA_EXTRA } from "../../../../lib/ai";
+import { scoreItem, cachedScore, myIdeas, moreIdea, IDEA_EXTRA } from "../../../../lib/ai";
 import { isPro, orderOf, pickOrder, makeAdminPro, promoLive, ORDERS, PLANS } from "../../../../lib/plan";
 const PRO_AI = PLANS.pro.aiPerDay;
 import { ownerProducts, publicProduct } from "../../../../lib/catalog";
@@ -272,7 +272,7 @@ const cleanWant = (w) => {
 function pickCat(all, want, cats, uid) {
   want = cleanWant(want);
   if (want) {
-    const syn = SYNONYMS[want.toLowerCase()];
+    const syn = Object.hasOwn(SYNONYMS, want.toLowerCase()) ? SYNONYMS[want.toLowerCase()] : null;
     if (syn && cats.includes(syn)) return syn;
     return cats.find((c) => c === want) || cats.find((c) => c.includes(want) || want.includes(c))
       // a scanned keyword inside a category, e.g. "พัดลมพกพา" → แก็ดเจ็ต
@@ -413,14 +413,21 @@ async function notInCatalog(want, cats, { m, view, state } = {}) {
 }
 
 // Count what people search for that isn't in the catalog (shown in /admin).
+// The keyword is whatever a member typed: only own keys are read ("__proto__" must not reach Object.prototype),
+// and the document is capped so typing endless new words can't grow it without limit.
+const REQUESTS_MAX = 500;
 async function logRequest(kw, uid) {
-  if (!kw) return;
-  const r = (await readJSON("meta/requests.json")) || {};
-  const x = r[kw] || { count: 0, users: [], first: Date.now() };
-  x.count++; x.last = Date.now();
-  if (uid && !x.users.includes(uid)) x.users.push(uid);
-  r[kw] = x;
-  await writeJSON("meta/requests.json", r);
+  if (!kw || kw === "__proto__") return;
+  await updateJSON("meta/requests.json", (r) => {
+    const old = Object.hasOwn(r, kw) ? r[kw] : null;
+    const x = old ? { ...old, users: [...(old.users || [])] } : { count: 0, users: [], first: Date.now() };
+    x.count = (x.count || 0) + 1; x.last = Date.now();
+    if (uid && !x.users.includes(uid)) x.users.push(uid);
+    const all = Object.entries({ ...r, [kw]: x });
+    if (all.length <= REQUESTS_MAX) return Object.fromEntries(all);
+    // over the cap: keep the keywords most people asked for, then the most recent
+    return Object.fromEntries(all.sort(([, a], [, b]) => (b.users?.length || 0) - (a.users?.length || 0) || (b.last || 0) - (a.last || 0)).slice(0, REQUESTS_MAX));
+  });
 }
 
 // Stored rank (6–10 while a category's top 5 is locked) wins over the order re-ranked from a partial list.
@@ -452,7 +459,7 @@ async function aiIdea(e, m, state, id, view) {
   if (!p) return reply(e.replyToken, text("ไม่พบสินค้านี้แล้ว ลองพิมพ์ \"ท็อป\" ใหม่ค่ะ"));
   const gate = await reserveAi(m, view, id);
   if (!gate.ok) return reply(e.replyToken, [text(`แพ็ก Free ดูไอเดียคลิปจาก AI ได้วันละ ${gate.limit} ตะกร้า ครบแล้ววันนี้ค่ะ\nตะกร้าที่เปิดไปแล้ววันนี้ กดดูซ้ำได้ · พรุ่งนี้ดูตะกร้าใหม่ได้อีก · อัปเกรด Pro ดูได้วันละ ${PRO_AI} ตะกร้า + ไอเดียส่วนตัว`), buyCard(m)]);
-  let s = p.ai || (await readJSON(`ai/${id}.json`).catch(() => null));
+  let s = p.ai || (await cachedScore(p).catch(() => null));
   if (!s) {
     loading(e.source.userId, 20).catch(() => {});
     const r = await scoreItem(m, { id: p.id, name: p.name, price: effPrice(p), category: p.category });

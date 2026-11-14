@@ -245,9 +245,9 @@ async function giveAi(m, day) {
 // ---- demand: the same document and shape as "หา <คำ>" (route.js logRequest), shown in /admin.
 async function logDemand(want, uid) {
   const kw = norm(want).slice(0, 40);
-  if (!kw) return;
+  if (!kw || kw === "__proto__") return;
   await updateJSON("meta/requests.json", (r) => {
-    const x = r[kw] ? { ...r[kw], users: [...(r[kw].users || [])] } : { count: 0, users: [], first: Date.now() };
+    const x = Object.hasOwn(r, kw) ? { ...r[kw], users: [...(r[kw].users || [])] } : { count: 0, users: [], first: Date.now() };
     x.count++; x.last = Date.now();
     if (uid && !x.users.includes(uid)) x.users.push(uid);
     return { ...r, [kw]: x };
