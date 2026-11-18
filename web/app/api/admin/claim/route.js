@@ -1,16 +1,19 @@
 // One-time: the owner claims admin on a fresh database (after the 28 Oct 2026 move).
-// Needs a signed-in session + the one-time token (only its SHA-256 is stored here); only works while the roster has no admins.
+// Needs a signed-in session + the one-time token; only works while the roster has no admins.
+// The token's SHA-256 comes from env ADMIN_CLAIM_HASH. Unset (the normal state) = this route is off.
+// It used to be written in this file, in a public repo: to claim a fresh database again, make a new long random
+// token, set ADMIN_CLAIM_HASH to its SHA-256 (hex) in Vercel, open /api/admin/claim?token=…, then remove the env.
 import { createHash } from "crypto";
 import { readSession, getMember, saveMember, mutateRoster } from "../../../../lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-const CLAIM_HASH = "9f937b408b0e0d0a226d1037e42b92b3a1cb2ac0a4572035bb02d1bec55264af";
 
 export async function GET(req) {
   const s = readSession(req);
   const token = new URL(req.url).searchParams.get("token");
-  const ok = token && createHash("sha256").update(token).digest("hex") === CLAIM_HASH;
+  const want = (process.env.ADMIN_CLAIM_HASH || "").trim().toLowerCase();
+  const ok = /^[a-f0-9]{64}$/.test(want) && token && createHash("sha256").update(token).digest("hex") === want;
   if (!s || !ok) return Response.json({ error: "forbidden" }, { status: 403 });
   let taken = false;
   await mutateRoster((r) => {

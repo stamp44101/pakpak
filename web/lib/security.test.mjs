@@ -4,6 +4,18 @@ import assert from "node:assert/strict";
 import { shopeeHop, cleanProductUrl } from "./afflink.js";
 import { trustedItem } from "./ai.js";
 import { collectionView } from "./collections.js";
+import { safeLink, safeProducts } from "./safe.js";
+
+test("saved products keep http(s) links and lose script links", () => {
+  for (const ok of ["https://shopee.co.th/product/1/2", "http://shopee.co.th/x", "https://s.shopee.co.th/abc", "shopee.co.th/product/1/2", "/product/1/2"]) assert.equal(safeLink(ok), true, ok);
+  for (const bad of ["javascript:alert(1)", "JaVaScRiPt:alert(1)", " java\tscript:alert(1)", "data:text/html,<script>1</script>", "vbscript:x", 5, {}, null]) assert.equal(safeLink(bad), false, String(bad));
+  const out = safeProducts({ "1_2": { id: "1_2", name: "ก", url: "javascript:alert(1)", affLink: "https://s.shopee.co.th/x", longLink: "", sold: 3 }, "3_4": "junk", "5_6": { id: "5_6", url: "https://shopee.co.th/product/5/6" } });
+  assert.deepEqual(out, { "1_2": { id: "1_2", name: "ก", affLink: "https://s.shopee.co.th/x", longLink: "", sold: 3 }, "5_6": { id: "5_6", url: "https://shopee.co.th/product/5/6" } });
+});
+test("products that aren't a map are refused", () => {
+  for (const bad of [null, undefined, [], "x", 3]) assert.equal(safeProducts(bad), null);
+  assert.deepEqual(safeProducts({}), {});
+});
 
 test("short-link follower only fetches https Shopee hosts", () => {
   for (const ok of ["https://s.shopee.co.th/abc", "https://shp.ee/x", "https://shope.ee/x", "https://shopee.co.th/universal-link/x", "https://affiliate.shopee.co.th/x"])
