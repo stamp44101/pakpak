@@ -26,11 +26,18 @@ export const SHORT_NOTE = "หมายเหตุ: หากต้องกา
 export const isShortLink = (u) => /^(https?:\/\/)?(s\.shopee\.co\.th|shp\.ee|shope\.ee)\//i.test(String(u || ""));
 
 // Server only: follow a short link (s.shopee.co.th/xxxx, shp.ee/xxxx) to the product page. null if it isn't a product.
+// The server only ever fetches https URLs on Shopee's own hosts: the link comes from a chat message, and each
+// redirect could otherwise point this server at any address (SSRF).
+export const shopeeHop = (u) => {
+  try { const x = new URL(u); return x.protocol === "https:" && !x.username && !x.port && /(^|\.)(shopee\.co\.th|shopee\.com|shp\.ee|shope\.ee)$/i.test(x.hostname); } catch { return false; }
+};
 export async function resolveShortLink(u) {
-  let cur = u;
+  let cur = String(u || "").trim();
+  cur = /^https?:\/\//i.test(cur) ? cur.replace(/^http:/i, "https:") : "https://" + cur;
   for (let i = 0; i < 6; i++) {
     const hit = cleanProductUrl(cur);
     if (hit) return hit;
+    if (!shopeeHop(cur)) return null;
     const r = await fetch(cur, { method: "GET", redirect: "manual", headers: { "user-agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" }, signal: AbortSignal.timeout(5000) }).catch(() => null);
     const next = r && r.status >= 300 && r.status < 400 && r.headers.get("location");
     if (!next) return null;

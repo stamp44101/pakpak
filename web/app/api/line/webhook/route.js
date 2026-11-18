@@ -272,7 +272,7 @@ const cleanWant = (w) => {
 function pickCat(all, want, cats, uid) {
   want = cleanWant(want);
   if (want) {
-    const syn = SYNONYMS[want.toLowerCase()];
+    const syn = Object.hasOwn(SYNONYMS, want.toLowerCase()) ? SYNONYMS[want.toLowerCase()] : null;
     if (syn && cats.includes(syn)) return syn;
     return cats.find((c) => c === want) || cats.find((c) => c.includes(want) || want.includes(c))
       // a scanned keyword inside a category, e.g. "พัดลมพกพา" → แก็ดเจ็ต
@@ -414,9 +414,11 @@ async function notInCatalog(want, cats, { m, view, state } = {}) {
 
 // Count what people search for that isn't in the catalog (shown in /admin).
 async function logRequest(kw, uid) {
-  if (!kw) return;
+  // kw is typed by a member. "__proto__" as a key would hand back Object.prototype, and the count++ below
+  // would then write onto every object in this server instance.
+  if (!kw || kw === "__proto__") return;
   const r = (await readJSON("meta/requests.json")) || {};
-  const x = r[kw] || { count: 0, users: [], first: Date.now() };
+  const x = Object.hasOwn(r, kw) ? r[kw] : { count: 0, users: [], first: Date.now() };
   x.count++; x.last = Date.now();
   if (uid && !x.users.includes(uid)) x.users.push(uid);
   r[kw] = x;
