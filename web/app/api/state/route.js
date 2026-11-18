@@ -5,6 +5,7 @@ import { isPro } from "../../../lib/plan";
 import { roster } from "../../../lib/auth";
 import { recordSold } from "../../../lib/trending";
 import { isSharedCopy } from "../../../lib/access";
+import { safeProducts } from "../../../lib/safe";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,14 +33,16 @@ export async function PUT(req) {
     const updatedAt = await patchJSON(path(member), patch, { init: { products: {}, updatedAt: 0 }, touch: false });
     return Response.json({ ok: true, updatedAt: updatedAt || 0 });
   }
-  if (!body || typeof body.products !== "object") return Response.json({ error: "bad body" }, { status: 400 });
+  const products = safeProducts(body?.products); // drops link fields that aren't http(s), see lib/safe.js
+  if (!products) return Response.json({ error: "bad body" }, { status: 400 });
   if (!isPro(member)) return Response.json({ error: "บันทึกสินค้าที่สแกนเองได้ในแพ็ก Pro", upgrade: true }, { status: 403 });
-  if (JSON.stringify(body.products).length > 3_000_000) return Response.json({ error: "too large" }, { status: 413 });
+  if (JSON.stringify(products).length > 3_000_000) return Response.json({ error: "too large" }, { status: 413 });
   // real scans replace any shared copy an old bug left here. Merged inside Postgres: reading the old document back
   // on every save (each scan saves many times) was a large part of the database's network transfer.
   const updatedAt = Date.now();
-  await patchJSON(path(member), { products: body.products, ...(body.account ? { account: body.account } : {}), updatedAt }, { init: { account: null }, drop: ["shared", "locked", "lockedIds"] });
+  const account = typeof body.account === "string" && body.account ? body.account.slice(0, 80) : null;
+  await patchJSON(path(member), { products, ...(account ? { account } : {}), updatedAt }, { init: { account: null }, drop: ["shared", "locked", "lockedIds"] });
   // the owner's scans are the shared catalog: keep a daily sales snapshot for "มาแรงวันนี้"
-  if ((await roster()).admins[0] === member.id) await recordSold(body.products).catch((e) => console.error("recordSold", e));
+  if ((await roster()).admins[0] === member.id) await recordSold(products).catch((e) => console.error("recordSold", e));
   return Response.json({ ok: true, updatedAt });
 }
