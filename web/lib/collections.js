@@ -44,7 +44,7 @@ export { slugFromQuery } from "./collection-slug.js";
 
 // What a member may see. Free: title + group names + counts only (no names, links, ids or images).
 export function collectionView(slug, m, { admin = false } = {}) {
-  const c = COLLECTIONS[slug];
+  const c = Object.hasOwn(COLLECTIONS, slug) ? COLLECTIONS[slug] : null; // not "constructor", "__proto__"…
   if (!c) return null;
   const count = c.groups.reduce((n, [, items]) => n + items.length, 0);
   const head = { slug, title: c.title, updated: c.updated, count };

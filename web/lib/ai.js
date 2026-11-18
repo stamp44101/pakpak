@@ -4,8 +4,18 @@ import { readJSON, writeJSON, updateJSON } from "./store";
 import { memberPath } from "./auth";
 import { planOf } from "./plan";
 import { viewOf, RULES } from "./access";
+import { effPrice } from "./score";
 
 export const MODEL = process.env.ANTHROPIC_MODEL || "claude-haiku-5-5";
+
+// The score is cached for every member (ai/<id>.json), so the product facts in the prompt must be ours whenever
+// we have them: a name sent by the browser could otherwise plant text that other members then read as "AI".
+// `catalog` = ownerProducts(). Products outside it (a Pro member's own scans) still use what the member sent.
+export function trustedItem(item, catalog) {
+  const id = String(item?.id || "");
+  const known = (catalog || []).find((p) => p.id === id);
+  return known ? { id, name: known.name, price: effPrice(known), category: known.category } : item;
+}
 
 // Returns { score, cached } or { error, status }.
 export async function scoreItem(member, item, refresh = false) {

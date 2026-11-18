@@ -193,18 +193,40 @@ async function handle(msg) {
       return { ok: true };
     }
     case "search":
-      return run("search", msg.opts || {});
+      return run("search", cleanOpts(msg.opts));
     case "links": {
-      const items = (msg.items || []).slice(0, 20);
+      const items = cleanItems(msg.items);
       if (!items.length) return { links: [] };
-      return run("links", { items, subIds: msg.subIds });
+      return run("links", { items, subIds: cleanSubIds(msg.subIds) });
     }
     default:
       return { error: "unknown_type" };
   }
 }
 
+// Messages come from a web page, so nothing in them is trusted: fixed shapes, bounded sizes.
+const int = (v, d, min, max) => { const n = Math.trunc(Number(v)); return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : d; };
+function cleanOpts(o) {
+  o = o && typeof o === "object" ? o : {};
+  return { keyword: typeof o.keyword === "string" ? o.keyword.slice(0, 100) : "", listType: int(o.listType, 0, 0, 99), sortType: int(o.sortType, 2, 0, 99), offset: int(o.offset, 0, 0, 10000), limit: int(o.limit, 20, 1, 50) };
+}
+const cleanItems = (items) => (Array.isArray(items) ? items : []).slice(0, 20)
+  .map((i) => ({ itemId: String((i && i.itemId) ?? ""), shopId: Number(i && i.shopId) }))
+  .filter((i) => /^\d{1,20}$/.test(i.itemId) && Number.isSafeInteger(i.shopId) && i.shopId > 0);
+const cleanSubIds = (s) => (Array.isArray(s) ? s : []).slice(0, 5).map((x) => String(x ?? "").slice(0, 100));
+
+// Only the ปั๊กปัก web app may use the Shopee session. externally_connectable in the manifest is the first gate;
+// this is the second, so a too-wide match pattern there can never open the Connector to another site again.
+// (Until 0.2.1 the manifest allowed https://*.vercel.app/* — any site hosted on Vercel.)
+const APP_ORIGINS = new Set(["https://pugpak.com", "https://www.pugpak.com", "https://pakpak-two.vercel.app"]);
+function fromApp(sender) {
+  let o = (sender && sender.origin) || "";
+  if (!o && sender && sender.url) { try { o = new URL(sender.url).origin; } catch {} }
+  return APP_ORIGINS.has(o) || /^http:\/\/localhost(:\d+)?$/.test(o); // localhost: `npm run dev`
+}
+
 chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
+  if (!fromApp(sender)) { sendResponse({ error: "forbidden" }); return false; }
   handle(msg).then(sendResponse, (e) => sendResponse({ error: String(e && e.message || e) }));
   return true;
 });
