@@ -12,7 +12,7 @@
 
 ## Deploy
 - Vercel: root = `web/`, ตั้ง env `ANTHROPIC_API_KEY`
-- ถ้าใช้โดเมนของตัวเอง ให้เพิ่มโดเมนใน `externally_connectable.matches` ของ `extension/manifest.json`
+- ถ้าใช้โดเมนของตัวเอง ต้องเพิ่มโดเมน **2 ที่** แล้วสร้าง `web/public/pukpak-connector.zip` ใหม่: `externally_connectable.matches` ใน `extension/manifest.json` และ `APP_ORIGINS` ใน `extension/background.js` (ขาดที่ใดที่หนึ่ง เว็บจะได้ `no_extension` หรือ `forbidden`) · ห้ามใส่ wildcard แบบ `*.vercel.app` — เว็บของคนอื่นจะสั่ง Connector ได้
 
 ## สมาชิก (Early Access)
 - เข้าสู่ระบบด้วย LINE Login (`/api/auth/line` → `/api/auth/line/callback`) session เป็น cookie ที่เซ็นด้วย HMAC
